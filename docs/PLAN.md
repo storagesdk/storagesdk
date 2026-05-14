@@ -29,7 +29,6 @@ storagesdk/
 ├── pnpm-lock.yaml
 ├── tsconfig.base.json
 ├── biome.json
-├── vitest.config.base.ts
 ├── .changeset/
 ├── .github/workflows/
 ├── packages/
@@ -38,8 +37,7 @@ storagesdk/
 │   │   ├── test/
 │   │   ├── package.json
 │   │   ├── tsconfig.json
-│   │   ├── tsup.config.ts
-│   │   └── vitest.config.ts
+│   │   └── tsconfig.build.json
 │   └── adapters/
 │       ├── fs/                 # @storagesdk/fs
 │       ├── s3/                 # @storagesdk/s3
@@ -50,8 +48,9 @@ storagesdk/
 │   ├── snapshot-restore/
 │   ├── fork-experiment/
 │   └── browser-upload/
-├── RFC.md
-└── PLAN.md
+└── docs/
+    ├── RFC.md
+    └── PLAN.md
 ```
 
 ## Phases
@@ -74,42 +73,47 @@ Exit: `pnpm install && pnpm build && pnpm test` runs cleanly on an empty repo.
 
 Land the API shape from the RFC. No real adapter yet — use an in-memory test adapter to exercise the surface.
 
-- `StorageError` with `code` and `cause`
-- Types: `StorageItem`, `ListResult`, `UploadUrlResult` (discriminated PUT/POST), `SnapshotInfo`, `UploadOptions`, `DownloadOptions`, `ListOptions`, `UploadUrlOptions`, `UrlOptions`, `ForkOptions`, `CreateSnapshotOptions`
-- Interfaces: `BasicAdapter` (8 methods), `Adapter` (BasicAdapter + `snapshots` + `fork`), `ReadOnlyStorage`
-- `Storage` class — wraps an Adapter, delegates calls
-- `Snapshot` class — read-only handle with `.id`, `download`, `head`, `list`, `url`
-- `storage.snapshots`: `create`, `list`, `get`, `delete`
-- `storage.fork(...)`: returns a new `Storage`
-- `defineAdapter(...)` — for now, requires full Adapter (no defaults yet)
+- `StorageError` with `code` (`NotFound | NotSupported | Conflict | Unauthorized | InvalidArgument | Provider`) and `cause`
+- Types: `StorageItemMeta` (metadata only), `StorageItem` (extends `StorageItemMeta` with `body: Uint8Array`), `ListResult`, `UploadUrlResult` (discriminated PUT/POST), `SnapshotInfo`, `ForkInfo`, `UploadOptions`, `ListOptions`, `UploadUrlOptions`, `UrlOptions`, `ForkOptions`, `CreateSnapshotOptions`, progress types
+- Interfaces:
+  - `ReadOnlyAdapter` (the four read methods: `download`, `head`, `list`, `url`)
+  - `AdapterSnapshots` and `AdapterForks` — the two namespace contracts. Each has five methods (`create`, `list`, `head`, `delete`, `get`). Exported so adapter authors can implement them in isolation.
+  - `Adapter` extends `ReadOnlyAdapter` with writes (`upload`, `delete`, `copy`, `move`, `uploadUrl`) plus `snapshots: AdapterSnapshots` and `forks: AdapterForks`.
+  - `AdapterSnapshots.get(id)` returns `ReadOnlyAdapter`. `AdapterForks.get(name)` returns `Adapter`.
+- Classes:
+  - `ReadOnlyStorage` — wraps a `ReadOnlyAdapter`. Provides overloaded `download` (`as: 'stream' | 'text' | 'bytes' | 'blob' | 'json'`) and the other read methods. Exported as **type only** from `@storagesdk/core` (no public constructor; instances come from `storage.snapshots.get(id)`).
+  - `Storage` extends `ReadOnlyStorage`. Adds writes, plus `snapshots` and `forks` namespaces declared with inline types (the consumer-facing shape — distinct from the adapter-facing `AdapterSnapshots` / `AdapterForks`). Decoupled from `Adapter` (does not `implements Adapter`).
+- `storage.snapshots.get(id)` returns a `ReadOnlyStorage`; `storage.forks.get(name)` returns a `Storage`.
+- No `storage.fork()` method — call `storage.forks.create()`.
+- `defineAdapter(impl)` — wraps every path-taking method with `normalizePath`; normalizes paths on readers returned by `snapshots.get`; recursively re-wraps adapters returned by `forks.get`. For now, requires the full Adapter shape (no defaults yet).
 - `toWebStream` utility for adapters that get Node `Readable` or other body shapes
 - In-memory test adapter in `core/test` exercising the full surface
 
-Exit: tests cover every method on `Storage` and `Snapshot` against the in-memory adapter. Types are tight enough that omitting a method from a `defineAdapter` call is a TypeScript error.
+Exit: tests cover every method on `Storage`, `ReadOnlyStorage`, the snapshots namespace, and the forks namespace against the in-memory adapter. Types are tight enough that omitting a method from a `defineAdapter` call is a TypeScript error.
 
 ### Phase 2 — default snapshot and fork
 
-Make `defineAdapter` accept a `BasicAdapter` and fill in `snapshots` and `fork` itself.
+Make `defineAdapter` accept an adapter that omits the `snapshots` or `forks` namespace, and fill in defaults built on top of the basic operations.
 
-- Manifest format: `{ id, name?, createdAt, entries: [{ path, size, etag }] }` at `.snapshots/<id>.json`
-- Default `snapshots.create`: paginate `list({ prefix: '' })`, write manifest, return `{ id, name, createdAt }`
-- Default `snapshots.list`: `list({ prefix: '.snapshots/' })`, parse manifests
-- Default `snapshots.delete`: delete manifest object + (decision below) any copied entries
-- Default `snapshots.download/head/list/url`: read through the manifest, delegate to basic ops on real keys
-- Default `fork`: requires the adapter to expose a way to instantiate at a new location. Two options on the table — pick during this phase:
-  - (a) `BasicAdapter` declares an optional `withScope(name)` method that returns a fresh adapter pointed at the new location.
-  - (b) Caller passes `destination: Adapter` into `fork(...)` and the SDK just copies into it.
+- Manifest format for snapshots: `{ id, name?, createdAt, entries: [{ path, size, etag }] }` at `.snapshots/<id>.json`
+- Manifest format for forks: `{ name, fromSnapshot, createdAt, destination }` at `.forks/<name>.json`
+- Default `snapshots.create`: paginate `list({ prefix: '' })`, write manifest, return `SnapshotInfo`
+- Default `snapshots.list`: list `.snapshots/` prefix, parse manifests, return `SnapshotInfo[]`
+- Default `snapshots.head/delete`: load / delete the manifest
+- Default `snapshots.get(id)`: returns a `ReadOnlyAdapter` whose methods read through the manifest
+- Default `forks.create`: copy every entry from the snapshot to a new location, write manifest. Requires a way to point the adapter at a new location (see open question below).
+- Default `forks.list/head/delete/get`: same pattern as snapshots, against `.forks/` prefix
 - Progress callbacks and `AbortSignal` plumbing
-- Tests: same in-memory adapter as phase 1, now run against a `defineAdapter` wrapper to confirm the defaults work
+- Tests: same in-memory adapter as phase 1, now run with the defaults active to confirm parity with the native implementation
 
-Exit: an adapter that only implements the 8 basic ops gets working snapshot and fork for free, and tests prove it.
+Exit: an adapter that only implements the basic ops gets working snapshot and fork for free, and tests prove it.
 
 ### Phase 3 — filesystem adapter
 
 The reference adapter. Doubles as the test fixture for everything downstream.
 
 - `@storagesdk/fs`
-- 8 basic ops over `node:fs/promises`
+- 9 basic ops over `node:fs/promises` (`upload`, `download`, `head`, `list`, `delete`, `copy`, `move`, `url`, `uploadUrl`)
 - Native snapshot and fork via hardlinks where the platform supports it (fall through to copy when not). Native fork creates a sibling directory and hardlinks every file.
 - Streaming download via `Readable.toWeb(fs.createReadStream(...))`
 - Signed URLs are just file:// URLs with an expiry timestamp encoded — documented as not-actually-signed, useful for local dev and tests
@@ -123,7 +127,7 @@ The first cloud adapter. Drives out all the real-world edges.
 
 - `@storagesdk/s3`
 - Built on `@aws-sdk/client-s3` (v3, peer dep)
-- 8 basic ops, multipart upload via `@aws-sdk/lib-storage`
+- 9 basic ops, multipart upload via `@aws-sdk/lib-storage`
 - Stream normalization via `toWebStream` (handles Node `Readable` and Web `ReadableStream` from the AWS SDK)
 - Uses the default snapshot/fork from `defineAdapter` for v1
 - Tests against LocalStack or MinIO (TBD — see Testing below)
@@ -137,7 +141,7 @@ The native-everything adapter, in parallel with phase 4 once phase 3 is done.
 
 - `@storagesdk/tigris`
 - Built on the existing Tigris client (reuse `@tigrisdata/storage` internals where useful)
-- 8 basic ops
+- 9 basic ops
 - Native `snapshots` (delegates to Tigris's snapshot API)
 - Native `fork` (delegates to `createBucket({ sourceBucketName, sourceBucketSnapshot })`, returns a new `Storage` wrapping the Tigris adapter at the new bucket)
 - Live tests against a real Tigris bucket in CI (gated on secrets)
@@ -188,7 +192,7 @@ Open question: LocalStack vs MinIO for S3 local tests. MinIO is closer to real S
 
 These aren't blockers — they get answered when the code forces the question.
 
-1. **How the default `fork` creates a destination.** Either `BasicAdapter.withScope(name)` or `fork({ destination })`. The choice affects every adapter and shapes the public API of `fork`.
+1. **How the default `fork` creates a destination.** Either an optional `withScope(name)` method on the adapter, or a `destination` argument on `fork`. The choice affects every adapter and shapes the public API of `fork`.
 2. **Snapshot deletion semantics.** Does deleting a snapshot also delete any copies of its objects that aren't in the live keyspace? Probably yes for the default polyfill, but it's only relevant if we end up storing entries under `.snapshots/<id>/...` rather than referencing live keys. Resolved once the manifest format is final in phase 2.
 3. **Multipart fallback.** For adapters without native multipart, a single PUT works fine for moderate sizes — but at some size it's better to error than silently degrade. Set a threshold (e.g., 5 GB single-PUT cap on S3) and throw with a clear message.
 4. **Whether `storage.copy('a', 'b')` should preserve metadata.** Probably yes, but the default for some adapters is to drop user metadata on copy. Per-adapter decision, tested in conformance suite.

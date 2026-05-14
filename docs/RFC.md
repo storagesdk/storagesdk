@@ -33,7 +33,14 @@ There is a gap between them: an SDK that works across providers and also ships s
 
 ## Public API
 
-The SDK has one main class, `Storage`, and one read-only sibling, `Snapshot`.
+The SDK has two layers:
+
+- **`Storage`** — the class consumers use. Wraps a full `Adapter`, exposes the overloaded `download` (with `as: 'stream' | 'text' | 'bytes' | 'blob' | 'json'`), writes, and the `snapshots` and `forks` namespaces. Extends `ReadOnlyStorage`.
+- **`ReadOnlyStorage`** — what `storage.snapshots.get(id)` returns. Same overloaded `download` as `Storage`, plus the other three read methods. Exported as a **type only** from `@storagesdk/core`; consumers don't construct it directly.
+- **`Adapter`** and **`ReadOnlyAdapter`** — the contracts adapter authors implement. `ReadOnlyAdapter` has the four read methods; `Adapter` extends it with writes plus two namespace properties typed as `AdapterSnapshots` and `AdapterForks`. Decoupled from `Storage` / `ReadOnlyStorage` so each layer can evolve independently.
+- **`AdapterSnapshots`** and **`AdapterForks`** — the namespace contracts, exported so adapter authors can implement and unit-test them in isolation. Both have the same five methods (`create`, `list`, `head`, `delete`, `get`).
+
+Snapshots and forks are exposed through symmetric namespaces: both `storage.snapshots` and `storage.forks` have the same five methods (`create`, `list`, `head`, `delete`, `get`).
 
 ### Packaging
 
@@ -58,21 +65,22 @@ The adapter is passed in at construction. The storage location — bucket, folde
 
 ### Paths
 
-Paths passed to any method are normalized at the `Storage` layer before reaching the adapter:
+Paths passed to any method are normalized inside `defineAdapter` before reaching the adapter implementation:
 
 - Leading slashes are stripped — `/photo.jpg` and `photo.jpg` are equivalent.
-- Empty paths (after stripping) throw `StorageError`.
+- Empty paths (after stripping) throw `StorageError` with code `InvalidArgument`.
 
-Adapters always receive normalized paths and don't have to defensively handle these cases.
+Adapter implementations always receive normalized paths and don't have to defensively handle these cases. Authors who construct an `Adapter` object literal without calling `defineAdapter` are responsible for normalization themselves.
 
 ### Object operations
 
 ```ts
-await storage.upload("photo.jpg", blob, { contentType: "image/jpeg" });
-await storage.download("photo.jpg"); // StorageItem with body ready
-await storage.download("photo.jpg", { as: "stream" }); // ReadableStream
-await storage.head("photo.jpg"); // StorageItem with metadata; body is lazy
-await storage.list({ prefix: "photos/", limit: 100 }); // { items: StorageItem[], cursor? }
+await storage.upload("photo.jpg", blob, { contentType: "image/jpeg" }); // StorageItemMeta
+await storage.download("photo.jpg"); // StorageItem (metadata + body)
+await storage.download("photo.jpg", { as: "text" }); // string
+await storage.download("photo.jpg", { as: "stream" }); // ReadableStream<Uint8Array>
+await storage.head("photo.jpg"); // StorageItemMeta (no body)
+await storage.list({ prefix: "photos/", limit: 100 }); // { items: StorageItemMeta[], cursor? }
 await storage.delete("photo.jpg");
 await storage.copy("a.jpg", "b.jpg");
 await storage.move("a.jpg", "b.jpg");
@@ -94,48 +102,56 @@ await storage.upload("large.mp4", stream, {
 
 Adapters without a native multipart API fall back to a single PUT and ignore the multipart options. Per-adapter behavior is in each adapter's docs.
 
-### The `StorageItem` shape
+### Item shapes
 
-`download`, `head`, and the items returned from `list` all share the same shape:
+Two related types model objects:
 
 ```ts
-interface StorageItem {
+// Returned by `head` and items inside `list`.
+interface StorageItemMeta {
   readonly path: string;
   readonly size: number;
   readonly contentType: string;
   readonly etag: string;
   readonly lastModified: Date;
   readonly metadata?: Readonly<Record<string, string>>;
+}
 
-  // Body accessors — call any one.
-  blob(): Promise<Blob>;
-  text(): Promise<string>;
-  arrayBuffer(): Promise<ArrayBuffer>;
-  bytes(): Promise<Uint8Array>;
-  stream(): ReadableStream;
+// Returned by `download`. Same metadata, plus the raw bytes.
+interface StorageItem extends StorageItemMeta {
+  readonly body: Uint8Array;
 }
 ```
 
-After `download`, the body is fetched and the accessors return it. After `head` or `list`, the body isn't fetched until you call an accessor; calling one then issues a download for that single item. One shape covers all three operations — you don't have to think about which response you got back.
+`StorageItemMeta` is the lightweight type — no body, no accessors, no closures. `list` returns an array of these directly; pulling a list result does not buffer object bodies.
 
-### Streaming downloads
+`StorageItem` adds a single `body: Uint8Array` field. Adapter authors return `{ ...meta, body: bytes }` from `download`. Consumers either read `item.body` directly or use the `as` overloads on `Storage.download` for typed access (see below).
 
-`download` returns a `StorageItem` with the body fetched and ready. Pass `{ as: "stream" }` to get a `ReadableStream` instead:
+### Downloads with `as`
+
+`download` is overloaded. The default returns the full `StorageItem`. Pass `as` to get a typed body in the shape you want:
 
 ```ts
-const stream = await storage.download("video.mp4", { as: "stream" });
+await storage.download("photo.jpg");                     // StorageItem
+await storage.download("photo.jpg", { as: "stream" });   // ReadableStream<Uint8Array>
+await storage.download("photo.jpg", { as: "text" });     // string
+await storage.download("photo.jpg", { as: "bytes" });    // Uint8Array
+await storage.download("photo.jpg", { as: "blob" });     // Blob
+await storage.download("config.json", { as: "json" });   // unknown (cast at the callsite)
 ```
 
-The stream is always a Web `ReadableStream` — in browsers, in Node 20+, in Cloudflare Workers, Deno, and Bun. Adapters whose underlying SDK returns a Node `Readable` use `Readable.toWeb()` to convert internally, so there's one stream type to think about wherever your code runs.
+Streams are always Web `ReadableStream` — in browsers, in Node 20+, in Cloudflare Workers, Deno, and Bun. Adapters whose underlying SDK returns a Node `Readable` use `Readable.toWeb()` internally so there's one stream type wherever your code runs.
 
-If you need a Node `Readable` (e.g., to use with `pipeline()`), convert at the callsite with the standard Node API:
+If you need a Node `Readable` (e.g., to use with `pipeline()`), convert at the callsite:
 
 ```ts
 import { Readable } from "node:stream";
-const node = Readable.fromWeb(stream);
+const node = Readable.fromWeb(
+  await storage.download("video.mp4", { as: "stream" }),
+);
 ```
 
-This means the SDK requires Node 20 or newer.
+The SDK requires Node 20 or newer.
 
 ### URLs
 
@@ -155,44 +171,57 @@ await storage.uploadUrl("photo.jpg", {
 
 ### Snapshots
 
-A snapshot is a read-only view of the storage at a point in time. `snapshots.create` returns a `Snapshot` handle with the read methods only — no `upload`, no `delete`.
+A snapshot is a read-only view of the storage at a point in time. The `snapshots` namespace has five methods:
 
 ```ts
-const snap = await storage.snapshots.create({ name: "pre-migration" });
-
-await snap.download("photo.jpg");
-await snap.head("photo.jpg");
-await snap.list({ prefix: "photos/" });
-await snap.url("photo.jpg", { expiresIn: 3600 });
-
-// The handle has a serializable id
-const id = snap.id;
-db.save(id);
-
-// Rehydrate later. Synchronous, no I/O.
-const same = storage.snapshots.get(id);
+storage.snapshots.create(opts?): Promise<SnapshotInfo>;        // returns metadata for the new snapshot
+storage.snapshots.list():        Promise<SnapshotInfo[]>;
+storage.snapshots.head(id):      Promise<SnapshotInfo>;        // metadata only
+storage.snapshots.delete(id):    Promise<void>;
+storage.snapshots.get(id):       ReadOnlyStorage;              // a reader bound to the snapshot
 ```
 
-`Storage` and `Snapshot` share a common interface for reads, `ReadOnlyStorage`. Read-only code can accept either.
-
-### Fork
-
-A fork is a new writable copy seeded from a snapshot.
+Typical use:
 
 ```ts
-const exp = await storage.fork({
+const info = await storage.snapshots.create({ name: "pre-migration" });
+db.save(info.id);
+
+// Read at the snapshot — the reader has the same overloaded download as Storage
+const reader = storage.snapshots.get(info.id);
+const text = await reader.download("photo.jpg", { as: "text" });
+const items = (await reader.list({ prefix: "photos/" })).items;
+```
+
+`SnapshotInfo` is `{ id, name?, createdAt }` — lightweight, returned by `create`, `head`, and items inside `list`. To use the snapshot's contents, call `get(id)` and read through the returned `ReadOnlyStorage`.
+
+### Forks
+
+A fork is a new writable storage seeded from a snapshot. The `forks` namespace mirrors `snapshots` exactly:
+
+```ts
+storage.forks.create(opts):  Promise<ForkInfo>;                // returns metadata for the new fork
+storage.forks.list():        Promise<ForkInfo[]>;
+storage.forks.head(name):    Promise<ForkInfo>;
+storage.forks.delete(name):  Promise<void>;                    // destructive — removes the forked storage
+storage.forks.get(name):     Storage;                          // full read-write storage bound to the fork
+```
+
+Typical use:
+
+```ts
+const info = await storage.forks.create({
   name: "photos-exp",
   fromSnapshot: snap.id,
-  onProgress: ({ copied, total }) => {
-    /* ... */
-  },
+  onProgress: ({ copied, total }) => { /* ... */ },
   signal: controller.signal,
 });
 
-await exp.upload("new.jpg", blob);
+const fork = storage.forks.get(info.name);   // Storage instance
+await fork.upload("new.jpg", blob);
 ```
 
-`fork` returns a new `Storage` instance pointing at the new copy. The destination is created automatically.
+`ForkInfo` is `{ name, fromSnapshot, createdAt }`. The fork's `name` is user-provided (you pass it on `create`) and is the identifier you use to look it up later. `forks.get(name)` returns a `Storage` so the full read/write surface — including its own nested `snapshots` and `forks` namespaces — is available.
 
 ### Errors
 
@@ -209,7 +238,7 @@ try {
 }
 ```
 
-Codes: `NotFound`, `NotSupported`, `Conflict`, `Unauthorized`, `Provider`.
+Codes: `NotFound`, `NotSupported`, `Conflict`, `Unauthorized`, `InvalidArgument`, `Provider`.
 
 ### Escape hatch
 
@@ -247,7 +276,9 @@ This keeps the SDK out of auth, completion notifications, and framework conventi
 
 ## Adapter authoring
 
-Adapters are written with a single factory function, `defineAdapter`:
+`Adapter` extends a smaller `ReadOnlyAdapter` interface (the four read methods). The full contract adds writes plus two namespace properties: `snapshots: AdapterSnapshots` and `forks: AdapterForks`. Each namespace exposes five methods. `AdapterSnapshots` and `AdapterForks` are exported alongside `Adapter` so authors can implement (and test) them in isolation.
+
+Adapters are written through a single factory function, `defineAdapter`:
 
 ```ts
 import { defineAdapter } from "@storagesdk/core";
@@ -260,16 +291,17 @@ export function myProvider(config: MyConfig) {
     raw: client,
 
     async upload(path, body, opts) {
-      return client.put(path, body, opts);
+      return client.put(path, body, opts); // returns StorageItemMeta
     },
     async download(path, opts) {
-      return client.get(path, opts);
+      const { meta, bytes } = await client.get(path, opts);
+      return { ...meta, body: bytes }; // StorageItem
     },
     async head(path) {
-      return client.head(path);
+      return client.head(path); // StorageItemMeta
     },
     async list(opts) {
-      return client.list(opts);
+      return client.list(opts); // { items: StorageItemMeta[], cursor? }
     },
     async delete(path) {
       return client.delete(path);
@@ -277,78 +309,100 @@ export function myProvider(config: MyConfig) {
     async copy(from, to) {
       return client.copy(from, to);
     },
+    async move(from, to) {
+      return client.move(from, to);
+    },
     async uploadUrl(path, opts) {
       return client.sign("PUT", path, opts);
     },
     async url(path, opts) {
       return client.sign("GET", path, opts);
     },
+
+    snapshots: { /* ... see below ... */ },
+    forks:     { /* ... see below ... */ },
   });
 }
 ```
 
-The author supplies 8 methods, a `name`, and the native client (for `raw`). `defineAdapter` fills in default implementations of `snapshots` and `fork` on top of those 8 methods.
+`defineAdapter` wraps every path-taking method with normalization, normalizes paths on readers returned by `snapshots.get`, and recursively re-wraps adapters returned by `forks.get`.
 
-Providers with native snapshot or fork APIs supply their own implementations:
+### `snapshots` namespace
+
+Five methods. `create` and `head` return `SnapshotInfo`; `get(id)` returns a `ReadOnlyAdapter` (the four read methods bound to the snapshot).
 
 ```ts
-return defineAdapter({
-  name: "tigris",
-  raw: client,
-  upload,
-  download,
-  head,
-  list,
-  delete: del,
-  copy,
-  uploadUrl,
-  url,
-
-  snapshots: {
-    async create(opts) {
-      return client.createSnapshot(opts);
-    },
-    async list() {
-      return client.listSnapshots();
-    },
-    async delete(id) {
-      return client.deleteSnapshot(id);
-    },
-    async download(id, path, opts) {
-      return client.get(path, { snapshotVersion: id, ...opts });
-    },
-    async head(id, path) {
-      return client.head(path, { snapshotVersion: id });
-    },
-    async list(id, opts) {
-      return client.list({ ...opts, snapshotVersion: id });
-    },
-    async url(id, path, opts) {
-      return client.sign("GET", path, { snapshotVersion: id, ...opts });
-    },
+snapshots: {
+  async create(opts) {
+    return client.createSnapshot(opts);            // SnapshotInfo
   },
+  async list() {
+    return client.listSnapshots();                  // SnapshotInfo[]
+  },
+  async head(id) {
+    return client.getSnapshot(id);                  // SnapshotInfo
+  },
+  async delete(id) {
+    return client.deleteSnapshot(id);
+  },
+  get(id) {
+    // Sync — returns a reader bound to `id`. No I/O until a method is called.
+    return {
+      download: (path) => client.get(path, { snapshotVersion: id }),
+      head:     (path) => client.head(path, { snapshotVersion: id }),
+      list:     (opts) => client.list({ ...opts, snapshotVersion: id }),
+      url:      (path, opts) =>
+        client.sign("GET", path, { snapshotVersion: id, ...opts }),
+    };
+  },
+},
+```
 
-  async fork(opts) {
+### `forks` namespace
+
+Same shape. `create` and `head` return `ForkInfo`; `get(name)` returns an `Adapter` (the new forked storage, with full read/write capabilities and its own nested namespaces).
+
+```ts
+forks: {
+  async create(opts) {
     const b = await client.createBucket({
       sourceBucketName: config.bucket,
       sourceBucketSnapshot: opts.fromSnapshot,
+      name: opts.name,
     });
-    return tigris({ ...config, bucket: b.name });
+    return {
+      name: opts.name,
+      fromSnapshot: opts.fromSnapshot,
+      createdAt: b.createdAt,
+    };
   },
-});
+  async list() {
+    return client.listForks(config.bucket);         // ForkInfo[]
+  },
+  async head(name) {
+    return client.getForkInfo(name);                // ForkInfo
+  },
+  async delete(name) {
+    return client.deleteBucket(name);
+  },
+  get(name) {
+    // Sync — returns a fresh Adapter pointing at the forked bucket.
+    return myProvider({ ...config, bucket: name });
+  },
+},
 ```
 
 ## Default snapshot and fork implementations
 
-When an adapter doesn't supply native `snapshots` or `fork`, `defineAdapter` fills them in using only the 8 basic operations.
+The Phase 1 `defineAdapter` requires the author to supply both `snapshots` and `forks` namespaces. Phase 2 adds defaults so that adapters without native support can omit them and get working snapshot/fork built on top of the basic operations.
 
-**Default snapshot.** When you create one, the SDK lists every key in the storage location, records the list (with size and etag) in a manifest object at `.snapshots/<id>.json` in the same location, and returns a handle that routes reads through that manifest. The `.snapshots/` prefix is reserved by the SDK. Creating a snapshot is O(n) in the number of objects.
+**Default snapshot.** Maintains manifests in a reserved `.snapshots/` prefix in the same storage location. `create` lists every key, writes a manifest, and returns the new `SnapshotInfo`. `get(id)` returns a `ReadOnlyAdapter` that reads through the manifest.
 
-**Default fork.** The SDK creates the destination (when the adapter supports it) and copies every entry from the source snapshot using the adapter's `copy` operation. Fork is O(n) in the number of objects and duplicates storage.
+**Default fork.** Maintains manifests in a reserved `.forks/` prefix in the same storage location. `create` materializes the new storage (by copying every entry from the source snapshot, server-side where possible) and writes a manifest. `get(name)` returns an `Adapter` pointing at the forked location.
 
 Both operations accept `onProgress` and an `AbortSignal`.
 
-Providers with a cheaper path (e.g., S3 versioning) can supply their own `snapshots` and `fork` instead. We plan to ship building blocks like `s3VersioningSnapshot` that adapter authors can drop in.
+Providers with a cheaper path (e.g., S3 versioning) implement `snapshots` natively. Providers with native fork APIs (e.g., Tigris) implement `forks` natively. We plan to ship building blocks like `s3VersioningSnapshot` that adapter authors can drop in.
 
 ## Consistency
 

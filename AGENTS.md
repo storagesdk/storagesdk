@@ -12,19 +12,24 @@ The design lives in [`docs/RFC.md`](docs/RFC.md). The implementation plan lives 
 
 These are decided. Don't re-litigate without a clear reason.
 
-- **Errors:** operations throw `StorageError`. No Result type.
+- **Errors:** operations throw `StorageError`. No Result type. Codes: `NotFound | NotSupported | Conflict | Unauthorized | InvalidArgument | Provider`.
 - **Verbs:** `upload`, `download`, `delete`, `head`, `list`, `copy`, `move`, `url`, `uploadUrl`.
-- **`StorageItem`** is the return type for `download`, `head`, and items from `list`. Plain object with metadata fields (`path`, `size`, `contentType`, `etag`, `lastModified`, `metadata`) plus lazy body accessors (`blob`, `text`, `arrayBuffer`, `bytes`, `stream`).
-- **Paths are normalized at the `Storage` layer.** Leading slashes stripped, empty paths rejected. Adapters always see clean paths.
+- **Two item types.** `StorageItemMeta` (metadata only) is returned by `head` and as items inside `list`. `StorageItem` extends `StorageItemMeta` with `readonly body: Uint8Array` and is returned by `download`. No body accessors / closures.
+- **Storage and Adapter are decoupled.** `Adapter` is the contract adapter authors implement (and `defineAdapter` accepts). `Storage` and `ReadOnlyStorage` are the consumer classes. They do NOT `implements Adapter` — they evolve independently. Notably, `Storage.download` / `ReadOnlyStorage.download` are overloaded (`as: 'stream' | 'text' | 'bytes' | 'blob' | 'json'`); `Adapter.download` is a single-signature method that returns `StorageItem`.
+- **Interface hierarchy.** `ReadOnlyAdapter` has the four read methods (`download`, `head`, `list`, `url`). `Adapter` extends it with writes plus the `snapshots: AdapterSnapshots` and `forks: AdapterForks` namespaces. `AdapterSnapshots` and `AdapterForks` are exported interfaces so adapter authors can implement them in isolation. No combined `Snapshot` or `Fork` types — namespace methods return info or adapters separately.
+- **`AdapterSnapshots` and `AdapterForks` are symmetric.** Both have `create`, `list`, `head`, `delete`, `get`. `head(id)` returns `SnapshotInfo` / `ForkInfo`. `create` returns `SnapshotInfo` / `ForkInfo` too. `AdapterSnapshots.get(id)` returns `ReadOnlyAdapter` (a reader). `AdapterForks.get(name)` returns `Adapter` (full storage).
+- **Storage class** wraps `snapshots.get` and `forks.get` returns in `ReadOnlyStorage` and `Storage` respectively so consumers keep the download overloads on snapshot readers and forks. The `snapshots` and `forks` properties on `Storage` use inline types (not named interfaces) — they're consumer-facing shapes, not part of the adapter contract. No `storage.fork()` method — call `storage.forks.create(opts)`.
+- **`ReadOnlyStorage` is exported as a type only.** Consumers receive `ReadOnlyStorage` instances from `storage.snapshots.get(id)`; there is no public constructor. `Storage` is the only constructible class.
+- **Snapshot identity is SDK-assigned (`id`); fork identity is user-provided (`name`).** `snapshots.create(opts)` returns a system-generated `id`. `forks.create(opts)` accepts a `name` which is the fork's identifier; you call `forks.get(name)` to address it.
+- **Paths are normalized inside `defineAdapter`.** Leading slashes stripped, empty paths throw `StorageError`. Adapter implementations always see clean paths. Authors who construct an `Adapter` literal without `defineAdapter` are responsible themselves.
 - **No bucket vocabulary in the public API.** The storage location is the adapter's concern.
-- **Snapshot is a handle**, not an option on read methods. Use `snap.download(path)`, not `storage.download(path, { snapshot: id })`.
-- **Snapshot and fork are core operations.** Every shipped adapter implements them, natively or via the default `defineAdapter` implementation.
+- **Snapshot and fork are core operations.** Every shipped adapter implements them, natively or via the default `defineAdapter` implementation (Phase 2).
 - **No capability flags** for user code to check at runtime.
-- **`defineAdapter`** is the single adapter authoring entry point. It fills in default `snapshots` and `fork` using the 8 basic operations when the adapter doesn't supply them.
+- **`defineAdapter`** is the single adapter authoring entry point. It wraps every path-taking method with path normalization, normalizes paths on readers returned by `snapshots.get`, and recursively re-wraps adapters returned by `forks.get`.
 - **Module format:** ESM-only. No CJS output.
 - **Build:** plain `tsc`, no bundler.
 - **Engines:** Node 22+ for the monorepo root; published packages declare Node 20+.
-- **Streaming:** `download(path, { as: 'stream' })` always returns a Web `ReadableStream`.
+- **Streaming:** `Storage.download(path, { as: 'stream' })` always returns a Web `ReadableStream`.
 
 ## Working principles
 
