@@ -1,0 +1,50 @@
+{
+  "name": "@storagesdk/core",
+  "version": "0.0.0",
+  "description": "Core types and runtime for storagesdk. One API across object storage providers, with fork and snapshot built in.",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "publint": "publint",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "storage",
+    "object-storage",
+    "s3",
+    "snapshot",
+    "fork",
+    "sdk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tigrisdata/storagesdk.git",
+    "directory": "packages/core"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
