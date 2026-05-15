@@ -38,11 +38,15 @@ storagesdk/
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   └── tsconfig.build.json
-│   └── adapters/
-│       ├── fs/                 # @storagesdk/fs
-│       ├── s3/                 # @storagesdk/s3
-│       ├── tigris/             # @storagesdk/tigris
-│       └── ...
+│   └── adapters/               # @storagesdk/adapters
+│       ├── src/
+│       │   ├── fs/             # @storagesdk/adapters/fs
+│       │   ├── s3/             # @storagesdk/adapters/s3
+│       │   └── tigris/         # @storagesdk/adapters/tigris
+│       ├── test/
+│       ├── package.json
+│       ├── tsconfig.json
+│       └── tsconfig.build.json
 ├── examples/
 │   ├── quickstart/
 │   ├── snapshot-restore/
@@ -107,23 +111,24 @@ Exit: the convention and the helpers are in place. Phase 3+ adapters consume the
 
 ### Phase 3 — filesystem adapter
 
-The reference adapter. Doubles as the test fixture for everything downstream.
+First real adapter. Drives out the Phase 2 convention against actual disk I/O.
 
-- `@storagesdk/fs`
-- 9 basic ops over `node:fs/promises` (`upload`, `download`, `head`, `list`, `delete`, `copy`, `move`, `url`, `uploadUrl`)
-- Native snapshot and fork via hardlinks where the platform supports it (fall through to copy when not). Native fork creates a sibling directory and hardlinks every file.
-- Streaming download via `Readable.toWeb(fs.createReadStream(...))`
-- Signed URLs are just file:// URLs with an expiry timestamp encoded — documented as not-actually-signed, useful for local dev and tests
-- Full test suite. This is also where we shake out the API ergonomics for real.
+- `@storagesdk/adapters/fs`, takes `{ root, folder }`. Operates on `<root>/<folder>`; snapshots and forks land as sibling folders under `<root>`.
+- 9 basic ops over `node:fs/promises`: `upload`, `download`, `head`, `list`, `delete`, `copy`, `move`, `url`, `uploadUrl`.
+- `opts.metadata` and non-default `contentType` preserved per-object via sidecar files (`<key>.storagesdk.meta.json`). The sidecar suffix is reserved — `upload()` rejects it. `list()` filters out sidecars and the manifest.
+- Snapshots and forks follow the Phase 2 convention: plain `fs.cp` recursive copy into a sibling folder, with a `.storagesdk.metadata.json` written in each sibling and the parent's manifest updated. No hardlinks — the simplest thing that works on every OS.
+- `url()` and `uploadUrl()` return `file://` URLs with an `expires` parameter, explicitly documented as not-actually-signed.
+- Path traversal (`..`) rejected with `InvalidArgument`.
+- Test suite uses `fs.mkdtemp` per test for isolation.
 
-Exit: real I/O works end-to-end. Used as the in-memory adapter's replacement in core tests.
+Exit: real I/O works end-to-end. CI runs the FS adapter tests on every PR.
 
 ### Phase 4 — S3 adapter
 
 The first cloud adapter. Drives out all the real-world edges.
 
-- `@storagesdk/s3`
-- Built on `@aws-sdk/client-s3` (v3, peer dep)
+- `@storagesdk/adapters/s3`
+- Built on `@aws-sdk/client-s3` (v3, optional peer dep on the `@storagesdk/adapters` package)
 - 9 basic ops, multipart upload via `@aws-sdk/lib-storage`
 - Stream normalization via `toWebStream` (handles Node `Readable` and Web `ReadableStream` from the AWS SDK)
 - Uses the default snapshot/fork from `defineAdapter` for v1
@@ -136,7 +141,7 @@ Exit: S3 works against a local emulator. CI runs the S3 test suite.
 
 The native-everything adapter, in parallel with phase 4 once phase 3 is done.
 
-- `@storagesdk/tigris`
+- `@storagesdk/adapters/tigris`
 - Built on the existing Tigris client (reuse `@tigrisdata/storage` internals where useful)
 - 9 basic ops
 - Native `snapshots` (delegates to Tigris's snapshot API)
@@ -161,11 +166,11 @@ Exit: every example runs against the FS adapter with `pnpm dev` from the example
 
 In rough order of effort:
 
-- `@storagesdk/r2` — Cloudflare R2 via the S3-compatible API. Likely a thin wrapper that imports the S3 adapter with different defaults.
-- `@storagesdk/minio` — same.
-- `@storagesdk/do-spaces` — same.
-- `@storagesdk/gcs` — Google Cloud Storage via `@google-cloud/storage`.
-- `@storagesdk/azure` — Azure Blob via `@azure/storage-blob`. Has native snapshots — implement them.
+- `@storagesdk/adapters/r2` — Cloudflare R2 via the S3-compatible API. Likely a thin wrapper that imports the S3 adapter with different defaults.
+- `@storagesdk/adapters/minio` — same.
+- `@storagesdk/adapters/do-spaces` — same.
+- `@storagesdk/adapters/gcs` — Google Cloud Storage via `@google-cloud/storage`.
+- `@storagesdk/adapters/azure` — Azure Blob via `@azure/storage-blob`. Has native snapshots — implement them.
 - Optional: `s3VersioningSnapshot` building block for adapter authors who want a cheaper snapshot path on top of S3.
 
 ### Phase 8 — release

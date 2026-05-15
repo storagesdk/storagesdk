@@ -30,6 +30,12 @@ importers:
         specifier: ^4.1.6
         version: 4.1.6(@types/node@25.7.0)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@25.7.0)(esbuild@0.27.7))
 
+  packages/adapters:
+    dependencies:
+      '@storagesdk/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/core: {}
 
 packages:
