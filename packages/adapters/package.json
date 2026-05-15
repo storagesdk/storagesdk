@@ -1,0 +1,50 @@
+{
+  "name": "@storagesdk/adapters",
+  "version": "0.0.0",
+  "description": "Storage backend adapters for storagesdk. Import the adapter you need via a subpath, e.g. `@storagesdk/adapters/fs`.",
+  "type": "module",
+  "exports": {
+    "./fs": {
+      "types": "./dist/fs/index.d.ts",
+      "default": "./dist/fs/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "publint": "publint",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "storage",
+    "storagesdk",
+    "adapter",
+    "filesystem"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tigrisdata/storagesdk.git",
+    "directory": "packages/adapters"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@storagesdk/core": "workspace:*"
+  }
+}

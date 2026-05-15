@@ -35,6 +35,7 @@
     "@types/node": "^25.7.0",
     "publint": "^0.3.21",
     "simple-git-hooks": "^2.13.1",
+    "tsx": "^4.22.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.6"
   },

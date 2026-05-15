@@ -48,7 +48,9 @@ The SDK ships under the `@storagesdk` npm scope as separate packages:
 
 - `@storagesdk/core` — the consumer entry. `Storage`, `StorageError`, and the types end-user code handles.
 - `@storagesdk/core/adapter` — the adapter-authoring entry. Re-exports the consumer entry plus `defineAdapter`, the `Adapter` contract types (`Adapter`, `ReadOnlyAdapter`, `AdapterSnapshots`, `AdapterForks`), the `Manifest` helpers, and `toWebStream`. Adapter packages import from here.
-- `@storagesdk/<adapter>` — one package per adapter, e.g., `@storagesdk/s3`, `@storagesdk/r2`, `@storagesdk/gcs`, `@storagesdk/azure`, `@storagesdk/tigris`, `@storagesdk/fs`.
+- `@storagesdk/adapters` — every backend adapter, accessed via subpath. Each backend's SDK is an optional peer dependency: install it only if you import that adapter.
+  - `@storagesdk/adapters/fs` — filesystem adapter. Primarily for local development and tests. Takes `{ root, folder }`; snapshots and forks land as sibling folders under `root`. Sidecar files preserve per-object `contentType` and `metadata`. `url()`/`uploadUrl()` return `file://` URLs.
+  - Future subpaths: `/s3`, `/r2`, `/gcs`, `/azure`, `/tigris`.
 
 Each adapter package depends on `@storagesdk/core` and the provider's own SDK. You install only the adapters you use.
 
@@ -56,8 +58,8 @@ Each adapter package depends on `@storagesdk/core` and the provider's own SDK. Y
 
 ```ts
 import { Storage } from "@storagesdk/core";
-import { s3 } from "@storagesdk/s3";
-// or: import { tigris } from "@storagesdk/tigris";
+import { s3 } from "@storagesdk/adapters/s3";
+// or: import { tigris } from "@storagesdk/adapters/tigris";
 
 const storage = new Storage({ adapter: s3({ bucket: "photos" }) });
 ```
