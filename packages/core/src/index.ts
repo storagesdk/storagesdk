@@ -1,10 +1,3 @@
-export type {
-  Adapter,
-  AdapterForks,
-  AdapterSnapshots,
-  ReadOnlyAdapter,
-} from './adapter.js';
-export { defineAdapter } from './adapter.js';
 export type { StorageErrorCode, StorageErrorInit } from './errors.js';
 export { StorageError } from './errors.js';
 export type {
@@ -13,7 +6,6 @@ export type {
   StorageOptions,
 } from './storage.js';
 export { Storage } from './storage.js';
-export { toWebStream } from './streams.js';
 
 export type {
   BodyInput,

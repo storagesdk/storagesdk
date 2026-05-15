@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./adapter": {
+      "types": "./dist/adapter-kit.d.ts",
+      "default": "./dist/adapter-kit.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

@@ -91,22 +91,19 @@ Land the API shape from the RFC. No real adapter yet — use an in-memory test a
 
 Exit: tests cover every method on `Storage`, `ReadOnlyStorage`, the snapshots namespace, and the forks namespace against the in-memory adapter. Types are tight enough that omitting a method from a `defineAdapter` call is a TypeScript error.
 
-### Phase 2 — default snapshot and fork
+### Phase 2 — snapshot and fork convention
 
-Make `defineAdapter` accept an adapter that omits the `snapshots` or `forks` namespace, and fill in defaults built on top of the basic operations.
+`snapshots` and `forks` stay required on the `Adapter` contract — there is no SDK-level polyfill. Phase 2 locks in the on-disk format and naming scheme that copy-based adapters follow, and ships the small set of helpers that own those SDK-defined pieces.
 
-- Manifest format for snapshots: `{ id, name?, createdAt, entries: [{ path, size, etag }] }` at `.snapshots/<id>.json`
-- Manifest format for forks: `{ name, fromSnapshot, createdAt, destination }` at `.forks/<name>.json`
-- Default `snapshots.create`: paginate `list({ prefix: '' })`, write manifest, return `SnapshotInfo`
-- Default `snapshots.list`: list `.snapshots/` prefix, parse manifests, return `SnapshotInfo[]`
-- Default `snapshots.head/delete`: load / delete the manifest
-- Default `snapshots.get(id)`: returns a `ReadOnlyAdapter` whose methods read through the manifest
-- Default `forks.create`: copy every entry from the snapshot to a new location, write manifest. Requires a way to point the adapter at a new location (see open question below).
-- Default `forks.list/head/delete/get`: same pattern as snapshots, against `.forks/` prefix
-- Progress callbacks and `AbortSignal` plumbing
-- Tests: same in-memory adapter as phase 1, now run with the defaults active to confirm parity with the native implementation
+- `Manifest` type: `{ version: 1, parent, snapshots, forks }` written as `.storagesdk.metadata.json` at every SDK-managed location. Uniform shape across top-level / snapshot / fork locations. `readManifest` throws `NotSupported` on an unrecognized version so future schema changes aren't silently misread.
+- Snapshot naming: `<parent-location>-snapshot-<nanoseconds>` via `nextSnapshotId(parentLocation)`. The id doubles as the sibling location name.
+- Fork naming: user-provided `name`. `forks.create` throws `Conflict` if a location with that name already exists.
+- Helpers exported from `@storagesdk/core/adapter`: `Manifest`, `emptyManifest`, `readManifest`, `writeManifest`, `nextSnapshotId`.
+- Tests against the in-memory adapter cover the helpers in isolation.
 
-Exit: an adapter that only implements the basic ops gets working snapshot and fork for free, and tests prove it.
+Adapter authors who can't or don't want to support snapshot/fork throw `StorageError` with code `NotSupported` from each method. No silent stubs.
+
+Exit: the convention and the helpers are in place. Phase 3+ adapters consume them.
 
 ### Phase 3 — filesystem adapter
 
@@ -192,11 +189,9 @@ Open question: LocalStack vs MinIO for S3 local tests. MinIO is closer to real S
 
 These aren't blockers — they get answered when the code forces the question.
 
-1. **How the default `fork` creates a destination.** Either an optional `withScope(name)` method on the adapter, or a `destination` argument on `fork`. The choice affects every adapter and shapes the public API of `fork`.
-2. **Snapshot deletion semantics.** Does deleting a snapshot also delete any copies of its objects that aren't in the live keyspace? Probably yes for the default polyfill, but it's only relevant if we end up storing entries under `.snapshots/<id>/...` rather than referencing live keys. Resolved once the manifest format is final in phase 2.
-3. **Multipart fallback.** For adapters without native multipart, a single PUT works fine for moderate sizes — but at some size it's better to error than silently degrade. Set a threshold (e.g., 5 GB single-PUT cap on S3) and throw with a clear message.
-4. **Whether `storage.copy('a', 'b')` should preserve metadata.** Probably yes, but the default for some adapters is to drop user metadata on copy. Per-adapter decision, tested in conformance suite.
-5. **S3 fork destination creation.** S3 bucket names are globally unique; fork can fail at create. Decide whether to surface `Conflict` cleanly or require destination pre-creation.
+1. **Multipart fallback.** For adapters without native multipart, a single PUT works fine for moderate sizes — but at some size it's better to error than silently degrade. Set a threshold (e.g., 5 GB single-PUT cap on S3) and throw with a clear message.
+2. **Whether `storage.copy('a', 'b')` should preserve metadata.** Probably yes, but the default for some adapters is to drop user metadata on copy. Per-adapter decision, tested in conformance suite.
+3. **S3 fork destination creation.** S3 bucket names are globally unique; `forks.create` can fail at create. Decide whether to surface `Conflict` cleanly or require destination pre-creation.
 
 ## Out of scope for v1
 

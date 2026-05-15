@@ -46,7 +46,8 @@ Snapshots and forks are exposed through symmetric namespaces: both `storage.snap
 
 The SDK ships under the `@storagesdk` npm scope as separate packages:
 
-- `@storagesdk/core` — the `Storage` class, `Snapshot`, `defineAdapter`, `StorageError`, types, and shared helpers.
+- `@storagesdk/core` — the consumer entry. `Storage`, `StorageError`, and the types end-user code handles.
+- `@storagesdk/core/adapter` — the adapter-authoring entry. Re-exports the consumer entry plus `defineAdapter`, the `Adapter` contract types (`Adapter`, `ReadOnlyAdapter`, `AdapterSnapshots`, `AdapterForks`), the `Manifest` helpers, and `toWebStream`. Adapter packages import from here.
 - `@storagesdk/<adapter>` — one package per adapter, e.g., `@storagesdk/s3`, `@storagesdk/r2`, `@storagesdk/gcs`, `@storagesdk/azure`, `@storagesdk/tigris`, `@storagesdk/fs`.
 
 Each adapter package depends on `@storagesdk/core` and the provider's own SDK. You install only the adapters you use.
@@ -281,7 +282,7 @@ This keeps the SDK out of auth, completion notifications, and framework conventi
 Adapters are written through a single factory function, `defineAdapter`:
 
 ```ts
-import { defineAdapter } from "@storagesdk/core";
+import { defineAdapter } from "@storagesdk/core/adapter";
 
 export function myProvider(config: MyConfig) {
   const client = new MyClient(config);
@@ -392,17 +393,55 @@ forks: {
 },
 ```
 
-## Default snapshot and fork implementations
+## Snapshot and fork convention
 
-The Phase 1 `defineAdapter` requires the author to supply both `snapshots` and `forks` namespaces. Phase 2 adds defaults so that adapters without native support can omit them and get working snapshot/fork built on top of the basic operations.
+`snapshots` and `forks` are required on every adapter — there is no SDK-level polyfill. Authors who can't support either feature throw `StorageError` with code `NotSupported` from each method.
 
-**Default snapshot.** Maintains manifests in a reserved `.snapshots/` prefix in the same storage location. `create` lists every key, writes a manifest, and returns the new `SnapshotInfo`. `get(id)` returns a `ReadOnlyAdapter` that reads through the manifest.
+For copy-based implementations (i.e., everything that isn't a provider with native snapshot or fork APIs), the SDK defines a convention that all such adapters follow. The pattern is simple enough to inline inside each adapter, and the few SDK-defined pieces — the on-disk manifest format and the snapshot-naming scheme — ship as helpers from `@storagesdk/core/adapter`.
 
-**Default fork.** Maintains manifests in a reserved `.forks/` prefix in the same storage location. `create` materializes the new storage (by copying every entry from the source snapshot, server-side where possible) and writes a manifest. `get(name)` returns an `Adapter` pointing at the forked location.
+### Each snapshot and fork is a sibling location
 
-Both operations accept `onProgress` and an `AbortSignal`.
+A snapshot is a new sibling location (a new bucket for S3-style adapters, a new folder for the filesystem adapter) into which the source's entries are copied. A fork is the same thing, but seeded from a snapshot's contents rather than from the live parent. Snapshot locations are read-only; fork locations are full read-write storage.
 
-Providers with a cheaper path (e.g., S3 versioning) implement `snapshots` natively. Providers with native fork APIs (e.g., Tigris) implement `forks` natively. We plan to ship building blocks like `s3VersioningSnapshot` that adapter authors can drop in.
+Costs are explicit: every snapshot duplicates storage, and every snapshot/fork shares the parent's region, lifecycle policy, and billing line (because it lives in the same account / on the same filesystem). Adapters that need cheaper isolation (separate buckets per fork, S3 versioning, etc.) implement `snapshots` and `forks` natively and skip this convention entirely.
+
+### Naming
+
+- **Snapshots:** `<parent-location>-snapshot-<nanoseconds>`. SDK-generated via `nextSnapshotId(parentLocation)`. The id doubles as the sibling location's name — looking up a snapshot is looking up that location.
+- **Forks:** user-provided `name` on `forks.create({ name })`. The name is the sibling location's name. `forks.create` throws `Conflict` if a location with that name already exists.
+
+### Manifest at each location
+
+Every SDK-managed location carries a `.storagesdk.metadata.json` at its root. The shape is uniform across top-level / snapshot / fork locations:
+
+```ts
+interface Manifest {
+  version: 1;
+  parent: { location: string; snapshotId: string | null } | null;
+  snapshots: SnapshotInfo[];
+  forks: ForkInfo[];
+}
+```
+
+- `version` discriminates the schema generation. `readManifest` rejects a manifest whose version it doesn't recognize, so future schema changes won't be silently misread by older SDK versions. v1 is the only version today; when we evolve the schema we bump and add a migration branch.
+- `parent` is `null` for top-level locations, `{ location, snapshotId: null }` for a snapshot, `{ location, snapshotId }` for a fork.
+- `snapshots` and `forks` are this location's descendants. They populate as the location spawns new snapshots/forks; for a snapshot location they stay empty forever.
+
+`snapshots.list()` and `forks.list()` read this file. `snapshots.create` / `forks.create` append to it; `snapshots.delete` / `forks.delete` remove from it. `snapshots.head(id)` and `forks.head(name)` look up by id/name in the arrays.
+
+The SDK exports four helpers for this convention from the adapter entry:
+
+```ts
+import {
+  type Manifest,
+  emptyManifest,    // fresh value for a new location
+  readManifest,     // reads .storagesdk.metadata.json, returns empty default if missing
+  writeManifest,    // writes .storagesdk.metadata.json
+  nextSnapshotId,   // generates the next snapshot id for a parent location
+} from '@storagesdk/core/adapter';
+```
+
+These own the SDK-defined format and naming convention; the rest — how to actually create a sibling location, how to copy entries, how to clean up — is the adapter's job.
 
 ## Consistency
 

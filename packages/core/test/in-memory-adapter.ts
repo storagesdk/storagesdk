@@ -7,14 +7,13 @@
  * `Adapter`, `AdapterSnapshots`, and `AdapterForks` is implemented here.
  */
 
+import type { Adapter, ReadOnlyAdapter } from '../src/adapter.js';
 import { defineAdapter } from '../src/adapter.js';
 import { StorageError } from '../src/errors.js';
 import type {
-  Adapter,
   BodyInput,
   ForkInfo,
   ListResult,
-  ReadOnlyAdapter,
   SnapshotInfo,
   StorageItem,
   StorageItemMeta,
