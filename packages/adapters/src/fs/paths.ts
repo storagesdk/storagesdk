@@ -26,6 +26,24 @@ export function sidecarPath(filePath: string): string {
 }
 
 /**
+ * Resolve a snapshot/fork sibling name against `root`, rejecting any name
+ * that resolves outside `root` or to anything other than a direct child of
+ * `root`. Catches path-traversal inputs (`../etc`), names with separators
+ * (`foo/bar`), and meta-paths (`.`, `..`).
+ */
+export function resolveSiblingSafe(root: string, name: string): string {
+  const resolved = path.resolve(root, name);
+  const rootAbs = path.resolve(root);
+  if (resolved === rootAbs || path.dirname(resolved) !== rootAbs) {
+    throw new StorageError({
+      code: 'InvalidArgument',
+      message: `invalid sibling name: "${name}"`,
+    });
+  }
+  return resolved;
+}
+
+/**
  * True for keys the SDK reserves (per-location manifest, per-object sidecars).
  * Used to reject uploads to reserved keys and to filter `list()` results.
  */

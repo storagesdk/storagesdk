@@ -243,4 +243,83 @@ describe('fs adapter', () => {
       expect(existsSync(path.join(root, 'fork-one'))).toBe(false);
     });
   });
+
+  describe('sibling-name validation', () => {
+    it('rejects path traversal in forks.create', async () => {
+      await storage.upload('a.jpg', 'a');
+      const snap = await storage.snapshots.create();
+      await expect(
+        storage.forks.create({ name: '../escape', fromSnapshot: snap.id })
+      ).rejects.toMatchObject({ code: 'InvalidArgument' });
+    });
+
+    it('rejects path traversal in forks.delete', async () => {
+      await expect(storage.forks.delete('../escape')).rejects.toMatchObject({
+        code: 'InvalidArgument',
+      });
+    });
+
+    it('rejects path traversal in forks.get', () => {
+      expect(() => storage.forks.get('../escape')).toThrowError(
+        /invalid sibling name/
+      );
+    });
+
+    it('rejects path traversal in snapshots.delete and snapshots.get', async () => {
+      await expect(storage.snapshots.delete('../escape')).rejects.toMatchObject(
+        { code: 'InvalidArgument' }
+      );
+      expect(() => storage.snapshots.get('../escape')).toThrowError(
+        /invalid sibling name/
+      );
+    });
+
+    it('rejects names with path separators', async () => {
+      await storage.upload('a.jpg', 'a');
+      const snap = await storage.snapshots.create();
+      await expect(
+        storage.forks.create({ name: 'foo/bar', fromSnapshot: snap.id })
+      ).rejects.toMatchObject({ code: 'InvalidArgument' });
+    });
+
+    it('rejects empty, ".", and ".."', async () => {
+      for (const bad of ['', '.', '..']) {
+        await expect(storage.forks.delete(bad)).rejects.toMatchObject({
+          code: 'InvalidArgument',
+        });
+      }
+    });
+  });
+
+  describe('sidecar cleanup on copy/move', () => {
+    it('clears the destination sidecar when the source has none', async () => {
+      // dst starts with a sidecar (from an old upload with contentType set).
+      await storage.upload('dst.jpg', 'old', { contentType: 'image/jpeg' });
+      // src has no sidecar (default contentType, no metadata).
+      await storage.upload('src.jpg', 'new');
+
+      await storage.copy('src.jpg', 'dst.jpg');
+
+      const dst = await storage.head('dst.jpg');
+      expect(dst.contentType).toBe('application/octet-stream');
+      expect(dst.metadata).toBeUndefined();
+      // Sidecar file should be gone.
+      expect(
+        existsSync(path.join(root, 'photos', 'dst.jpg.storagesdk.meta.json'))
+      ).toBe(false);
+    });
+
+    it('clears the destination sidecar on move when the source has none', async () => {
+      await storage.upload('dst.jpg', 'old', { contentType: 'image/jpeg' });
+      await storage.upload('src.jpg', 'new');
+
+      await storage.move('src.jpg', 'dst.jpg');
+
+      const dst = await storage.head('dst.jpg');
+      expect(dst.contentType).toBe('application/octet-stream');
+      expect(
+        existsSync(path.join(root, 'photos', 'dst.jpg.storagesdk.meta.json'))
+      ).toBe(false);
+    });
+  });
 });

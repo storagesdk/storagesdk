@@ -23,7 +23,13 @@ import {
   writeManifest,
 } from '@storagesdk/core/adapter';
 import { asStorageError } from './errors.js';
-import { isReservedKey, resolveSafe, SIDECAR_SUFFIX, toKey } from './paths.js';
+import {
+  isReservedKey,
+  resolveSafe,
+  resolveSiblingSafe,
+  SIDECAR_SUFFIX,
+  toKey,
+} from './paths.js';
 import {
   copySidecar,
   deleteSidecar,
@@ -303,7 +309,7 @@ function createImpl(config: FsConfig): Adapter {
           throw asStorageError(err);
         }
         const id = nextSnapshotId(config.folder);
-        const snapPath = path.join(config.root, id);
+        const snapPath = resolveSiblingSafe(config.root, id);
 
         try {
           await fsp.cp(folderPath, snapPath, { recursive: true });
@@ -349,10 +355,10 @@ function createImpl(config: FsConfig): Adapter {
       },
 
       async delete(id): Promise<void> {
+        const snapPath = resolveSiblingSafe(config.root, id);
         const thisImpl = createImpl(config);
         const meta = await readManifest(thisImpl);
         meta.snapshots = meta.snapshots.filter((s) => s.id !== id);
-        const snapPath = path.join(config.root, id);
         try {
           await fsp.rm(snapPath, { recursive: true, force: true });
         } catch (err) {
@@ -364,7 +370,10 @@ function createImpl(config: FsConfig): Adapter {
       get(id): ReadOnlyAdapter {
         // Returns a `ReadOnlyAdapter` rooted at the snapshot's folder. The
         // contract guarantees only read methods are visible to callers; the
-        // filesystem itself isn't chmodded read-only.
+        // filesystem itself isn't chmodded read-only. `resolveSiblingSafe`
+        // is called eagerly so a traversal-style id throws synchronously
+        // rather than waiting for first read.
+        resolveSiblingSafe(config.root, id);
         const snapImpl = createImpl({ root: config.root, folder: id });
         return {
           download: (p, opts) => snapImpl.download(p, opts),
@@ -377,14 +386,14 @@ function createImpl(config: FsConfig): Adapter {
 
     forks: {
       async create(opts): Promise<ForkInfo> {
-        const forkPath = path.join(config.root, opts.name);
+        const forkPath = resolveSiblingSafe(config.root, opts.name);
+        const snapPath = resolveSiblingSafe(config.root, opts.fromSnapshot);
         if (existsSync(forkPath)) {
           throw new StorageError({
             code: 'Conflict',
             message: `fork ${opts.name} already exists`,
           });
         }
-        const snapPath = path.join(config.root, opts.fromSnapshot);
         if (!existsSync(snapPath)) {
           throw new StorageError({
             code: 'NotFound',
@@ -438,10 +447,10 @@ function createImpl(config: FsConfig): Adapter {
       },
 
       async delete(name): Promise<void> {
+        const forkPath = resolveSiblingSafe(config.root, name);
         const thisImpl = createImpl(config);
         const meta = await readManifest(thisImpl);
         meta.forks = meta.forks.filter((f) => f.name !== name);
-        const forkPath = path.join(config.root, name);
         try {
           await fsp.rm(forkPath, { recursive: true, force: true });
         } catch (err) {
@@ -454,7 +463,7 @@ function createImpl(config: FsConfig): Adapter {
         // Throw synchronously: a writable fork has no useful "empty" mode.
         // Outer `defineAdapter` (in `fs()`) wraps the raw impl exactly once
         // via its recursive `forks.get`, so this stays single-wrapped.
-        const forkPath = path.join(config.root, name);
+        const forkPath = resolveSiblingSafe(config.root, name);
         if (!existsSync(forkPath)) {
           throw new StorageError({
             code: 'NotFound',

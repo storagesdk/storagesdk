@@ -78,8 +78,9 @@ export async function deleteSidecar(filePath: string): Promise<void> {
 }
 
 /**
- * Move sidecar alongside a `copy` or `move` of the primary file. Best-effort:
- * if the source has no sidecar, this is a no-op.
+ * Move sidecar alongside a `copy` or `move` of the primary file. When the
+ * source has no sidecar, any stale sidecar at the destination is removed
+ * so the destination's metadata always matches the source's.
  */
 export async function copySidecar(
   fromPath: string,
@@ -93,6 +94,8 @@ export async function copySidecar(
       typeof err === 'object' &&
       (err as { code?: unknown }).code === 'ENOENT'
     ) {
+      // Source has no sidecar; clear any stale sidecar at the destination.
+      await deleteSidecar(toPath);
       return;
     }
     throw asStorageError(err);
@@ -111,6 +114,8 @@ export async function renameSidecar(
       typeof err === 'object' &&
       (err as { code?: unknown }).code === 'ENOENT'
     ) {
+      // Source has no sidecar; clear any stale sidecar at the destination.
+      await deleteSidecar(toPath);
       return;
     }
     throw asStorageError(err);
