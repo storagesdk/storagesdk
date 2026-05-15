@@ -245,9 +245,16 @@ Codes: `NotFound`, `NotSupported`, `Conflict`, `Unauthorized`, `InvalidArgument`
 
 ### Escape hatch
 
+Every adapter exposes its underlying native client (or whatever internal state it wants to surface) through `storage.raw`. The type flows through the adapter's `Raw` generic — adapters that declare `Adapter<S3Client>` give consumers `storage.raw` typed as `S3Client` without a cast.
+
 ```ts
-storage.raw; // the underlying native client, typed per adapter
+const storage = new Storage({ adapter: s3({ bucket: "photos" }) });
+//    ↑ inferred as Storage<S3Client> because s3() returns Adapter<S3Client>
+
+storage.raw; // S3Client
 ```
+
+`Storage`, `StorageOptions`, `Adapter`, `AdapterForks`, and `defineAdapter` all carry a `Raw` type parameter that defaults to `unknown`. Adapter authors who don't bother narrowing it get the old `raw: unknown` behavior. `forks.get(name)` returns `Storage<Raw>` so the typed escape hatch survives through fork navigation.
 
 ### Browser uploads
 

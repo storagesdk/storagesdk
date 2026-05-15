@@ -102,8 +102,21 @@ Codes: `NotFound`, `NotSupported`, `Conflict`, `Unauthorized`, `InvalidArgument`
 
 ## Escape hatch
 
+Every adapter exposes its underlying native client (or whatever state it wants to surface) through `storage.raw`. The type of `raw` is carried through from the adapter — adapters that declare `Adapter<S3Client>` give you `storage.raw` typed as `S3Client` with no cast.
+
 ```ts
-storage.raw; // the underlying native client, typed per adapter
+import { Storage } from '@storagesdk/core';
+import { s3 } from '@storagesdk/adapters/s3';
+
+const storage = new Storage({ adapter: s3({ bucket: 'photos', /* ... */ }) });
+//    ↑ inferred as Storage<S3Client>
+
+storage.raw.send(new SomeRawCommand({/* ... */}));
+//      ↑ typed as S3Client
 ```
+
+For adapters that don't narrow `raw`, the type defaults to `unknown` — you cast at the callsite if you want to use it.
+
+`storage.forks.get(name)` carries the same `raw` type, so escape-hatch access works the same on forks.
 
 > Status: pre-release. See [`docs/RFC.md`](../../docs/RFC.md) and [`docs/PLAN.md`](../../docs/PLAN.md) at the repo root.

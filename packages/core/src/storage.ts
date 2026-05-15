@@ -16,8 +16,8 @@ import type {
   UrlOptions,
 } from './types.js';
 
-export interface StorageOptions {
-  adapter: Adapter;
+export interface StorageOptions<Raw = unknown> {
+  adapter: Adapter<Raw>;
 }
 
 export interface ReadOnlyStorageOptions {
@@ -108,10 +108,15 @@ export class ReadOnlyStorage {
  * are straight passthroughs (except for wrapping `snapshots.get` and
  * `forks.get` returns in `ReadOnlyStorage` / `Storage` so consumers get the
  * same ergonomics on derived readers and forks).
+ *
+ * `Raw` flows through from the adapter to `storage.raw` and to every
+ * `forks.get(name)` return. Adapters that don't narrow it default to
+ * `unknown`. Adapters that do (e.g. `Adapter<S3Client>`) give consumers a
+ * typed escape hatch without casts.
  */
-export class Storage extends ReadOnlyStorage {
-  readonly #adapter: Adapter;
-  readonly raw: unknown;
+export class Storage<Raw = unknown> extends ReadOnlyStorage {
+  readonly #adapter: Adapter<Raw>;
+  readonly raw: Raw;
   readonly snapshots: {
     create(opts?: CreateSnapshotOptions): Promise<SnapshotInfo>;
     list(): Promise<SnapshotInfo[]>;
@@ -124,10 +129,10 @@ export class Storage extends ReadOnlyStorage {
     list(): Promise<ForkInfo[]>;
     head(name: string, opts?: { signal?: AbortSignal }): Promise<ForkInfo>;
     delete(name: string, opts?: { signal?: AbortSignal }): Promise<void>;
-    get(name: string): Storage;
+    get(name: string): Storage<Raw>;
   };
 
-  constructor(opts: StorageOptions) {
+  constructor(opts: StorageOptions<Raw>) {
     super(opts);
     const { adapter } = opts;
     this.#adapter = adapter;
@@ -146,7 +151,7 @@ export class Storage extends ReadOnlyStorage {
       list: () => adapter.forks.list(),
       head: (name, headOpts) => adapter.forks.head(name, headOpts),
       delete: (name, deleteOpts) => adapter.forks.delete(name, deleteOpts),
-      get: (name) => new Storage({ adapter: adapter.forks.get(name) }),
+      get: (name) => new Storage<Raw>({ adapter: adapter.forks.get(name) }),
     };
   }
 
