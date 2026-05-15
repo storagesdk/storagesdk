@@ -38,6 +38,25 @@ await storage.uploadUrl(path, opts?);             // returns { method: 'PUT' | '
 
 `body` accepts `Uint8Array`, `ArrayBuffer`, `string`, `Blob`, or `ReadableStream`.
 
+### Multipart uploads
+
+The SDK auto-selects multipart vs single PUT based on the body's size. Bodies larger than `multipartThreshold` (default 5 MB) and `ReadableStream`s (size unknown upfront) go multipart; smaller size-known bodies go single PUT.
+
+```ts
+// Defaults: 5 MB threshold, ReadableStream always multipart.
+await storage.upload('photo.jpg', smallBlob);    // single PUT
+await storage.upload('video.mp4', largeStream);  // multipart
+
+// Override the threshold per upload:
+await storage.upload('config.json', body, { multipartThreshold: 10 * 1024 * 1024 });
+
+// Or force the decision either way:
+await storage.upload(path, body, { multipart: true });
+await storage.upload(path, body, { multipart: false });
+```
+
+Adapters that don't natively support multipart (e.g. the filesystem adapter) ignore the resolved value and always do a single write.
+
 ### Typed downloads with `as`
 
 `download()` is overloaded. The default returns the full `StorageItem`. Pass `as` to get a typed body:

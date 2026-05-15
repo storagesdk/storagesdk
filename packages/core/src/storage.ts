@@ -20,6 +20,8 @@ export interface StorageOptions<Raw = unknown> {
   adapter: Adapter<Raw>;
 }
 
+const MULTIPART_THRESHOLD_DEFAULT = 5 * 1024 * 1024;
+
 export interface ReadOnlyStorageOptions {
   adapter: ReadOnlyAdapter;
 }
@@ -160,7 +162,8 @@ export class Storage<Raw = unknown> extends ReadOnlyStorage {
     body: BodyInput,
     opts?: UploadOptions
   ): Promise<StorageItemMeta> {
-    return this.#adapter.upload(path, body, opts);
+    const multipart = decideMultipart(body, opts);
+    return this.#adapter.upload(path, body, { ...opts, multipart });
   }
 
   delete(path: string, opts?: { signal?: AbortSignal }): Promise<void> {
@@ -186,4 +189,30 @@ export class Storage<Raw = unknown> extends ReadOnlyStorage {
   uploadUrl(path: string, opts?: UploadUrlOptions): Promise<UploadUrlResult> {
     return this.#adapter.uploadUrl(path, opts);
   }
+}
+
+/**
+ * Decide whether an upload should go multipart. Explicit `multipart: true |
+ * false` always wins. Otherwise: streams (size unknown upfront) go
+ * multipart; size-known bodies multipart only if larger than the threshold
+ * (default 5 MB; overrideable via `opts.multipartThreshold`).
+ */
+function decideMultipart(
+  body: BodyInput,
+  opts: UploadOptions | undefined
+): boolean {
+  if (opts?.multipart !== undefined) return opts.multipart;
+  const threshold = opts?.multipartThreshold ?? MULTIPART_THRESHOLD_DEFAULT;
+  const size = bodySize(body);
+  return size === undefined || size > threshold;
+}
+
+function bodySize(body: BodyInput): number | undefined {
+  if (body instanceof Uint8Array) return body.byteLength;
+  if (body instanceof ArrayBuffer) return body.byteLength;
+  if (typeof body === 'string') {
+    return new TextEncoder().encode(body).byteLength;
+  }
+  if (body instanceof Blob) return body.size;
+  return undefined; // ReadableStream — size unknown
 }

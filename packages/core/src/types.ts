@@ -34,7 +34,23 @@ export interface UploadOptions {
   contentType?: string;
   cacheControl?: string;
   metadata?: Record<string, string>;
+  /**
+   * Force a multipart vs single-PUT upload.
+   * - `true`: force multipart.
+   * - `false`: force single PUT. For streams, the adapter (or its backend
+   *    SDK) may buffer the entire body in memory to obtain a Content-Length
+   *    — fine for small streams, OOMs for large ones.
+   * - `undefined` (default): the SDK auto-decides via the body size and
+   *    `multipartThreshold`. Streams are auto-multipart because their
+   *    size isn't known upfront.
+   */
   multipart?: boolean;
+  /**
+   * Body-size threshold (in bytes) above which `upload()` auto-selects
+   * multipart. Default 5 MB. Only consulted when `multipart` is not
+   * explicitly set.
+   */
+  multipartThreshold?: number;
   partSize?: number;
   concurrency?: number;
   onProgress?: (event: UploadProgress) => void;
