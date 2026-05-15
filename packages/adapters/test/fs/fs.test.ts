@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Storage } from '@storagesdk/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { fs } from '../../src/fs/fs.js';
@@ -126,11 +127,16 @@ describe('fs adapter', () => {
   });
 
   describe('url and uploadUrl', () => {
-    it('returns a file:// URL with the absolute path', async () => {
+    it('returns a file:// URL that round-trips back to the absolute path', async () => {
       await storage.upload('photo.jpg', 'x');
       const url = await storage.url('photo.jpg');
-      expect(url.startsWith('file://')).toBe(true);
-      expect(url).toContain(path.join(root, 'photos', 'photo.jpg'));
+      expect(url.startsWith('file:///')).toBe(true);
+      const absolute = path.join(root, 'photos', 'photo.jpg');
+      expect(fileURLToPath(url)).toBe(absolute);
+      // Sanity: the canonical conversion matches what we returned (modulo
+      // optional query params). Drops query before comparison.
+      const noQuery = url.split('?')[0];
+      expect(noQuery).toBe(pathToFileURL(absolute).toString());
     });
 
     it('encodes expires when expiresIn is set', async () => {
@@ -142,7 +148,7 @@ describe('fs adapter', () => {
     it('uploadUrl returns the same shape', async () => {
       const signed = await storage.uploadUrl('new.jpg', { expiresIn: 3600 });
       expect(signed.method).toBe('PUT');
-      expect(signed.url.startsWith('file://')).toBe(true);
+      expect(signed.url.startsWith('file:///')).toBe(true);
     });
 
     it('url throws NotFound for missing keys', async () => {

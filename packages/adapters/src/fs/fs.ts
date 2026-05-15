@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   type Adapter,
   type BodyInput,
@@ -133,7 +134,11 @@ async function statToListMeta(
 }
 
 function fileUrl(filePath: string, expiresIn?: number): string {
-  const u = new URL(`file://${filePath}`);
+  // pathToFileURL handles platform differences correctly. On Windows it
+  // produces `file:///C:/...` (the drive letter would otherwise be parsed as
+  // the URL's host); on POSIX it produces `file:///absolute/path`. It also
+  // URL-encodes characters like `?` and `#` that would break a hand-built URL.
+  const u = pathToFileURL(filePath);
   if (expiresIn !== undefined) {
     const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
     u.searchParams.set('expires', String(expiresAt));
