@@ -61,8 +61,28 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Start MinIO
+        run: docker compose up -d minio
+
+      - name: Wait for MinIO
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live > /dev/null; then
+              echo "MinIO is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MinIO did not become ready in time" >&2
+          docker compose logs minio
+          exit 1
+
       - name: Test
         run: pnpm test
 
       - name: Publint
         run: pnpm publint
+
+      - name: Stop MinIO
+        if: always()
+        run: docker compose down
