@@ -201,7 +201,7 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
           new CopyObjectCommand({
             Bucket: bucket,
             Key: to,
-            CopySource: `${encodeURIComponent(bucket)}/${encodeURIComponent(from)}`,
+            CopySource: copySource(bucket, from),
           })
         );
       } catch (err) {
@@ -215,7 +215,7 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
           new CopyObjectCommand({
             Bucket: bucket,
             Key: to,
-            CopySource: `${encodeURIComponent(bucket)}/${encodeURIComponent(from)}`,
+            CopySource: copySource(bucket, from),
           })
         );
         await client.send(
@@ -347,6 +347,18 @@ function byteLength(body: BodyInput): number {
 
 function stripQuotes(s: string): string {
   return s.replace(/^"|"$/g, '');
+}
+
+/**
+ * Build a `CopySource` value for `CopyObjectCommand`: `<bucket>/<encoded-key>`.
+ * AWS expects the key portion URL-encoded with `/` separators preserved —
+ * `encodeURIComponent` alone would mangle nested keys like `photos/a.jpg` into
+ * `photos%2Fa.jpg`, which S3-compatible providers (MinIO, R2, etc.) won't
+ * uniformly forgive.
+ */
+function copySource(bucket: string, key: string): string {
+  const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+  return `${bucket}/${encodedKey}`;
 }
 
 function notSupportedError(op: string): StorageError {

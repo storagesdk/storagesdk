@@ -128,6 +128,29 @@ describe('s3 adapter', () => {
       });
       expect((await storage.head('final.jpg')).contentType).toBe('image/jpeg');
     });
+
+    it('copies and moves nested keys (path separators in key)', async () => {
+      await storage.upload('photos/2024/a.jpg', 'a');
+      await storage.copy('photos/2024/a.jpg', 'archive/2024/a.jpg');
+      expect(bodyText(await storage.download('archive/2024/a.jpg'))).toBe('a');
+
+      await storage.move('archive/2024/a.jpg', 'archive/2024/b.jpg');
+      await expect(storage.head('archive/2024/a.jpg')).rejects.toMatchObject({
+        code: 'NotFound',
+      });
+      expect(bodyText(await storage.download('archive/2024/b.jpg'))).toBe('a');
+    });
+
+    it('copies keys with special characters that need URL encoding', async () => {
+      await storage.upload('photos/holiday (2024) ☀️.jpg', 'sun');
+      await storage.copy(
+        'photos/holiday (2024) ☀️.jpg',
+        'archive/holiday (2024) ☀️.jpg'
+      );
+      expect(
+        bodyText(await storage.download('archive/holiday (2024) ☀️.jpg'))
+      ).toBe('sun');
+    });
   });
 
   describe('multipart upload', () => {
