@@ -1,11 +1,19 @@
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CopyObjectCommand,
+  CreateBucketCommand,
+  CreateMultipartUploadCommand,
+  DeleteBucketCommand,
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ListObjectVersionsCommand,
   PutObjectCommand,
   S3Client,
+  UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -13,8 +21,14 @@ import {
   type Adapter,
   type BodyInput,
   defineAdapter,
+  emptyManifest,
+  type ForkInfo,
   type ListOptions,
   type ListResult,
+  nextSnapshotId,
+  type ReadOnlyAdapter,
+  readManifest,
+  type SnapshotInfo,
   StorageError,
   type StorageItem,
   type StorageItemMeta,
@@ -22,6 +36,7 @@ import {
   type UploadUrlOptions,
   type UploadUrlResult,
   type UrlOptions,
+  writeManifest,
 } from '@storagesdk/core/adapter';
 import { asStorageError } from './errors.js';
 
@@ -52,6 +67,11 @@ export interface S3Config {
  * not exposed in the public config. For advanced cases, the client is
  * available via `storage.raw`, typed as `S3Client` — no cast needed.
  */
+// S3's hard limit on a single CopyObject is 5 GB. Above that the call fails
+// and we fall back to multipart copy via UploadPartCopy. Hardcoded — not
+// configurable, since the threshold tracks the AWS limit, not user preference.
+const MULTIPART_COPY_THRESHOLD = 5 * 1000 * 1000 * 1000;
+
 export function s3(config: S3Config): Adapter<S3Client> {
   const client = new S3Client({
     ...(config.region !== undefined ? { region: config.region } : {}),
@@ -255,41 +275,145 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
       }
     },
 
-    // Snapshots and forks are deferred to a follow-up PR. The contract
-    // requires both, so we surface NotSupported explicitly until then.
-    // Async methods reject the returned promise; `get` (sync) throws.
+    // Snapshots and forks both materialize as sibling buckets following the
+    // Phase 2 convention. Bucket creation collisions surface as Conflict (the
+    // SDK-generated snapshot id makes them effectively impossible in practice).
     snapshots: {
-      create: async () => {
-        throw notSupportedError('snapshots.create');
+      async create(opts): Promise<SnapshotInfo> {
+        const id = nextSnapshotId(bucket);
+        await createSibling(client, id);
+        await copyAllObjects(client, bucket, id, {
+          onProgress: (e) => {
+            opts?.onProgress?.({ scanned: e.copied, total: e.total });
+          },
+        });
+
+        // Write the snapshot's own manifest (overwriting whatever the copy
+        // brought across from the parent).
+        await writeManifest(
+          impl(client, id),
+          emptyManifest({ location: bucket, snapshotId: null })
+        );
+
+        // Append to the parent's manifest.
+        const self = impl(client, bucket);
+        const meta = await readManifest(self);
+        const info: SnapshotInfo = {
+          id,
+          createdAt: new Date(),
+          ...(opts?.name !== undefined ? { name: opts.name } : {}),
+        };
+        meta.snapshots.push(info);
+        await writeManifest(self, meta);
+        return info;
       },
-      list: async () => {
-        throw notSupportedError('snapshots.list');
+
+      async list(): Promise<SnapshotInfo[]> {
+        return (await readManifest(impl(client, bucket))).snapshots;
       },
-      head: async () => {
-        throw notSupportedError('snapshots.head');
+
+      async head(id): Promise<SnapshotInfo> {
+        const meta = await readManifest(impl(client, bucket));
+        const found = meta.snapshots.find((s) => s.id === id);
+        if (!found) {
+          throw new StorageError({
+            code: 'NotFound',
+            message: `snapshot ${id} not found`,
+          });
+        }
+        return found;
       },
-      delete: async () => {
-        throw notSupportedError('snapshots.delete');
+
+      async delete(id): Promise<void> {
+        const self = impl(client, bucket);
+        const meta = await readManifest(self);
+        meta.snapshots = meta.snapshots.filter((s) => s.id !== id);
+        await emptyBucket(client, id);
+        try {
+          await client.send(new DeleteBucketCommand({ Bucket: id }));
+        } catch (err) {
+          throw asStorageError(err);
+        }
+        await writeManifest(self, meta);
       },
-      get: () => {
-        throw notSupportedError('snapshots.get');
+
+      get(id): ReadOnlyAdapter {
+        // Return a read-only view over the snapshot bucket. The contract
+        // exposes only the four read methods to callers; nothing chmods the
+        // bucket itself read-only.
+        const snapImpl = impl(client, id);
+        return {
+          download: (p, opts) => snapImpl.download(p, opts),
+          head: (p, opts) => snapImpl.head(p, opts),
+          list: (opts) => snapImpl.list(opts),
+          url: (p, opts) => snapImpl.url(p, opts),
+        };
       },
     },
+
     forks: {
-      create: async () => {
-        throw notSupportedError('forks.create');
+      async create(opts): Promise<ForkInfo> {
+        await createSibling(client, opts.name);
+        await copyAllObjects(client, opts.fromSnapshot, opts.name, {
+          onProgress: (e) => {
+            opts.onProgress?.({ copied: e.copied, total: e.total });
+          },
+        });
+
+        await writeManifest(
+          impl(client, opts.name),
+          emptyManifest({
+            location: bucket,
+            snapshotId: opts.fromSnapshot,
+          })
+        );
+
+        const self = impl(client, bucket);
+        const meta = await readManifest(self);
+        const info: ForkInfo = {
+          name: opts.name,
+          fromSnapshot: opts.fromSnapshot,
+          createdAt: new Date(),
+        };
+        meta.forks.push(info);
+        await writeManifest(self, meta);
+        return info;
       },
-      list: async () => {
-        throw notSupportedError('forks.list');
+
+      async list(): Promise<ForkInfo[]> {
+        return (await readManifest(impl(client, bucket))).forks;
       },
-      head: async () => {
-        throw notSupportedError('forks.head');
+
+      async head(name): Promise<ForkInfo> {
+        const meta = await readManifest(impl(client, bucket));
+        const found = meta.forks.find((f) => f.name === name);
+        if (!found) {
+          throw new StorageError({
+            code: 'NotFound',
+            message: `fork ${name} not found`,
+          });
+        }
+        return found;
       },
-      delete: async () => {
-        throw notSupportedError('forks.delete');
+
+      async delete(name): Promise<void> {
+        const self = impl(client, bucket);
+        const meta = await readManifest(self);
+        meta.forks = meta.forks.filter((f) => f.name !== name);
+        await emptyBucket(client, name);
+        try {
+          await client.send(new DeleteBucketCommand({ Bucket: name }));
+        } catch (err) {
+          throw asStorageError(err);
+        }
+        await writeManifest(self, meta);
       },
-      get: () => {
-        throw notSupportedError('forks.get');
+
+      get(name): Adapter<S3Client> {
+        // Returns a full read/write adapter rooted at the fork bucket. The
+        // outer `defineAdapter` (in `s3()`) wraps the raw impl exactly once
+        // via its recursive `forks.get`, so this stays single-wrapped.
+        return impl(client, name);
       },
     },
   };
@@ -361,9 +485,262 @@ function copySource(bucket: string, key: string): string {
   return `${bucket}/${encodedKey}`;
 }
 
-function notSupportedError(op: string): StorageError {
-  return new StorageError({
-    code: 'NotSupported',
-    message: `${op} is not implemented for the S3 adapter yet`,
-  });
+/** CreateBucket via the S3 API. Surfaces `BucketAlreadyExists` as Conflict. */
+async function createSibling(client: S3Client, name: string): Promise<void> {
+  try {
+    await client.send(new CreateBucketCommand({ Bucket: name }));
+  } catch (err) {
+    throw asStorageError(err);
+  }
+}
+
+/**
+ * Empty a bucket so it can be deleted. Tries `ListObjectVersions` first to
+ * cover Versioning-enabled buckets and delete markers; falls back to the
+ * simple `ListObjectsV2` path if the backend doesn't support
+ * `ListObjectVersions` (Cloudflare R2 returns NotImplemented). Both paths
+ * batch deletions via `DeleteObjects` (up to 1000 per call).
+ */
+async function emptyBucket(client: S3Client, bucket: string): Promise<void> {
+  try {
+    await emptyBucketVersioned(client, bucket);
+  } catch (err) {
+    if (isNotImplementedError(err)) {
+      try {
+        await emptyBucketSimple(client, bucket);
+        return;
+      } catch (fallbackErr) {
+        throw asStorageError(fallbackErr);
+      }
+    }
+    throw asStorageError(err);
+  }
+}
+
+async function emptyBucketVersioned(
+  client: S3Client,
+  bucket: string
+): Promise<void> {
+  let keyMarker: string | undefined;
+  let versionIdMarker: string | undefined;
+  while (true) {
+    const res = await client.send(
+      new ListObjectVersionsCommand({
+        Bucket: bucket,
+        ...(keyMarker !== undefined ? { KeyMarker: keyMarker } : {}),
+        ...(versionIdMarker !== undefined
+          ? { VersionIdMarker: versionIdMarker }
+          : {}),
+      })
+    );
+
+    const toDelete: { Key: string; VersionId: string }[] = [];
+    for (const v of res.Versions ?? []) {
+      if (v.Key && v.VersionId) {
+        toDelete.push({ Key: v.Key, VersionId: v.VersionId });
+      }
+    }
+    for (const dm of res.DeleteMarkers ?? []) {
+      if (dm.Key && dm.VersionId) {
+        toDelete.push({ Key: dm.Key, VersionId: dm.VersionId });
+      }
+    }
+
+    if (toDelete.length > 0) {
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: toDelete, Quiet: true },
+        })
+      );
+    }
+
+    if (!res.IsTruncated) return;
+    keyMarker = res.NextKeyMarker;
+    versionIdMarker = res.NextVersionIdMarker;
+  }
+}
+
+async function emptyBucketSimple(
+  client: S3Client,
+  bucket: string
+): Promise<void> {
+  let token: string | undefined;
+  while (true) {
+    const res = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        ...(token !== undefined ? { ContinuationToken: token } : {}),
+      })
+    );
+    const toDelete: { Key: string }[] = [];
+    for (const obj of res.Contents ?? []) {
+      if (obj.Key) toDelete.push({ Key: obj.Key });
+    }
+    if (toDelete.length > 0) {
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: toDelete, Quiet: true },
+        })
+      );
+    }
+    if (!res.IsTruncated) return;
+    token = res.NextContinuationToken;
+  }
+}
+
+function isNotImplementedError(err: unknown): boolean {
+  const aws = err as
+    | { name?: string; $metadata?: { httpStatusCode?: number } }
+    | null
+    | undefined;
+  return (
+    aws?.name === 'NotImplemented' || aws?.$metadata?.httpStatusCode === 501
+  );
+}
+
+interface CopyAllObjectsOptions {
+  onProgress?: (e: { copied: number; total: number }) => void;
+  concurrency?: number;
+}
+
+/**
+ * Copy every object from one bucket to another. Single `CopyObject` for
+ * objects up to S3's 5 GB single-copy limit; multipart copy
+ * (`UploadPartCopy`) for anything larger. Object-level parallelism with a
+ * configurable concurrency cap (default 4); parts within a multipart copy
+ * are uploaded serially (TODO: parallelize parts if real-world testing
+ * shows benefit).
+ */
+async function copyAllObjects(
+  client: S3Client,
+  fromBucket: string,
+  toBucket: string,
+  opts: CopyAllObjectsOptions = {}
+): Promise<void> {
+  const objects: { key: string; size: number }[] = [];
+  let token: string | undefined;
+  do {
+    const res = await client.send(
+      new ListObjectsV2Command({
+        Bucket: fromBucket,
+        ...(token !== undefined ? { ContinuationToken: token } : {}),
+      })
+    );
+    for (const obj of res.Contents ?? []) {
+      if (obj.Key !== undefined && obj.Size !== undefined) {
+        objects.push({ key: obj.Key, size: obj.Size });
+      }
+    }
+    token = res.NextContinuationToken;
+  } while (token);
+
+  const concurrency = opts.concurrency ?? 4;
+  const total = objects.length;
+  let copied = 0;
+  const queue = [...objects];
+
+  async function worker(): Promise<void> {
+    while (queue.length > 0) {
+      const obj = queue.shift();
+      if (obj === undefined) return;
+      try {
+        if (obj.size > MULTIPART_COPY_THRESHOLD) {
+          await multipartCopy(client, fromBucket, toBucket, obj.key, obj.size);
+        } else {
+          await client.send(
+            new CopyObjectCommand({
+              Bucket: toBucket,
+              Key: obj.key,
+              CopySource: copySource(fromBucket, obj.key),
+            })
+          );
+        }
+      } catch (err) {
+        throw asStorageError(err);
+      }
+      copied++;
+      opts.onProgress?.({ copied, total });
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, total) }, () => worker())
+  );
+}
+
+/**
+ * Copy a single object via multipart copy. Splits the source object into
+ * 5 GB parts (the AWS single-copy limit) and uploads each via
+ * `UploadPartCopy`. Parts are uploaded serially — adapter-level parallelism
+ * is at the object level (see `copyAllObjects`).
+ */
+async function multipartCopy(
+  client: S3Client,
+  fromBucket: string,
+  toBucket: string,
+  key: string,
+  size: number
+): Promise<void> {
+  const partSize = MULTIPART_COPY_THRESHOLD;
+  const numParts = Math.ceil(size / partSize);
+  const init = await client.send(
+    new CreateMultipartUploadCommand({ Bucket: toBucket, Key: key })
+  );
+  const uploadId = init.UploadId;
+  if (!uploadId) {
+    throw new StorageError({
+      code: 'Provider',
+      message: 'CreateMultipartUpload did not return an UploadId',
+    });
+  }
+
+  try {
+    const parts: { PartNumber: number; ETag: string }[] = [];
+    for (let i = 0; i < numParts; i++) {
+      const start = i * partSize;
+      const end = Math.min(start + partSize - 1, size - 1);
+      const res = await client.send(
+        new UploadPartCopyCommand({
+          Bucket: toBucket,
+          Key: key,
+          UploadId: uploadId,
+          PartNumber: i + 1,
+          CopySource: copySource(fromBucket, key),
+          CopySourceRange: `bytes=${start}-${end}`,
+        })
+      );
+      const etag = res.CopyPartResult?.ETag;
+      if (!etag) {
+        throw new StorageError({
+          code: 'Provider',
+          message: 'UploadPartCopy did not return an ETag',
+        });
+      }
+      parts.push({ PartNumber: i + 1, ETag: etag });
+    }
+
+    await client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: toBucket,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: { Parts: parts },
+      })
+    );
+  } catch (err) {
+    // Abort to free server-side resources; swallow any abort error so we
+    // don't mask the original failure.
+    await client
+      .send(
+        new AbortMultipartUploadCommand({
+          Bucket: toBucket,
+          Key: key,
+          UploadId: uploadId,
+        })
+      )
+      .catch(() => {});
+    throw err;
+  }
 }

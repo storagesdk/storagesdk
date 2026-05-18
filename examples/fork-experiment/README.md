@@ -2,20 +2,11 @@
 
 Fork your storage to try a risky change in isolation, then throw it away — or promote it.
 
-## Run it from this repo
+## Run
 
 ```sh
 pnpm install
-pnpm dev
-```
-
-## Run it standalone
-
-Copy this folder out, then in your own project:
-
-```sh
-npm install @storagesdk/core @storagesdk/adapters
-npm run dev
+pnpm --filter @storagesdk/examples fork-experiment
 ```
 
 ## What the script does

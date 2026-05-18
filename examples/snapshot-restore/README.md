@@ -2,20 +2,11 @@
 
 Take a snapshot before a risky change, read the snapshot to inspect the old state, then restore from it.
 
-## Run it from this repo
+## Run
 
 ```sh
 pnpm install
-pnpm dev
-```
-
-## Run it standalone
-
-Copy this folder out, then in your own project:
-
-```sh
-npm install @storagesdk/core @storagesdk/adapters
-npm run dev
+pnpm --filter @storagesdk/examples snapshot-restore
 ```
 
 ## What the script does
