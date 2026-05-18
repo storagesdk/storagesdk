@@ -7,12 +7,15 @@ import {
   DeleteBucketCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
+  GetBucketTaggingCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   ListObjectVersionsCommand,
+  PutBucketTaggingCommand,
   PutObjectCommand,
   S3Client,
+  type Tag,
   UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -23,20 +26,23 @@ import {
   defineAdapter,
   emptyManifest,
   type ForkInfo,
+  isInternalKey,
   type ListOptions,
   type ListResult,
+  MANIFEST_PATH,
+  type Manifest,
   nextSnapshotId,
+  parseManifest,
   type ReadOnlyAdapter,
-  readManifest,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
   type StorageItemMeta,
+  serializeManifest,
   type UploadOptions,
   type UploadUrlOptions,
   type UploadUrlResult,
   type UrlOptions,
-  writeManifest,
 } from '@storagesdk/core/adapter';
 import { asStorageError } from './errors.js';
 
@@ -72,6 +78,17 @@ export interface S3Config {
 // configurable, since the threshold tracks the AWS limit, not user preference.
 const MULTIPART_COPY_THRESHOLD = 5 * 1000 * 1000 * 1000;
 
+// AWS S3, MinIO, and most S3-compat providers honor these limits (50 tags
+// per bucket; tag value up to 256 chars). The JSON manifest is base64-
+// encoded (S3 rejects raw JSON chars like `{`, `,`, `"` in tag values),
+// chunked into value-sized pieces, then stored under sortable tag keys
+// (`storagesdk-manifest-NN`). Base64 inflates the payload by ~4/3 — net
+// capacity is still ~9.6 KB of JSON per manifest, plenty for hundreds of
+// snapshots/forks.
+const MANIFEST_TAG_PREFIX = 'storagesdk-manifest-';
+const MANIFEST_TAG_VALUE_MAX = 256;
+const MANIFEST_TAG_COUNT_MAX = 50;
+
 export function s3(config: S3Config): Adapter<S3Client> {
   const client = new S3Client({
     ...(config.region !== undefined ? { region: config.region } : {}),
@@ -84,10 +101,15 @@ export function s3(config: S3Config): Adapter<S3Client> {
       : {}),
   });
 
-  return defineAdapter<S3Client>(impl(client, config.bucket));
+  const manifestStore = createManifestStore();
+  return defineAdapter<S3Client>(impl(client, config.bucket, manifestStore));
 }
 
-function impl(client: S3Client, bucket: string): Adapter<S3Client> {
+function impl(
+  client: S3Client,
+  bucket: string,
+  manifest: ManifestStore
+): Adapter<S3Client> {
   return {
     name: 's3',
     raw: client,
@@ -189,15 +211,22 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
               : {}),
           })
         );
-        const items: StorageItemMeta[] = (out.Contents ?? []).map((obj) => ({
-          path: obj.Key ?? '',
-          size: obj.Size ?? 0,
-          // ListObjectsV2 doesn't return ContentType or user metadata; that
-          // takes a HEAD per key. Consumers wanting full meta call head().
-          contentType: 'application/octet-stream',
-          etag: stripQuotes(obj.ETag ?? ''),
-          lastModified: obj.LastModified ?? new Date(),
-        }));
+        const items: StorageItemMeta[] = (out.Contents ?? [])
+          // Manifest only appears in bucket-tag-unsupported fallback mode
+          // where it's stored as an object; in tag mode this filter is a
+          // no-op. Filtering here can leave a page short by one item in
+          // fallback mode — accepted, since the backend doesn't support
+          // the cleaner tags path.
+          .filter((obj) => obj.Key !== undefined && !isInternalKey(obj.Key))
+          .map((obj) => ({
+            path: obj.Key ?? '',
+            size: obj.Size ?? 0,
+            // ListObjectsV2 doesn't return ContentType or user metadata; that
+            // takes a HEAD per key. Consumers wanting full meta call head().
+            contentType: 'application/octet-stream',
+            etag: stripQuotes(obj.ETag ?? ''),
+            lastModified: obj.LastModified ?? new Date(),
+          }));
         const cursor = out.NextContinuationToken;
         return cursor !== undefined ? { items, cursor } : { items };
       } catch (err) {
@@ -282,38 +311,40 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
       async create(opts): Promise<SnapshotInfo> {
         const id = nextSnapshotId(bucket);
         await createSibling(client, id);
-        await copyAllObjects(client, bucket, id, {
-          onProgress: (e) => {
-            opts?.onProgress?.({ scanned: e.copied, total: e.total });
-          },
-        });
+        try {
+          await copyAllObjects(client, bucket, id, {
+            onProgress: (e) => {
+              opts?.onProgress?.({ scanned: e.copied, total: e.total });
+            },
+          });
 
-        // Write the snapshot's own manifest (overwriting whatever the copy
-        // brought across from the parent).
-        await writeManifest(
-          impl(client, id),
-          emptyManifest({ location: bucket, snapshotId: null })
-        );
+          await manifest.write(
+            client,
+            id,
+            emptyManifest({ location: bucket, snapshotId: null })
+          );
 
-        // Append to the parent's manifest.
-        const self = impl(client, bucket);
-        const meta = await readManifest(self);
-        const info: SnapshotInfo = {
-          id,
-          createdAt: new Date(),
-          ...(opts?.name !== undefined ? { name: opts.name } : {}),
-        };
-        meta.snapshots.push(info);
-        await writeManifest(self, meta);
-        return info;
+          const meta = await manifest.read(client, bucket);
+          const info: SnapshotInfo = {
+            id,
+            createdAt: new Date(),
+            ...(opts?.name !== undefined ? { name: opts.name } : {}),
+          };
+          meta.snapshots.push(info);
+          await manifest.write(client, bucket, meta);
+          return info;
+        } catch (err) {
+          await destroySibling(client, id);
+          throw asStorageError(err);
+        }
       },
 
       async list(): Promise<SnapshotInfo[]> {
-        return (await readManifest(impl(client, bucket))).snapshots;
+        return (await manifest.read(client, bucket)).snapshots;
       },
 
       async head(id): Promise<SnapshotInfo> {
-        const meta = await readManifest(impl(client, bucket));
+        const meta = await manifest.read(client, bucket);
         const found = meta.snapshots.find((s) => s.id === id);
         if (!found) {
           throw new StorageError({
@@ -325,23 +356,17 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
       },
 
       async delete(id): Promise<void> {
-        const self = impl(client, bucket);
-        const meta = await readManifest(self);
+        const meta = await manifest.read(client, bucket);
         meta.snapshots = meta.snapshots.filter((s) => s.id !== id);
-        await emptyBucket(client, id);
-        try {
-          await client.send(new DeleteBucketCommand({ Bucket: id }));
-        } catch (err) {
-          throw asStorageError(err);
-        }
-        await writeManifest(self, meta);
+        await deleteBucketIfPresent(client, id);
+        await manifest.write(client, bucket, meta);
       },
 
       get(id): ReadOnlyAdapter {
         // Return a read-only view over the snapshot bucket. The contract
         // exposes only the four read methods to callers; nothing chmods the
         // bucket itself read-only.
-        const snapImpl = impl(client, id);
+        const snapImpl = impl(client, id, manifest);
         return {
           download: (p, opts) => snapImpl.download(p, opts),
           head: (p, opts) => snapImpl.head(p, opts),
@@ -354,38 +379,43 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
     forks: {
       async create(opts): Promise<ForkInfo> {
         await createSibling(client, opts.name);
-        await copyAllObjects(client, opts.fromSnapshot, opts.name, {
-          onProgress: (e) => {
-            opts.onProgress?.({ copied: e.copied, total: e.total });
-          },
-        });
+        try {
+          await copyAllObjects(client, opts.fromSnapshot, opts.name, {
+            onProgress: (e) => {
+              opts.onProgress?.({ copied: e.copied, total: e.total });
+            },
+          });
 
-        await writeManifest(
-          impl(client, opts.name),
-          emptyManifest({
-            location: bucket,
-            snapshotId: opts.fromSnapshot,
-          })
-        );
+          await manifest.write(
+            client,
+            opts.name,
+            emptyManifest({
+              location: bucket,
+              snapshotId: opts.fromSnapshot,
+            })
+          );
 
-        const self = impl(client, bucket);
-        const meta = await readManifest(self);
-        const info: ForkInfo = {
-          name: opts.name,
-          fromSnapshot: opts.fromSnapshot,
-          createdAt: new Date(),
-        };
-        meta.forks.push(info);
-        await writeManifest(self, meta);
-        return info;
+          const meta = await manifest.read(client, bucket);
+          const info: ForkInfo = {
+            name: opts.name,
+            fromSnapshot: opts.fromSnapshot,
+            createdAt: new Date(),
+          };
+          meta.forks.push(info);
+          await manifest.write(client, bucket, meta);
+          return info;
+        } catch (err) {
+          await destroySibling(client, opts.name);
+          throw asStorageError(err);
+        }
       },
 
       async list(): Promise<ForkInfo[]> {
-        return (await readManifest(impl(client, bucket))).forks;
+        return (await manifest.read(client, bucket)).forks;
       },
 
       async head(name): Promise<ForkInfo> {
-        const meta = await readManifest(impl(client, bucket));
+        const meta = await manifest.read(client, bucket);
         const found = meta.forks.find((f) => f.name === name);
         if (!found) {
           throw new StorageError({
@@ -397,23 +427,17 @@ function impl(client: S3Client, bucket: string): Adapter<S3Client> {
       },
 
       async delete(name): Promise<void> {
-        const self = impl(client, bucket);
-        const meta = await readManifest(self);
+        const meta = await manifest.read(client, bucket);
         meta.forks = meta.forks.filter((f) => f.name !== name);
-        await emptyBucket(client, name);
-        try {
-          await client.send(new DeleteBucketCommand({ Bucket: name }));
-        } catch (err) {
-          throw asStorageError(err);
-        }
-        await writeManifest(self, meta);
+        await deleteBucketIfPresent(client, name);
+        await manifest.write(client, bucket, meta);
       },
 
       get(name): Adapter<S3Client> {
         // Returns a full read/write adapter rooted at the fork bucket. The
         // outer `defineAdapter` (in `s3()`) wraps the raw impl exactly once
         // via its recursive `forks.get`, so this stays single-wrapped.
-        return impl(client, name);
+        return impl(client, name, manifest);
       },
     },
   };
@@ -491,6 +515,43 @@ async function createSibling(client: S3Client, name: string): Promise<void> {
     await client.send(new CreateBucketCommand({ Bucket: name }));
   } catch (err) {
     throw asStorageError(err);
+  }
+}
+
+/**
+ * Best-effort cleanup after a failed snapshot/fork creation. Empties the
+ * bucket and removes it so the user-facing name (forks) or the SDK-generated
+ * id (snapshots) isn't left orphaned. Swallows secondary errors — the
+ * original failure is what the caller cares about.
+ */
+async function destroySibling(client: S3Client, name: string): Promise<void> {
+  try {
+    await emptyBucket(client, name);
+    await client.send(new DeleteBucketCommand({ Bucket: name }));
+  } catch {
+    // Intentionally swallowed: cleanup is best-effort. If it fails (e.g. the
+    // bucket was already deleted, or permissions changed mid-flight), the
+    // original error from the caller's try block is more informative.
+  }
+}
+
+/**
+ * Empty + delete a bucket, treating "already gone" as success so the caller
+ * can proceed to update its parent manifest. Matches the FS adapter's
+ * `rm -rf`-style tolerance — an externally removed sibling shouldn't be
+ * able to wedge the manifest with a stale entry the SDK can never clear.
+ */
+async function deleteBucketIfPresent(
+  client: S3Client,
+  name: string
+): Promise<void> {
+  try {
+    await emptyBucket(client, name);
+    await client.send(new DeleteBucketCommand({ Bucket: name }));
+  } catch (err) {
+    const mapped = asStorageError(err);
+    if (mapped.code === 'NotFound') return;
+    throw mapped;
   }
 }
 
@@ -621,20 +682,28 @@ async function copyAllObjects(
 ): Promise<void> {
   const objects: { key: string; size: number }[] = [];
   let token: string | undefined;
-  do {
-    const res = await client.send(
-      new ListObjectsV2Command({
-        Bucket: fromBucket,
-        ...(token !== undefined ? { ContinuationToken: token } : {}),
-      })
-    );
-    for (const obj of res.Contents ?? []) {
-      if (obj.Key !== undefined && obj.Size !== undefined) {
-        objects.push({ key: obj.Key, size: obj.Size });
+  try {
+    do {
+      const res = await client.send(
+        new ListObjectsV2Command({
+          Bucket: fromBucket,
+          ...(token !== undefined ? { ContinuationToken: token } : {}),
+        })
+      );
+      for (const obj of res.Contents ?? []) {
+        if (obj.Key !== undefined && obj.Size !== undefined) {
+          // Skip the SDK's internal manifest — the caller writes a fresh one
+          // for the snapshot/fork right after this copy completes. Copying
+          // the parent's would just be overwritten and briefly mislead readers.
+          if (isInternalKey(obj.Key)) continue;
+          objects.push({ key: obj.Key, size: obj.Size });
+        }
       }
-    }
-    token = res.NextContinuationToken;
-  } while (token);
+      token = res.NextContinuationToken;
+    } while (token);
+  } catch (err) {
+    throw asStorageError(err);
+  }
 
   const concurrency = opts.concurrency ?? 4;
   const total = objects.length;
@@ -743,4 +812,190 @@ async function multipartCopy(
       .catch(() => {});
     throw err;
   }
+}
+
+interface ManifestStore {
+  read(client: S3Client, bucket: string): Promise<Manifest>;
+  write(client: S3Client, bucket: string, manifest: Manifest): Promise<void>;
+}
+
+/**
+ * Per-adapter manifest store. Tries to keep the manifest in S3 bucket tags
+ * (invisible to `ListObjectsV2`, so `list({ limit })` returns exact N items).
+ * If the backend doesn't support bucket tagging (e.g. Cloudflare R2 currently
+ * returns `NotImplemented` / 501), falls back to storing the manifest as a
+ * regular object at `MANIFEST_PATH` and remembers the mode for subsequent
+ * calls. In fallback mode `list()` filters the manifest from results, which
+ * may produce N-1 items on the page that contains it — accepted as the
+ * unavoidable price of S3 server-side pagination on backends without tags.
+ *
+ * The mode is per-adapter-instance: the cap is detected once on the first
+ * tag-op error and reused for every bucket the adapter touches (main bucket
+ * + every sibling snapshot/fork bucket on the same endpoint).
+ */
+function createManifestStore(): ManifestStore {
+  let mode: 'unknown' | 'tags' | 'object' = 'unknown';
+
+  return {
+    async read(client, bucket) {
+      if (mode !== 'object') {
+        try {
+          const m = await readFromTags(client, bucket);
+          mode = 'tags';
+          return m;
+        } catch (err) {
+          if (!isTagsUnsupportedError(err)) throw asStorageError(err);
+          mode = 'object';
+        }
+      }
+      return readFromObject(client, bucket);
+    },
+
+    async write(client, bucket, m) {
+      if (mode !== 'object') {
+        try {
+          await writeToTags(client, bucket, m);
+          mode = 'tags';
+          return;
+        } catch (err) {
+          if (!isTagsUnsupportedError(err)) throw asStorageError(err);
+          mode = 'object';
+        }
+      }
+      await writeToObject(client, bucket, m);
+    },
+  };
+}
+
+async function readFromTags(
+  client: S3Client,
+  bucket: string
+): Promise<Manifest> {
+  let tagSet: Tag[];
+  try {
+    const res = await client.send(
+      new GetBucketTaggingCommand({ Bucket: bucket })
+    );
+    tagSet = res.TagSet ?? [];
+  } catch (err) {
+    // S3 returns NoSuchTagSet when no tags are set yet — that's "no manifest
+    // written," not an error. Pass anything else through so the caller can
+    // decide whether to fall back to object storage.
+    if ((err as { name?: string } | null)?.name === 'NoSuchTagSet') {
+      return emptyManifest();
+    }
+    throw err;
+  }
+
+  const ours = tagSet
+    .filter((t) => (t.Key ?? '').startsWith(MANIFEST_TAG_PREFIX))
+    .sort((a, b) => (a.Key ?? '').localeCompare(b.Key ?? ''));
+  if (ours.length === 0) return emptyManifest();
+
+  const b64 = ours.map((t) => t.Value ?? '').join('');
+  const json = Buffer.from(b64, 'base64').toString('utf-8');
+  return parseManifest(json);
+}
+
+async function writeToTags(
+  client: S3Client,
+  bucket: string,
+  m: Manifest
+): Promise<void> {
+  // Preserve any user-set tags on the bucket — PutBucketTagging is a full
+  // replacement, so we round-trip the existing set and merge.
+  let existing: Tag[] = [];
+  try {
+    const res = await client.send(
+      new GetBucketTaggingCommand({ Bucket: bucket })
+    );
+    existing = res.TagSet ?? [];
+  } catch (err) {
+    if ((err as { name?: string } | null)?.name !== 'NoSuchTagSet') throw err;
+  }
+  const userTags = existing.filter(
+    (t) => !(t.Key ?? '').startsWith(MANIFEST_TAG_PREFIX)
+  );
+
+  const json = serializeManifest(m);
+  const b64 = Buffer.from(json, 'utf-8').toString('base64');
+  const chunks: Tag[] = [];
+  for (let i = 0; i < b64.length; i += MANIFEST_TAG_VALUE_MAX) {
+    const idx = chunks.length.toString().padStart(2, '0');
+    chunks.push({
+      Key: `${MANIFEST_TAG_PREFIX}${idx}`,
+      Value: b64.slice(i, i + MANIFEST_TAG_VALUE_MAX),
+    });
+  }
+
+  const total = userTags.length + chunks.length;
+  if (total > MANIFEST_TAG_COUNT_MAX) {
+    throw new StorageError({
+      code: 'NotSupported',
+      message:
+        `manifest does not fit in S3 bucket-tag capacity (${chunks.length} ` +
+        `manifest tags + ${userTags.length} user tags > ${MANIFEST_TAG_COUNT_MAX})`,
+    });
+  }
+
+  await client.send(
+    new PutBucketTaggingCommand({
+      Bucket: bucket,
+      Tagging: { TagSet: [...userTags, ...chunks] },
+    })
+  );
+}
+
+async function readFromObject(
+  client: S3Client,
+  bucket: string
+): Promise<Manifest> {
+  try {
+    const out = await client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: MANIFEST_PATH })
+    );
+    if (!out.Body) return emptyManifest();
+    const text = await out.Body.transformToString();
+    return parseManifest(text);
+  } catch (err) {
+    const mapped = asStorageError(err);
+    if (mapped.code === 'NotFound') return emptyManifest();
+    throw mapped;
+  }
+}
+
+async function writeToObject(
+  client: S3Client,
+  bucket: string,
+  m: Manifest
+): Promise<void> {
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: MANIFEST_PATH,
+        Body: serializeManifest(m),
+        ContentType: 'application/json',
+      })
+    );
+  } catch (err) {
+    throw asStorageError(err);
+  }
+}
+
+/**
+ * Heuristic: did the backend reject the bucket-tagging call because it
+ * doesn't support the API? AWS S3, MinIO, and tag-capable providers don't
+ * return these; R2 and similar gap-fillers tend to return `NotImplemented`
+ * (501) or `MethodNotAllowed` (405) for unsupported bucket-level APIs.
+ */
+function isTagsUnsupportedError(err: unknown): boolean {
+  if (isNotImplementedError(err)) return true;
+  const aws = err as
+    | { name?: string; $metadata?: { httpStatusCode?: number } }
+    | null
+    | undefined;
+  return (
+    aws?.name === 'MethodNotAllowed' || aws?.$metadata?.httpStatusCode === 405
+  );
 }

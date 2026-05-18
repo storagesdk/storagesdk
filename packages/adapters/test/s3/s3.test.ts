@@ -296,6 +296,33 @@ describe('s3 adapter', () => {
         code: 'NotFound',
       });
     });
+
+    it('hides the internal manifest from list() on parent and snapshot', async () => {
+      await storage.upload('a.jpg', 'a');
+      const info = await storage.snapshots.create();
+
+      // Parent bucket has a manifest after snapshot creation; list() must hide it.
+      const parentKeys = (await storage.list()).items.map((i) => i.path);
+      expect(parentKeys).toContain('a.jpg');
+      expect(parentKeys).not.toContain('.storagesdk.metadata.json');
+
+      // Snapshot bucket also has its own manifest; list() must hide it.
+      const reader = storage.snapshots.get(info.id);
+      const snapKeys = (await reader.list()).items.map((i) => i.path);
+      expect(snapKeys).toContain('a.jpg');
+      expect(snapKeys).not.toContain('.storagesdk.metadata.json');
+    });
+
+    it('list({ limit }) returns full pages even when the manifest is present', async () => {
+      for (let i = 0; i < 5; i++) {
+        await storage.upload(`k${i}.txt`, String(i));
+      }
+      await storage.snapshots.create();
+
+      const page1 = await storage.list({ limit: 2 });
+      expect(page1.items.length).toBe(2);
+      expect(page1.cursor).toBeDefined();
+    });
   });
 
   describe('forks', () => {

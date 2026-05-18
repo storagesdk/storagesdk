@@ -8,6 +8,7 @@ import {
   defineAdapter,
   emptyManifest,
   type ForkInfo,
+  isInternalKey,
   type ListOptions,
   type ListResult,
   nextSnapshotId,
@@ -178,7 +179,10 @@ async function* walk(dir: string, folderPath: string): AsyncGenerator<string> {
     } else if (info.isFile()) {
       const rel = path.relative(folderPath, full);
       const key = toKey(rel);
-      if (isReservedKey(key)) continue;
+      // Skip both the SDK manifest (stored as an object at `MANIFEST_PATH`
+      // for this adapter) and FS-specific sidecars. Filtering pre-pagination
+      // here keeps `list({ limit: N })` returning exactly N user items.
+      if (isInternalKey(key) || isReservedKey(key)) continue;
       yield key;
     }
   }

@@ -19,8 +19,12 @@ export * from './index.js';
 export type { Manifest } from './manifest.js';
 export {
   emptyManifest,
+  isInternalKey,
+  MANIFEST_PATH,
   nextSnapshotId,
+  parseManifest,
   readManifest,
+  serializeManifest,
   writeManifest,
 } from './manifest.js';
 

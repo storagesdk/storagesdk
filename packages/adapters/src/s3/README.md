@@ -93,7 +93,7 @@ await storage.uploadUrl('new.jpg', { expiresIn: 300 });     // 5-minute PUT URL
 
 ## Snapshots and forks
 
-Each snapshot and fork is a **new bucket** in the same AWS account / S3-compatible provider, populated by server-side `CopyObject` per entry, with a `.storagesdk.metadata.json` manifest at the root tracking lineage (see [the convention](../../../../docs/RFC.md#snapshot-and-fork-convention)).
+Each snapshot and fork is a **new bucket** in the same AWS account / S3-compatible provider, populated by server-side `CopyObject` per entry. Lineage is tracked in a manifest stored as **bucket tags** (`storagesdk-manifest-NN`, base64-encoded JSON chunks). Tags are invisible to `ListObjectsV2`, so `list({ limit: N })` returns exactly N user items. On providers that don't support bucket tagging (e.g. Cloudflare R2 returns `NotImplemented`), the adapter falls back to storing the manifest as an object at `.storagesdk.metadata.json` and `list()` filters it from results — in fallback mode a page that would have contained the manifest can come back with N-1 items.
 
 ```ts
 const snap = await storage.snapshots.create({ name: 'pre-migration' });
