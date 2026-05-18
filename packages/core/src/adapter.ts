@@ -41,24 +41,30 @@ export interface AdapterSnapshots {
 /**
  * The fork-management namespace on an `Adapter`. Same five operations as
  * `AdapterSnapshots`, but `get(name)` returns a full `Adapter` because a
- * fork is writable storage in its own right.
+ * fork is writable storage in its own right. Carries the parent's `Raw`
+ * type so `forks.get(name).raw` stays narrowly typed.
  */
-export interface AdapterForks {
+export interface AdapterForks<Raw = unknown> {
   create(opts: ForkOptions): Promise<ForkInfo>;
   list(): Promise<ForkInfo[]>;
   head(name: string, opts?: { signal?: AbortSignal }): Promise<ForkInfo>;
   delete(name: string, opts?: { signal?: AbortSignal }): Promise<void>;
-  get(name: string): Adapter;
+  get(name: string): Adapter<Raw>;
 }
 
 /**
  * The full adapter contract — read methods plus writes, snapshot management,
  * and fork management. This is what adapter authors implement and what
  * `defineAdapter` accepts and wraps.
+ *
+ * `Raw` is the type of the escape-hatch `raw` field. Adapter authors set it
+ * to whatever native client or state they expose (e.g. `Adapter<S3Client>`);
+ * `Raw` defaults to `unknown` for adapters that don't bother to narrow it.
+ * `Storage<Raw>` and `forks.get(name)` carry the same type through.
  */
-export interface Adapter extends ReadOnlyAdapter {
+export interface Adapter<Raw = unknown> extends ReadOnlyAdapter {
   readonly name: string;
-  readonly raw: unknown;
+  readonly raw: Raw;
 
   upload(
     path: string,
@@ -79,7 +85,7 @@ export interface Adapter extends ReadOnlyAdapter {
   uploadUrl(path: string, opts?: UploadUrlOptions): Promise<UploadUrlResult>;
 
   snapshots: AdapterSnapshots;
-  forks: AdapterForks;
+  forks: AdapterForks<Raw>;
 }
 
 function normalizeListOptions(opts?: ListOptions): ListOptions | undefined {
@@ -100,9 +106,10 @@ function normalizeReadOnly(adapter: ReadOnlyAdapter): ReadOnlyAdapter {
  * Wraps an adapter implementation with path normalization on every path-taking
  * method. Readers returned by `snapshots.get` are normalized; adapters returned
  * by `forks.get` are recursively wrapped so any nested operations keep the
- * contract.
+ * contract. The `Raw` type parameter is inferred from the impl's `raw` field
+ * — adapter authors don't usually need to specify it explicitly.
  */
-export function defineAdapter(impl: Adapter): Adapter {
+export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
   return {
     name: impl.name,
     raw: impl.raw,
@@ -133,7 +140,7 @@ export function defineAdapter(impl: Adapter): Adapter {
       list: () => impl.forks.list(),
       head: (name, opts) => impl.forks.head(name, opts),
       delete: (name, opts) => impl.forks.delete(name, opts),
-      get: (name) => defineAdapter(impl.forks.get(name)),
+      get: (name) => defineAdapter<Raw>(impl.forks.get(name)),
     },
   };
 }

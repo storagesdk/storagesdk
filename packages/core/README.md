@@ -38,6 +38,25 @@ await storage.uploadUrl(path, opts?);             // returns { method: 'PUT' | '
 
 `body` accepts `Uint8Array`, `ArrayBuffer`, `string`, `Blob`, or `ReadableStream`.
 
+### Multipart uploads
+
+The SDK auto-selects multipart vs single PUT based on the body's size. Bodies larger than `multipartThreshold` (default 5 MB) and `ReadableStream`s (size unknown upfront) go multipart; smaller size-known bodies go single PUT.
+
+```ts
+// Defaults: 5 MB threshold, ReadableStream always multipart.
+await storage.upload('photo.jpg', smallBlob);    // single PUT
+await storage.upload('video.mp4', largeStream);  // multipart
+
+// Override the threshold per upload:
+await storage.upload('config.json', body, { multipartThreshold: 10 * 1024 * 1024 });
+
+// Or force the decision either way:
+await storage.upload(path, body, { multipart: true });
+await storage.upload(path, body, { multipart: false });
+```
+
+Adapters that don't natively support multipart (e.g. the filesystem adapter) ignore the resolved value and always do a single write.
+
 ### Typed downloads with `as`
 
 `download()` is overloaded. The default returns the full `StorageItem`. Pass `as` to get a typed body:
@@ -102,8 +121,21 @@ Codes: `NotFound`, `NotSupported`, `Conflict`, `Unauthorized`, `InvalidArgument`
 
 ## Escape hatch
 
+Every adapter exposes its underlying native client (or whatever state it wants to surface) through `storage.raw`. The type of `raw` is carried through from the adapter — adapters that declare `Adapter<S3Client>` give you `storage.raw` typed as `S3Client` with no cast.
+
 ```ts
-storage.raw; // the underlying native client, typed per adapter
+import { Storage } from '@storagesdk/core';
+import { s3 } from '@storagesdk/adapters/s3';
+
+const storage = new Storage({ adapter: s3({ bucket: 'photos', /* ... */ }) });
+//    ↑ inferred as Storage<S3Client>
+
+storage.raw.send(new SomeRawCommand({/* ... */}));
+//      ↑ typed as S3Client
 ```
+
+For adapters that don't narrow `raw`, the type defaults to `unknown` — you cast at the callsite if you want to use it.
+
+`storage.forks.get(name)` carries the same `raw` type, so escape-hatch access works the same on forks.
 
 > Status: pre-release. See [`docs/RFC.md`](../../docs/RFC.md) and [`docs/PLAN.md`](../../docs/PLAN.md) at the repo root.

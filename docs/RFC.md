@@ -89,21 +89,29 @@ await storage.copy("a.jpg", "b.jpg");
 await storage.move("a.jpg", "b.jpg");
 ```
 
-For large uploads, pass `multipart: true`. The SDK splits the body into parts and uploads them in parallel:
+### Multipart uploads
+
+The SDK auto-decides multipart vs single PUT based on the body's size. Bodies larger than `multipartThreshold` (default 5 MB) and `ReadableStream`s (size unknown upfront) go multipart; smaller size-known bodies go single PUT.
 
 ```ts
+// Defaults — 5 MB threshold, ReadableStream always multipart.
+await storage.upload("photo.jpg", smallBlob);    // single PUT
+await storage.upload("video.mp4", largeStream);  // multipart
+
+// Override per-call:
 await storage.upload("large.mp4", stream, {
-  multipart: true,
-  partSize: 8 * 1024 * 1024, // optional, defaults to 5 MB
-  concurrency: 4, // optional, defaults to 4
-  onProgress: ({ loaded, total }) => {
-    /* ... */
-  },
+  multipart: true,                       // force multipart
+  multipartThreshold: 10 * 1024 * 1024,  // override threshold (ignored when multipart is explicit)
+  partSize: 8 * 1024 * 1024,             // optional
+  concurrency: 4,                        // optional
+  onProgress: ({ loaded, total }) => { /* ... */ },
   signal: controller.signal,
 });
+
+await storage.upload("tiny.txt", text, { multipart: false }); // force single PUT
 ```
 
-Adapters without a native multipart API fall back to a single PUT and ignore the multipart options. Per-adapter behavior is in each adapter's docs.
+Adapters without a native multipart API ignore the resolved value and always single-write. Per-adapter behavior is in each adapter's docs.
 
 ### Item shapes
 
@@ -245,9 +253,16 @@ Codes: `NotFound`, `NotSupported`, `Conflict`, `Unauthorized`, `InvalidArgument`
 
 ### Escape hatch
 
+Every adapter exposes its underlying native client (or whatever internal state it wants to surface) through `storage.raw`. The type flows through the adapter's `Raw` generic — adapters that declare `Adapter<S3Client>` give consumers `storage.raw` typed as `S3Client` without a cast.
+
 ```ts
-storage.raw; // the underlying native client, typed per adapter
+const storage = new Storage({ adapter: s3({ bucket: "photos" }) });
+//    ↑ inferred as Storage<S3Client> because s3() returns Adapter<S3Client>
+
+storage.raw; // S3Client
 ```
+
+`Storage`, `StorageOptions`, `Adapter`, `AdapterForks`, and `defineAdapter` all carry a `Raw` type parameter that defaults to `unknown`. Adapter authors who don't bother narrowing it get the old `raw: unknown` behavior. `forks.get(name)` returns `Storage<Raw>` so the typed escape hatch survives through fork navigation.
 
 ### Browser uploads
 

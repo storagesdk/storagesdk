@@ -8,6 +8,10 @@
       "types": "./dist/fs/index.d.ts",
       "default": "./dist/fs/index.js"
     },
+    "./s3": {
+      "types": "./dist/s3/index.d.ts",
+      "default": "./dist/s3/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -32,7 +36,8 @@
     "storage",
     "storagesdk",
     "adapter",
-    "filesystem"
+    "filesystem",
+    "s3"
   ],
   "author": "",
   "license": "MIT",
@@ -46,5 +51,26 @@
   },
   "dependencies": {
     "@storagesdk/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/lib-storage": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/lib-storage": {
+      "optional": true
+    },
+    "@aws-sdk/s3-request-presigner": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/lib-storage": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
   }
 }
