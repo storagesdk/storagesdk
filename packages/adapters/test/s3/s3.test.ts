@@ -1,4 +1,11 @@
-import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  CreateBucketCommand,
+  DeleteBucketCommand,
+  DeleteObjectsCommand,
+  ListBucketsCommand,
+  ListObjectsV2Command,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { Storage } from '@storagesdk/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { s3 } from '../../src/s3/s3.js';
@@ -14,20 +21,55 @@ const bodyText = (item: { body: Uint8Array }) =>
   new TextDecoder().decode(item.body);
 
 function uniqueBucket(): string {
-  return `storagesdk-test-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+  // Keep short so `<bucket>-snapshot-<25 digits>` fits in S3's 63-char limit.
+  // 'sdk-' + 9 alphanumeric chars + '-' + 6 = 20 chars total.
+  const a = Math.random().toString(36).slice(2, 11);
+  const b = Math.random().toString(36).slice(2, 8);
+  return `sdk-${a}-${b}`;
 }
 
-async function setupBucket(): Promise<string> {
-  const bucket = uniqueBucket();
-  const admin = new S3Client({
+function adminClient(): S3Client {
+  return new S3Client({
     endpoint: ENDPOINT,
     region: REGION,
     credentials: CREDENTIALS,
     forcePathStyle: true,
   });
+}
+
+async function setupBucket(): Promise<string> {
+  const bucket = uniqueBucket();
+  const admin = adminClient();
   await admin.send(new CreateBucketCommand({ Bucket: bucket }));
   admin.destroy();
   return bucket;
+}
+
+async function nukeBucket(client: S3Client, bucket: string): Promise<void> {
+  let token: string | undefined;
+  while (true) {
+    const res = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        ...(token !== undefined ? { ContinuationToken: token } : {}),
+      })
+    );
+    const toDelete: { Key: string }[] = [];
+    for (const o of res.Contents ?? []) {
+      if (o.Key) toDelete.push({ Key: o.Key });
+    }
+    if (toDelete.length > 0) {
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: { Objects: toDelete, Quiet: true },
+        })
+      );
+    }
+    if (!res.IsTruncated) break;
+    token = res.NextContinuationToken;
+  }
+  await client.send(new DeleteBucketCommand({ Bucket: bucket }));
 }
 
 describe('s3 adapter', () => {
@@ -48,12 +90,24 @@ describe('s3 adapter', () => {
   });
 
   afterEach(async () => {
-    // Empty the bucket so MinIO can clean up between tests.
+    // Nuke the main bucket plus any siblings (snapshots/forks/etc) that
+    // this test's bucket name prefix matches.
+    const admin = adminClient();
     try {
-      const { items } = await storage.list({ limit: 1000 });
-      await Promise.all(items.map((i) => storage.delete(i.path)));
+      const res = await admin.send(new ListBucketsCommand({}));
+      for (const b of res.Buckets ?? []) {
+        if (b.Name && (b.Name === bucket || b.Name.startsWith(`${bucket}-`))) {
+          try {
+            await nukeBucket(admin, b.Name);
+          } catch {
+            /* swallow — another test may have raced us, or bucket is missing */
+          }
+        }
+      }
     } catch {
-      /* bucket may already be in an odd state — ignore */
+      /* swallow */
+    } finally {
+      admin.destroy();
     }
   });
 
@@ -205,17 +259,129 @@ describe('s3 adapter', () => {
     });
   });
 
-  describe('snapshots/forks (PR-A: stubbed)', () => {
-    it('snapshots.create throws NotSupported', async () => {
-      await expect(storage.snapshots.create()).rejects.toMatchObject({
-        code: 'NotSupported',
+  describe('snapshots', () => {
+    it('creates a sibling bucket with copied objects', async () => {
+      await storage.upload('a.jpg', 'a-content');
+      await storage.upload('photos/b.jpg', 'b-content');
+
+      const info = await storage.snapshots.create({ name: 'baseline' });
+      expect(info.id).toMatch(/-snapshot-\d{25}$/);
+
+      const reader = storage.snapshots.get(info.id);
+      expect(bodyText(await reader.download('a.jpg'))).toBe('a-content');
+      expect(bodyText(await reader.download('photos/b.jpg'))).toBe('b-content');
+    });
+
+    it('reads frozen content after live storage mutates', async () => {
+      await storage.upload('photo.jpg', 'before');
+      const info = await storage.snapshots.create();
+      await storage.upload('photo.jpg', 'after');
+
+      const reader = storage.snapshots.get(info.id);
+      expect(bodyText(await reader.download('photo.jpg'))).toBe('before');
+      expect(bodyText(await storage.download('photo.jpg'))).toBe('after');
+    });
+
+    it('lists, heads, and deletes snapshots via the parent manifest', async () => {
+      await storage.upload('a.jpg', 'a');
+      const info = await storage.snapshots.create({ name: 'one' });
+
+      expect((await storage.snapshots.list()).length).toBe(1);
+      expect((await storage.snapshots.head(info.id)).name).toBe('one');
+
+      await storage.snapshots.delete(info.id);
+      expect((await storage.snapshots.list()).length).toBe(0);
+      // The snapshot bucket itself is gone — head from outside fails.
+      await expect(storage.snapshots.head(info.id)).rejects.toMatchObject({
+        code: 'NotFound',
       });
     });
 
-    it('forks.create throws NotSupported', async () => {
+    it('hides the internal manifest from list() on parent and snapshot', async () => {
+      await storage.upload('a.jpg', 'a');
+      const info = await storage.snapshots.create();
+
+      // Parent bucket has a manifest after snapshot creation; list() must hide it.
+      const parentKeys = (await storage.list()).items.map((i) => i.path);
+      expect(parentKeys).toContain('a.jpg');
+      expect(parentKeys).not.toContain('.storagesdk.metadata.json');
+
+      // Snapshot bucket also has its own manifest; list() must hide it.
+      const reader = storage.snapshots.get(info.id);
+      const snapKeys = (await reader.list()).items.map((i) => i.path);
+      expect(snapKeys).toContain('a.jpg');
+      expect(snapKeys).not.toContain('.storagesdk.metadata.json');
+    });
+
+    it('list({ limit }) returns full pages even when the manifest is present', async () => {
+      for (let i = 0; i < 5; i++) {
+        await storage.upload(`k${i}.txt`, String(i));
+      }
+      await storage.snapshots.create();
+
+      const page1 = await storage.list({ limit: 2 });
+      expect(page1.items.length).toBe(2);
+      expect(page1.cursor).toBeDefined();
+    });
+  });
+
+  describe('forks', () => {
+    it('creates a writable fork seeded from a snapshot', async () => {
+      await storage.upload('photo.jpg', 'original');
+      const snap = await storage.snapshots.create();
+
+      const forkName = `${bucket}-fork`;
+      await storage.forks.create({ name: forkName, fromSnapshot: snap.id });
+
+      const fork = storage.forks.get(forkName);
+      expect(bodyText(await fork.download('photo.jpg'))).toBe('original');
+
+      await fork.upload('photo.jpg', 'modified');
+      expect(bodyText(await fork.download('photo.jpg'))).toBe('modified');
+      expect(bodyText(await storage.download('photo.jpg'))).toBe('original');
+    });
+
+    it('throws Conflict when the fork name already exists', async () => {
+      await storage.upload('a.jpg', 'a');
+      const snap = await storage.snapshots.create();
+
+      const forkName = `${bucket}-twin`;
+      await storage.forks.create({ name: forkName, fromSnapshot: snap.id });
       await expect(
-        storage.forks.create({ name: 'x', fromSnapshot: 'y' })
-      ).rejects.toMatchObject({ code: 'NotSupported' });
+        storage.forks.create({ name: forkName, fromSnapshot: snap.id })
+      ).rejects.toMatchObject({ code: 'Conflict' });
+    });
+
+    it('lists, heads, and deletes forks via the parent manifest', async () => {
+      await storage.upload('a.jpg', 'a');
+      const snap = await storage.snapshots.create();
+
+      const forkName = `${bucket}-fork`;
+      await storage.forks.create({ name: forkName, fromSnapshot: snap.id });
+
+      expect((await storage.forks.list()).length).toBe(1);
+      expect((await storage.forks.head(forkName)).fromSnapshot).toBe(snap.id);
+
+      await storage.forks.delete(forkName);
+      expect((await storage.forks.list()).length).toBe(0);
+    });
+
+    it('supports nested snapshots and forks on a fork', async () => {
+      await storage.upload('a.jpg', 'a');
+      const snap = await storage.snapshots.create();
+      const forkName = `${bucket}-child`;
+      await storage.forks.create({ name: forkName, fromSnapshot: snap.id });
+
+      const fork = storage.forks.get(forkName);
+      await fork.upload('b.jpg', 'b');
+      const childSnap = await fork.snapshots.create({ name: 'child-snap' });
+
+      const childSnaps = await fork.snapshots.list();
+      expect(childSnaps.length).toBe(1);
+      expect(childSnaps[0]?.name).toBe('child-snap');
+
+      // Clean up nested resources so the test's afterEach cleanup hooks work.
+      await fork.snapshots.delete(childSnap.id);
     });
   });
 });

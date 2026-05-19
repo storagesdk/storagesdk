@@ -186,6 +186,25 @@ describe('fs adapter', () => {
       expect((await storage.snapshots.list()).length).toBe(0);
       expect(existsSync(path.join(root, info.id))).toBe(false);
     });
+
+    it('list({ limit }) returns full pages even when the manifest is present', async () => {
+      // Five real entries plus the manifest written by snapshots.create.
+      // Without pre-pagination filtering the first page could come back
+      // short by one item when the manifest sorts into the slice window.
+      for (let i = 0; i < 5; i++) {
+        await storage.upload(`k${i}.txt`, String(i));
+      }
+      await storage.snapshots.create();
+
+      const page1 = await storage.list({ limit: 2 });
+      expect(page1.items.length).toBe(2);
+      expect(page1.cursor).toBeDefined();
+
+      const cursor = page1.cursor;
+      if (cursor === undefined) throw new Error('cursor not set');
+      const page2 = await storage.list({ limit: 2, cursor });
+      expect(page2.items.length).toBe(2);
+    });
   });
 
   describe('forks', () => {

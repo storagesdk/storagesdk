@@ -33,32 +33,14 @@ importers:
         specifier: ^4.1.6
         version: 4.1.6(@types/node@25.8.0)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@25.8.0)(esbuild@0.28.0)(tsx@4.22.1))
 
-  examples/fork-experiment:
+  examples:
     dependencies:
       '@storagesdk/adapters':
         specifier: workspace:*
-        version: link:../../packages/adapters
+        version: link:../packages/adapters
       '@storagesdk/core':
         specifier: workspace:*
-        version: link:../../packages/core
-
-  examples/quickstart:
-    dependencies:
-      '@storagesdk/adapters':
-        specifier: workspace:*
-        version: link:../../packages/adapters
-      '@storagesdk/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-
-  examples/snapshot-restore:
-    dependencies:
-      '@storagesdk/adapters':
-        specifier: workspace:*
-        version: link:../../packages/adapters
-      '@storagesdk/core':
-        specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../packages/core
 
   packages/adapters:
     dependencies:

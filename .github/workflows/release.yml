@@ -35,7 +35,10 @@ jobs:
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
-          publish: pnpm release
+          # `publish` intentionally omitted until we make the first cut.
+          # Without it, the action only manages the "Version Packages" PR
+          # when changesets are present; without changesets, it no-ops.
+          # When we're ready to ship, set `publish: pnpm release` here.
           version: pnpm version
           commit: "chore: release"
           title: "chore: release"

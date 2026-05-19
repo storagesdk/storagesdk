@@ -1,7 +1,6 @@
 import * as path from 'node:path';
 import { StorageError } from '@storagesdk/core';
 
-export const MANIFEST_FILENAME = '.storagesdk.metadata.json';
 export const SIDECAR_SUFFIX = '.storagesdk.meta.json';
 
 /**
@@ -44,11 +43,12 @@ export function resolveSiblingSafe(root: string, name: string): string {
 }
 
 /**
- * True for keys the SDK reserves (per-location manifest, per-object sidecars).
- * Used to reject uploads to reserved keys and to filter `list()` results.
+ * True for keys the FS adapter reserves for its own bookkeeping (per-object
+ * sidecars). The SDK manifest is filtered by the adapter kit; this is the
+ * FS-specific layer. Used in the directory walk to skip sidecar files.
  */
 export function isReservedKey(key: string): boolean {
-  return key === MANIFEST_FILENAME || key.endsWith(SIDECAR_SUFFIX);
+  return key.endsWith(SIDECAR_SUFFIX);
 }
 
 /** Convert an OS-specific relative path to a forward-slash key. */

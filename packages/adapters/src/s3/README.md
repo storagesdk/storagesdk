@@ -25,15 +25,15 @@ const storage = new Storage({
 
 ```ts
 s3({
-  bucket: string;          // bucket the adapter operates on (required)
-  region?: string;         // AWS region; falls back to SDK's default region resolution
+  bucket: string;                  // bucket the adapter operates on (required)
+  region?: string;                 // AWS region; falls back to SDK's default region resolution
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;
     sessionToken?: string;
   };
-  endpoint?: string;       // override S3 endpoint URL (MinIO, R2, Spaces, etc.)
-  forcePathStyle?: boolean; // required by MinIO and most S3-compatible providers
+  endpoint?: string;               // override S3 endpoint URL (MinIO, R2, Spaces, etc.)
+  forcePathStyle?: boolean;        // required by MinIO and most S3-compatible providers
 })
 ```
 
@@ -93,7 +93,32 @@ await storage.uploadUrl('new.jpg', { expiresIn: 300 });     // 5-minute PUT URL
 
 ## Snapshots and forks
 
-> **Not implemented yet.** All `snapshots.*` and `forks.*` methods throw `StorageError({ code: 'NotSupported' })`. The follow-up PR adds sibling-bucket implementations following the [Phase 2 convention](../../../../docs/RFC.md#snapshot-and-fork-convention): each snapshot/fork is a new bucket in the same account, populated by server-side `CopyObject` per entry, with `.storagesdk.metadata.json` lineage at the root.
+Each snapshot and fork is a **new bucket** in the same AWS account / S3-compatible provider, populated by server-side `CopyObject` per entry. Lineage is tracked in a manifest stored as **bucket tags** (`storagesdk-manifest-NN`, base64-encoded JSON chunks). Tags are invisible to `ListObjectsV2`, so `list({ limit: N })` returns exactly N user items. On providers that don't support bucket tagging (e.g. Cloudflare R2 returns `NotImplemented`), the adapter falls back to storing the manifest as an object at `.storagesdk.metadata.json` and `list()` filters it from results — in fallback mode a page that would have contained the manifest can come back with N-1 items.
+
+```ts
+const snap = await storage.snapshots.create({ name: 'pre-migration' });
+//    snap.id is e.g. 'photos-snapshot-1748000000000123456789012'
+//                          ↑ bucket prefix + 25-digit suffix
+
+const fork = await storage.forks.create({ name: 'photos-exp', fromSnapshot: snap.id });
+const exp  = storage.forks.get('photos-exp'); // full read/write Storage
+```
+
+### Bucket name length
+
+S3 bucket names are limited to **63 characters**. The snapshot-id format is `<parent-bucket>-snapshot-<25 digits>` (35 chars overhead), so the source bucket name should be **≤ 28 characters** for snapshots to work. Fork names are user-provided; if a fork later has its own snapshot, the same budget applies to the fork name.
+
+### Large object copies
+
+Objects up to **5 GB** (S3's single-`CopyObject` limit) are copied with a single server-side `CopyObject`. Above 5 GB the adapter falls back to multipart copy via `UploadPartCopy`. Object-level parallelism is fixed at 4 concurrent copies. Not configurable — the threshold tracks the AWS limit, not user preference.
+
+### Versioning-aware cleanup
+
+`snapshots.delete` / `forks.delete` empty the target bucket before calling `DeleteBucket`. On AWS S3 and MinIO this uses `ListObjectVersions` so Versioning-enabled buckets get all versions and delete markers cleaned up. On providers that don't implement `ListObjectVersions` (e.g. Cloudflare R2 returns `NotImplemented`), the adapter falls back to `ListObjectsV2` automatically — no extra config needed.
+
+### Conflict handling
+
+`forks.create({ name })` and `snapshots.create()` issue `CreateBucket`. If the name collides — vanishingly unlikely for SDK-generated snapshot ids, plausible for user-chosen fork names — the call throws `StorageError({ code: 'Conflict' })`. The bucket is *not* the only line of defense; pick a unique fork name.
 
 ## Escape hatch
 
@@ -111,7 +136,7 @@ storage.raw.send(new SomeRawCommand({ /* ... */ }));
 
 - **POST policies on `uploadUrl`.** Only PUT presigning. POST-with-`maxSize`/Conditions is a Phase 7 follow-up.
 - **AbortSignal honoring.** Passed `signal` arguments aren't yet plumbed through to AWS SDK requests.
-- **Snapshots and forks.** Stubbed with `NotSupported`; landing in the next PR.
+- **Part-level parallelism in multipart copy.** Object-level parallelism is wired (4 concurrent objects); parts within a single multipart copy upload serially. Will add part-level parallelism if real-world testing shows the network underutilized.
 
 ## Errors
 
