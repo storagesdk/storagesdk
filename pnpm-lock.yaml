@@ -35,9 +35,6 @@ importers:
 
   examples:
     dependencies:
-      '@aws-sdk/client-s3':
-        specifier: ^3.0.0
-        version: 3.1048.0
       '@storagesdk/adapters':
         specifier: workspace:*
         version: link:../packages/adapters

@@ -39,15 +39,15 @@ docker compose up -d minio
 | Folder | What it demonstrates |
 | --- | --- |
 | [`s3-quickstart`](./s3-quickstart) | Same as `quickstart`, against the S3 adapter via MinIO. |
-| [`s3-snapshot-restore`](./s3-snapshot-restore) | Same as `snapshot-restore`, with snapshot buckets created via `CreateBucket`. |
+| [`s3-snapshot-restore`](./s3-snapshot-restore) | Same as `snapshot-restore`, with snapshots as sibling buckets. |
 | [`s3-fork-experiment`](./s3-fork-experiment) | Same as `fork-experiment`, with the fork in a real sibling bucket. |
 
-Each S3 example reads `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` env vars so you can point them at AWS S3, Cloudflare R2, DigitalOcean Spaces, etc. without code changes.
+Each S3 example reads `S3_BUCKET` (required — the bucket must already exist), `S3_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` env vars so you can point them at AWS S3, Cloudflare R2, Tigris, DigitalOcean Spaces, etc. without code changes.
 
 ## Copying an example out
 
 The examples share a single `package.json` to keep the repo tidy. When you copy one out:
 
 1. Copy the example folder (`quickstart/`, `s3-quickstart/`, etc.) to your project.
-2. Install the deps that the example imports — typically `@storagesdk/core` + `@storagesdk/adapters`, plus `@aws-sdk/client-s3` for the s3 examples.
+2. Install the deps that the example imports — typically `@storagesdk/core` + `@storagesdk/adapters`.
 3. Run with `tsx index.ts` or compile + run.

@@ -1,30 +1,17 @@
-import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { s3 } from '@storagesdk/adapters/s3';
 import { Storage } from '@storagesdk/core';
 
-// MinIO defaults — override via env vars for AWS S3, R2, etc.
+// MinIO defaults — override via env vars for AWS S3, R2, Tigris, etc.
 const ENDPOINT = process.env.S3_ENDPOINT ?? 'http://localhost:9000';
 const REGION = process.env.S3_REGION ?? 'us-east-1';
 const CREDENTIALS = {
   accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'minioadmin',
   secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin',
 };
-const BUCKET = 'storagesdk-quickstart';
-
-// Ensure the bucket exists. The adapter doesn't auto-create buckets;
-// bucket lifecycle is the caller's concern.
-const admin = new S3Client({
-  endpoint: ENDPOINT,
-  region: REGION,
-  credentials: CREDENTIALS,
-  forcePathStyle: true,
-});
-try {
-  await admin.send(new CreateBucketCommand({ Bucket: BUCKET }));
-} catch {
-  /* bucket may already exist — that's fine */
+const BUCKET = process.env.S3_BUCKET;
+if (!BUCKET) {
+  throw new Error('S3_BUCKET is required (the bucket must already exist).');
 }
-admin.destroy();
 
 const storage = new Storage({
   adapter: s3({

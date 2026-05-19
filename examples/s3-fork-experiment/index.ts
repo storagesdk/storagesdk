@@ -1,4 +1,3 @@
-import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { s3 } from '@storagesdk/adapters/s3';
 import { Storage } from '@storagesdk/core';
 
@@ -8,20 +7,10 @@ const CREDENTIALS = {
   accessKeyId: process.env.S3_ACCESS_KEY_ID ?? 'minioadmin',
   secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? 'minioadmin',
 };
-const BUCKET = 'storagesdk-fork-demo';
-
-const admin = new S3Client({
-  endpoint: ENDPOINT,
-  region: REGION,
-  credentials: CREDENTIALS,
-  forcePathStyle: true,
-});
-try {
-  await admin.send(new CreateBucketCommand({ Bucket: BUCKET }));
-} catch {
-  /* already exists */
+const BUCKET = process.env.S3_BUCKET;
+if (!BUCKET) {
+  throw new Error('S3_BUCKET is required (the bucket must already exist).');
 }
-admin.destroy();
 
 const storage = new Storage({
   adapter: s3({

@@ -4,17 +4,20 @@ Fork an S3 bucket to try a risky change in isolation, then throw it away.
 
 ## Prerequisites
 
+A running S3-compatible backend **and an existing bucket** (the example does not create one). Local MinIO works out of the box:
+
 ```sh
 docker compose up -d minio
+# create a bucket once, any way you like (mc, AWS CLI, web console, etc.)
 ```
 
-The example defaults to MinIO on `localhost:9000`. Point at AWS S3, R2, etc. via `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` env vars.
+`S3_BUCKET` is required. Point at AWS S3, R2, Tigris, etc. via `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` env vars.
 
 ## Run
 
 ```sh
 pnpm install
-pnpm --filter @storagesdk/examples s3-fork-experiment
+S3_BUCKET=my-bucket pnpm --filter @storagesdk/examples s3-fork-experiment
 ```
 
 ## What the script does

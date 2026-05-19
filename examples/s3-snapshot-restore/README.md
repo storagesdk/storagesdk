@@ -4,17 +4,20 @@ Take a snapshot of an S3 bucket, mutate live, read the frozen view, restore from
 
 ## Prerequisites
 
+A running S3-compatible backend **and an existing bucket** (the example does not create one). Local MinIO works out of the box:
+
 ```sh
 docker compose up -d minio
+# create a bucket once, any way you like (mc, AWS CLI, web console, etc.)
 ```
 
-The example defaults to MinIO on `localhost:9000`. Point at AWS S3, R2, etc. via `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` env vars.
+`S3_BUCKET` is required. Point at AWS S3, R2, Tigris, etc. via `S3_ENDPOINT` / `S3_REGION` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` env vars.
 
 ## Run
 
 ```sh
 pnpm install
-pnpm --filter @storagesdk/examples s3-snapshot-restore
+S3_BUCKET=my-bucket pnpm --filter @storagesdk/examples s3-snapshot-restore
 ```
 
 ## What the script does
