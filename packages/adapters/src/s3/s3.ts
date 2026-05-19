@@ -1,4 +1,5 @@
 import {
+  type _Error,
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CopyObjectCommand,
@@ -555,14 +556,40 @@ async function deleteBucketIfPresent(
   }
 }
 
+const EMPTY_BUCKET_MAX_ATTEMPTS = 3;
+
 /**
  * Empty a bucket so it can be deleted. Tries `ListObjectVersions` first to
  * cover Versioning-enabled buckets and delete markers; falls back to the
  * simple `ListObjectsV2` path if the backend doesn't support
  * `ListObjectVersions` (Cloudflare R2 returns NotImplemented). Both paths
  * batch deletions via `DeleteObjects` (up to 1000 per call).
+ *
+ * After each pass we verify with a 1-key `ListObjectsV2` — a partial
+ * `DeleteObjects` failure or backend-side delete-marker insertion can leave
+ * residue that the initial pagination loop missed. Retries up to
+ * `EMPTY_BUCKET_MAX_ATTEMPTS` before giving up.
  */
 async function emptyBucket(client: S3Client, bucket: string): Promise<void> {
+  for (let attempt = 0; attempt < EMPTY_BUCKET_MAX_ATTEMPTS; attempt++) {
+    await emptyBucketOnce(client, bucket);
+
+    const check = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket, MaxKeys: 1 })
+    );
+    if (!check.Contents || check.Contents.length === 0) return;
+  }
+
+  throw new StorageError({
+    code: 'Provider',
+    message: `bucket ${bucket} is still non-empty after ${EMPTY_BUCKET_MAX_ATTEMPTS} cleanup attempts`,
+  });
+}
+
+async function emptyBucketOnce(
+  client: S3Client,
+  bucket: string
+): Promise<void> {
   try {
     await emptyBucketVersioned(client, bucket);
   } catch (err) {
@@ -608,12 +635,13 @@ async function emptyBucketVersioned(
     }
 
     if (toDelete.length > 0) {
-      await client.send(
+      const out = await client.send(
         new DeleteObjectsCommand({
           Bucket: bucket,
           Delete: { Objects: toDelete, Quiet: true },
         })
       );
+      throwIfDeleteObjectsHasErrors(out.Errors);
     }
 
     if (!res.IsTruncated) return;
@@ -639,16 +667,35 @@ async function emptyBucketSimple(
       if (obj.Key) toDelete.push({ Key: obj.Key });
     }
     if (toDelete.length > 0) {
-      await client.send(
+      const out = await client.send(
         new DeleteObjectsCommand({
           Bucket: bucket,
           Delete: { Objects: toDelete, Quiet: true },
         })
       );
+      throwIfDeleteObjectsHasErrors(out.Errors);
     }
     if (!res.IsTruncated) return;
     token = res.NextContinuationToken;
   }
+}
+
+/**
+ * S3's `DeleteObjects` returns 200 with a per-key `Errors` array even when
+ * some objects fail (e.g. AccessDenied on one of N). Without checking it
+ * we'd treat partial failures as success, leave the residue behind, and
+ * later hit `BucketNotEmpty` on `DeleteBucket` with no signal of why.
+ * Treat any error as a Provider failure with the first message for context.
+ */
+function throwIfDeleteObjectsHasErrors(errors: _Error[] | undefined): void {
+  if (!errors || errors.length === 0) return;
+  const first = errors[0];
+  throw new StorageError({
+    code: 'Provider',
+    message:
+      `DeleteObjects failed for ${errors.length} key(s); first: ` +
+      `${first?.Key ?? '?'} (${first?.Code ?? '?'}): ${first?.Message ?? '?'}`,
+  });
 }
 
 function isNotImplementedError(err: unknown): boolean {
@@ -709,25 +756,44 @@ async function copyAllObjects(
   const total = objects.length;
   let copied = 0;
   const queue = [...objects];
+  // Workers record the first failure in a shared slot and bail instead of
+  // throwing. We also abort the shared AbortController so any in-flight S3
+  // calls on sibling workers terminate immediately rather than running to
+  // completion — without that, the caller's cleanup (`destroySibling`) could
+  // race against copies still landing objects in the destination bucket.
+  let firstError: unknown;
+  const abort = new AbortController();
 
   async function worker(): Promise<void> {
-    while (queue.length > 0) {
+    while (queue.length > 0 && firstError === undefined) {
       const obj = queue.shift();
       if (obj === undefined) return;
       try {
         if (obj.size > MULTIPART_COPY_THRESHOLD) {
-          await multipartCopy(client, fromBucket, toBucket, obj.key, obj.size);
+          await multipartCopy(
+            client,
+            fromBucket,
+            toBucket,
+            obj.key,
+            obj.size,
+            abort.signal
+          );
         } else {
           await client.send(
             new CopyObjectCommand({
               Bucket: toBucket,
               Key: obj.key,
               CopySource: copySource(fromBucket, obj.key),
-            })
+            }),
+            { abortSignal: abort.signal }
           );
         }
       } catch (err) {
-        throw asStorageError(err);
+        if (firstError === undefined) {
+          firstError = err;
+          abort.abort();
+        }
+        return;
       }
       copied++;
       opts.onProgress?.({ copied, total });
@@ -737,25 +803,33 @@ async function copyAllObjects(
   await Promise.all(
     Array.from({ length: Math.min(concurrency, total) }, () => worker())
   );
+
+  if (firstError !== undefined) {
+    throw asStorageError(firstError);
+  }
 }
 
 /**
  * Copy a single object via multipart copy. Splits the source object into
  * 5 GB parts (the AWS single-copy limit) and uploads each via
  * `UploadPartCopy`. Parts are uploaded serially — adapter-level parallelism
- * is at the object level (see `copyAllObjects`).
+ * is at the object level (see `copyAllObjects`). The optional `abortSignal`
+ * cancels in-flight part copies when a sibling worker fails.
  */
 async function multipartCopy(
   client: S3Client,
   fromBucket: string,
   toBucket: string,
   key: string,
-  size: number
+  size: number,
+  abortSignal?: AbortSignal
 ): Promise<void> {
   const partSize = MULTIPART_COPY_THRESHOLD;
   const numParts = Math.ceil(size / partSize);
+  const sendOpts = abortSignal !== undefined ? { abortSignal } : {};
   const init = await client.send(
-    new CreateMultipartUploadCommand({ Bucket: toBucket, Key: key })
+    new CreateMultipartUploadCommand({ Bucket: toBucket, Key: key }),
+    sendOpts
   );
   const uploadId = init.UploadId;
   if (!uploadId) {
@@ -778,7 +852,8 @@ async function multipartCopy(
           PartNumber: i + 1,
           CopySource: copySource(fromBucket, key),
           CopySourceRange: `bytes=${start}-${end}`,
-        })
+        }),
+        sendOpts
       );
       const etag = res.CopyPartResult?.ETag;
       if (!etag) {
@@ -796,11 +871,14 @@ async function multipartCopy(
         Key: key,
         UploadId: uploadId,
         MultipartUpload: { Parts: parts },
-      })
+      }),
+      sendOpts
     );
   } catch (err) {
-    // Abort to free server-side resources; swallow any abort error so we
-    // don't mask the original failure.
+    // Abort to free server-side resources. Intentionally *not* passing
+    // `abortSignal` — if the caller aborted, we still need this cleanup
+    // call to actually run. Swallow secondary errors so we don't mask the
+    // original failure.
     await client
       .send(
         new AbortMultipartUploadCommand({
