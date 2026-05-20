@@ -105,7 +105,12 @@ export interface SnapshotInfo {
 
 export interface ForkInfo {
   readonly name: string;
-  readonly fromSnapshot: string;
+  /**
+   * The snapshot the fork was seeded from. `undefined` when the fork was
+   * created directly from the parent's live state rather than from a
+   * captured snapshot (see `ForkOptions.fromSnapshot`).
+   */
+  readonly fromSnapshot?: string;
   readonly createdAt: Date;
 }
 
@@ -122,7 +127,13 @@ export interface SnapshotProgress {
 
 export interface ForkOptions {
   name: string;
-  fromSnapshot: string;
+  /**
+   * Seed the fork from a specific snapshot id. Omit to fork from the
+   * parent's current live state — copy-based adapters (FS, S3) simply copy
+   * the live source; native adapters (Tigris) pass the omission through
+   * to their fork API.
+   */
+  fromSnapshot?: string;
   onProgress?: (event: ForkProgress) => void;
   signal?: AbortSignal;
 }

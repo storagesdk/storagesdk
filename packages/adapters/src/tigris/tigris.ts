@@ -285,14 +285,18 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
       async create(opts): Promise<ForkInfo> {
         const res = await createBucket(opts.name, {
           sourceBucketName: bucket,
-          sourceBucketSnapshot: opts.fromSnapshot,
           config,
+          ...(opts.fromSnapshot !== undefined
+            ? { sourceBucketSnapshot: opts.fromSnapshot }
+            : {}),
         });
         unwrap(res);
         return {
           name: opts.name,
-          fromSnapshot: opts.fromSnapshot,
           createdAt: new Date(),
+          ...(opts.fromSnapshot !== undefined
+            ? { fromSnapshot: opts.fromSnapshot }
+            : {}),
         };
       },
 

@@ -341,6 +341,19 @@ describe('s3 adapter', () => {
       expect(bodyText(await storage.download('photo.jpg'))).toBe('original');
     });
 
+    it('creates a fork from the live parent bucket when fromSnapshot is omitted', async () => {
+      await storage.upload('a.jpg', 'live');
+
+      const forkName = `${bucket}-live`;
+      await storage.forks.create({ name: forkName });
+
+      const fork = storage.forks.get(forkName);
+      expect(bodyText(await fork.download('a.jpg'))).toBe('live');
+
+      const info = await storage.forks.head(forkName);
+      expect(info.fromSnapshot).toBeUndefined();
+    });
+
     it('throws Conflict when the fork name already exists', async () => {
       await storage.upload('a.jpg', 'a');
       const snap = await storage.snapshots.create();

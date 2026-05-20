@@ -214,6 +214,17 @@ d('tigris adapter', () => {
       );
     });
 
+    it('creates a fork from the live parent bucket when fromSnapshot is omitted', async () => {
+      await storage.upload(key('live.txt'), 'live');
+
+      const forkName = `${BUCKET}-${RUN_PREFIX}-l`.slice(0, 60);
+      createdForks.push(forkName);
+      await storage.forks.create({ name: forkName });
+
+      const fork = storage.forks.get(forkName);
+      expect(bodyText(await fork.download(key('live.txt')))).toBe('live');
+    });
+
     it('forks.list throws NotSupported until SDK update lands', async () => {
       await expect(storage.forks.list()).rejects.toMatchObject({
         code: 'NotSupported',

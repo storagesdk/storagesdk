@@ -229,6 +229,17 @@ describe('fs adapter', () => {
       expect(bodyText(parent)).toBe('original');
     });
 
+    it('creates a fork from the live parent when fromSnapshot is omitted', async () => {
+      await storage.upload('a.jpg', 'live');
+      await storage.forks.create({ name: 'live-fork' });
+
+      const fork = storage.forks.get('live-fork');
+      expect(bodyText(await fork.download('a.jpg'))).toBe('live');
+
+      const info = await storage.forks.head('live-fork');
+      expect(info.fromSnapshot).toBeUndefined();
+    });
+
     it('throws Conflict when a fork name already exists', async () => {
       await storage.upload('a.jpg', 'a');
       const snap = await storage.snapshots.create();
