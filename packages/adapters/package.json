@@ -12,6 +12,10 @@
       "types": "./dist/s3/index.d.ts",
       "default": "./dist/s3/index.js"
     },
+    "./tigris": {
+      "types": "./dist/tigris/index.d.ts",
+      "default": "./dist/tigris/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -37,7 +41,8 @@
     "storagesdk",
     "adapter",
     "filesystem",
-    "s3"
+    "s3",
+    "tigris"
   ],
   "author": "",
   "license": "MIT",
@@ -55,7 +60,8 @@
   "peerDependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-storage": "^3.0.0",
-    "@aws-sdk/s3-request-presigner": "^3.0.0"
+    "@aws-sdk/s3-request-presigner": "^3.0.0",
+    "@tigrisdata/storage": "^3.6.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-s3": {
@@ -66,11 +72,15 @@
     },
     "@aws-sdk/s3-request-presigner": {
       "optional": true
+    },
+    "@tigrisdata/storage": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-storage": "^3.0.0",
-    "@aws-sdk/s3-request-presigner": "^3.0.0"
+    "@aws-sdk/s3-request-presigner": "^3.0.0",
+    "@tigrisdata/storage": "^3.6.0"
   }
 }

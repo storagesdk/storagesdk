@@ -139,16 +139,69 @@ Exit: S3 works against a local emulator. CI runs the S3 test suite.
 
 ### Phase 5 — Tigris adapter
 
-The native-everything adapter, in parallel with phase 4 once phase 3 is done.
+The native-everything adapter. Snapshots and forks are first-class on Tigris, so this adapter doesn't use the manifest convention at all — every list/lookup goes through a Tigris API.
 
-- `@storagesdk/adapters/tigris`
-- Built on the existing Tigris client (reuse `@tigrisdata/storage` internals where useful)
-- 9 basic ops
-- Native `snapshots` (delegates to Tigris's snapshot API)
-- Native `fork` (delegates to `createBucket({ sourceBucketName, sourceBucketSnapshot })`, returns a new `Storage` wrapping the Tigris adapter at the new bucket)
-- Live tests against a real Tigris bucket in CI (gated on secrets)
+**Package**
 
-Exit: Tigris works with the same end-user code as S3, including snapshot and fork.
+- `@storagesdk/adapters/tigris`, sibling subpath to `/fs` and `/s3`.
+- Optional peer dep on `@tigrisdata/storage` (Tigris's official client).
+- Adapter config is flat and Tigris-flavored, no client-SDK types exposed: `{ bucket, endpoint?, iamEndpoint?, mgmtEndpoint?, organizationId?, accessKeyId?, secretAccessKey?, sessionToken?, credentialProvider?, forcePathStyle? }`. Matches the S3 adapter's style; the underlying `@tigrisdata/storage` config is constructed internally.
+- Bucket lifecycle is the caller's concern (mirrors S3) — the adapter operates on an existing bucket.
+
+**Object ops** — 1:1 with Tigris functions, no convention layer
+
+| Verb | Tigris fn |
+| --- | --- |
+| `upload` | `put(path, body, { contentType, contentDisposition, multipart, partSize, queueSize, abortController, onUploadProgress, config })` |
+| `download` | `get(path, 'stream' \| 'file' \| 'string', { snapshotVersion?, versionId?, config })` |
+| `head` | `head(path, { snapshotVersion?, versionId?, config })` |
+| `list` | `list({ prefix, delimiter, limit, paginationToken, snapshotVersion?, config })` |
+| `delete` | `remove(path, { versionId?, config })` |
+| `copy` | `copy(src, dest, { srcBucket?, destBucket?, config })` |
+| `move` | `move(src, dest, { config })` |
+| `url` | `getPresignedUrl(path, { operation: 'get', expiresIn, snapshotVersion?, config })` |
+| `uploadUrl` | `getPresignedUrl(path, { operation: 'put', expiresIn, config })` |
+
+Stream normalization: `get(..., 'stream')` already returns Web `ReadableStream`, so no conversion needed.
+
+**Snapshots — fully native**
+
+- `snapshots.create({ name })` → `createBucketSnapshot({ name })` returns `{ snapshotVersion }`. The adapter maps that to `SnapshotInfo { id: snapshotVersion, name?, createdAt }`.
+- `snapshots.list()` → `listBucketSnapshots()`.
+- `snapshots.head(id)` → looks up in `listBucketSnapshots` result (no dedicated head API).
+- `snapshots.get(id)` → returns a `ReadOnlyAdapter` whose `download`/`head`/`list`/`url` calls pass `snapshotVersion: id` through to the corresponding Tigris fn. No copy, no manifest.
+- `snapshots.delete(id)` → throws `StorageError({ code: 'NotSupported' })` with a message framing it correctly: **Tigris snapshots are point-in-time references to existing bucket state, not separate copies. There's no per-snapshot data to delete; storage cost is tied to the underlying object versions, not the snapshot record.**
+
+**Forks — fully native**
+
+- `forks.create({ name, fromSnapshot })` → `createBucket(name, { sourceBucketName: bucket, sourceBucketSnapshot: fromSnapshot })`.
+- `forks.list()` → `listBuckets({ sourceBucketName: bucket })` filtered to forks of *this* bucket. **Depends on a `sourceBucketName` filter being added to `listBuckets` in `@tigrisdata/storage` (in-flight Tigris SDK work).**
+- `forks.head(name)` → from `listBuckets({ sourceBucketName: bucket })` result.
+- `forks.delete(name)` → `removeBucket(name, { force: true })`.
+- `forks.get(name)` → returns a `Storage<TigrisRaw>` scoped to that bucket via a new adapter instance.
+
+**Tigris-only bucket settings** (lifecycle, CORS, TTL, notifications, migration, access, etc.) are deliberately *not* exposed on the adapter surface. Advanced users reach them via the standalone `@tigrisdata/storage` functions, passing a Tigris config that includes the same bucket. Per the SDK's primitives-first rule.
+
+**Raw escape hatch**
+
+`storage.raw` is the resolved `TigrisStorageConfig` — bucket plus credentials — that the user can pass to `@tigrisdata/storage` functions directly. (Tigris's API is module-level, not a client class, so the raw "handle" is the config object itself.)
+
+**Tests**
+
+- Conformance suite from `@storagesdk/core/test` (where shared tests exist) plus adapter-specific tests for the native snapshot/fork paths.
+- Live against a real Tigris bucket gated on `TIGRIS_*` env vars (`TIGRIS_BUCKET`, `TIGRIS_ACCESS_KEY_ID`, `TIGRIS_SECRET_ACCESS_KEY`, optional `TIGRIS_ENDPOINT`). CI uses repo secrets; local dev skips when unconfigured.
+- No emulator — Tigris doesn't have one, and the local-skip story is what matters for contributors without credentials.
+
+**Blocked on Tigris SDK updates**
+
+Two pieces of `@tigrisdata/storage` need updates before the adapter can land its native paths:
+
+1. `listBuckets` accepting `sourceBucketName` for filtering — required for `forks.list` / `forks.head`.
+2. `getPresignedUrl` accepting `snapshotVersion` — required for `snapshots.get(id).url(key)`.
+
+Adapter work can start in parallel against the existing SDK shape (stubbing the two methods with `NotSupported` until the SDK lands), then swap in the real implementations once the upstream PR ships.
+
+Exit: Tigris works with the same end-user code as S3 for the cross-provider verbs, plus first-class native snapshots/forks. `snapshots.delete` deliberately throws `NotSupported` and is documented as such.
 
 ### Phase 6 — examples
 
