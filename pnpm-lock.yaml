@@ -60,6 +60,15 @@ importers:
 
   packages/core: {}
 
+  packages/shell:
+    dependencies:
+      '@storagesdk/adapters':
+        specifier: workspace:*
+        version: link:../adapters
+      '@storagesdk/core':
+        specifier: workspace:*
+        version: link:../core
+
 packages:
 
   '@aws-crypto/crc32@5.2.0':

@@ -1,0 +1,54 @@
+{
+  "name": "@storagesdk/shell",
+  "version": "0.0.0",
+  "description": "just-bash with storage backed by storagesdk",
+  "keywords": [
+    "storage",
+    "object-storage",
+    "s3",
+    "sandbox"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "homepage": "https://github.com/tigrisdata/storagesdk#readme",
+  "bugs": {
+    "url": "https://github.com/tigrisdata/storagesdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tigrisdata/storagesdk.git"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "publint": "publint",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@storagesdk/adapters": "workspace:*",
+    "@storagesdk/core": "workspace:*"
+  }
+}
