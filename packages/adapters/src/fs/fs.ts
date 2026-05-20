@@ -14,6 +14,7 @@ import {
   nextSnapshotId,
   type ReadOnlyAdapter,
   readManifest,
+  readStreamToBytes,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
@@ -66,24 +67,7 @@ async function bodyToBytes(body: BodyInput): Promise<Uint8Array> {
   if (body instanceof ArrayBuffer) return new Uint8Array(body);
   if (typeof body === 'string') return new TextEncoder().encode(body);
   if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
-  if (body instanceof ReadableStream) {
-    const reader = body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const result = await reader.read();
-      if (result.done) break;
-      chunks.push(result.value);
-      total += result.value.byteLength;
-    }
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      out.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return out;
-  }
+  if (body instanceof ReadableStream) return readStreamToBytes(body);
   throw new StorageError({
     code: 'InvalidArgument',
     message: 'unsupported body type',

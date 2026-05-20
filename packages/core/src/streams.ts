@@ -72,3 +72,32 @@ export function toWebStream(input: unknown): ReadableStream<Uint8Array> {
     message: 'toWebStream: unsupported input type',
   });
 }
+
+/**
+ * Read a Web `ReadableStream<Uint8Array>` to completion and return a single
+ * contiguous `Uint8Array`. Adapter helper for backends that hand back streamed
+ * download bodies but whose consumers want bytes (e.g. the contract's
+ * `StorageItem.body`).
+ */
+export async function readStreamToBytes(
+  stream: ReadableStream<Uint8Array>
+): Promise<Uint8Array<ArrayBuffer>> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    out.set(c, offset);
+    offset += c.byteLength;
+  }
+  return out;
+}

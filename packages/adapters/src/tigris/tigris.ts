@@ -6,6 +6,7 @@ import {
   type ListOptions,
   type ListResult,
   type ReadOnlyAdapter,
+  readStreamToBytes,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
@@ -139,7 +140,7 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
     async download(key): Promise<StorageItem> {
       const res = await get(key, 'stream', { config });
       const stream = unwrap(res);
-      const bytes = await streamToBytes(stream);
+      const bytes = await readStreamToBytes(stream);
       // Stream-format get doesn't return metadata; fetch it separately.
       const meta = await this.head(key);
       return { ...meta, body: bytes };
@@ -338,7 +339,7 @@ function snapshotReader(
     async download(key): Promise<StorageItem> {
       const res = await get(key, 'stream', { config, snapshotVersion });
       const stream = unwrap(res);
-      const bytes = await streamToBytes(stream);
+      const bytes = await readStreamToBytes(stream);
       const meta = await this.head(key);
       return { ...meta, body: bytes };
     },
@@ -408,29 +409,6 @@ function toTigrisBody(
     code: 'InvalidArgument',
     message: 'unsupported body type for Tigris adapter',
   });
-}
-
-async function streamToBytes(
-  stream: ReadableStream<Uint8Array>
-): Promise<Uint8Array<ArrayBuffer>> {
-  const chunks: Uint8Array[] = [];
-  const reader = stream.getReader();
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      total += value.byteLength;
-    }
-  }
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    out.set(c, offset);
-    offset += c.byteLength;
-  }
-  return out;
 }
 
 /**
