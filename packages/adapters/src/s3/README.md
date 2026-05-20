@@ -100,9 +100,31 @@ const snap = await storage.snapshots.create({ name: 'pre-migration' });
 //    snap.id is e.g. 'photos-snapshot-1748000000000123456789012'
 //                          ↑ bucket prefix + 25-digit suffix
 
-const fork = await storage.forks.create({ name: 'photos-exp', fromSnapshot: snap.id });
-const exp  = storage.forks.get('photos-exp'); // full read/write Storage
+// Fork from a specific snapshot:
+await storage.forks.create({ name: 'photos-exp', fromSnapshot: snap.id });
+
+// Fork directly from the parent's live state — no intermediate snapshot.
+await storage.forks.create({ name: 'photos-live' });
+
+const exp = storage.forks.get('photos-exp'); // full read/write Storage
 ```
+
+### How creation works
+
+Both `snapshots.create` and `forks.create` follow the same five-step recipe — they only differ in how they name the sibling bucket and what they record in the parent's manifest:
+
+1. **Pick a sibling bucket name.** Snapshots: `nextSnapshotId(bucket)` → `<bucket>-snapshot-<25 digits>` (13-digit ms + 12-digit crypto-random). Forks: user-provided `name`.
+2. **`CreateBucket`** for the sibling. Bucket-name collisions surface as `Conflict`. If anything fails *after* this step, `destroySibling` empties and deletes the half-built sibling before rethrowing — no orphans on partial failure.
+3. **`copyAllObjects`** to populate it. `ListObjectsV2` enumerates source bucket entries (skipping `.storagesdk.metadata.json` if the manifest store is in object-fallback mode), then 4 parallel workers drain a shared queue. Each worker issues a single server-side `CopyObject` for objects up to S3's 5 GB single-copy limit, or a multipart `UploadPartCopy` above that. The first worker to fail aborts the others via a shared `AbortController` and the driver waits for all workers to settle before propagating the error — so the caller's cleanup can't race in-flight copies. The source is:
+   - For snapshots → the parent bucket.
+   - For forks with `fromSnapshot` set → the named snapshot bucket (must exist).
+   - For forks with `fromSnapshot` omitted → the parent bucket.
+4. **Write the child's own manifest.** `manifest.write(client, sibling, emptyManifest({ location: bucket, snapshotId }))`. The manifest store tries `PutBucketTagging` first (invisible to `ListObjectsV2`), falls back to a `.storagesdk.metadata.json` object on backends that return `NotImplemented` for tag APIs.
+5. **Append to the parent's manifest.** `manifest.read(client, bucket)` → push the new `SnapshotInfo` / `ForkInfo` → `manifest.write(client, bucket, ...)`. Concurrent creates on the same parent will race this read-modify-write — serialize calls per parent until that's fixed.
+
+`snapshots.get(id)` returns a `ReadOnlyAdapter` scoped to the sibling bucket; the read-only contract is enforced by type, not by bucket policy. `forks.get(name)` returns a full read/write `Adapter` scoped to the fork bucket.
+
+See [`examples/snapshots`](../../../../examples/snapshots) and [`examples/forks`](../../../../examples/forks) for runnable walkthroughs.
 
 ### Bucket name length
 
