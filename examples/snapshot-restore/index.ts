@@ -1,13 +1,7 @@
-import * as fsp from 'node:fs/promises';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { fs } from '@storagesdk/adapters/fs';
 import { Storage } from '@storagesdk/core';
+import { getAdapter } from '../adapter.js';
 
-const root = path.join(os.tmpdir(), 'storagesdk-snapshot-restore');
-await fsp.rm(root, { recursive: true, force: true });
-
-const storage = new Storage({ adapter: fs({ root, folder: 'config' }) });
+const storage = new Storage({ adapter: getAdapter() });
 
 // Baseline.
 await storage.upload('settings.json', JSON.stringify({ theme: 'dark' }));
@@ -46,5 +40,18 @@ for (const it of items) {
 }
 console.log('Restored from snapshot. Live now matches the snapshot.');
 
-// Clean up the snapshot if we don't need it anymore.
-await storage.snapshots.delete(snap.id);
+// Clean up the snapshot if we don't need it anymore. Some adapters
+// (e.g. Tigris) treat snapshots as point-in-time references rather than
+// separate copies, so deletion isn't a thing — surface that gracefully.
+try {
+  await storage.snapshots.delete(snap.id);
+  console.log('Snapshot deleted.');
+} catch (err) {
+  if ((err as { code?: string }).code === 'NotSupported') {
+    console.log(
+      'Snapshot deletion is not supported on this adapter (the snapshot is a reference, not a copy).'
+    );
+  } else {
+    throw err;
+  }
+}

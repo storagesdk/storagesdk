@@ -1,14 +1,7 @@
-import * as fsp from 'node:fs/promises';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { fs } from '@storagesdk/adapters/fs';
 import { Storage } from '@storagesdk/core';
+import { getAdapter } from '../adapter.js';
 
-// Set up a fresh storage location under the OS temp dir.
-const root = path.join(os.tmpdir(), 'storagesdk-quickstart');
-await fsp.rm(root, { recursive: true, force: true });
-
-const storage = new Storage({ adapter: fs({ root, folder: 'photos' }) });
+const storage = new Storage({ adapter: getAdapter() });
 
 // upload — any body shape works (string, Uint8Array, Blob, ReadableStream).
 await storage.upload('hello.txt', 'Hello, storage SDK!', {
@@ -29,7 +22,7 @@ console.log('Content:', text);
 const meta = await storage.head('hello.txt');
 console.log('contentType:', meta.contentType);
 
-// url — for FS this is a file:// URL; cloud adapters return a real signed URL.
+// url — a signed URL on cloud adapters; a `file://` URL on the FS adapter.
 console.log('url:', await storage.url('hello.txt'));
 
 // delete — done.

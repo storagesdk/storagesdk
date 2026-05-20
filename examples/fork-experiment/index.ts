@@ -1,13 +1,7 @@
-import * as fsp from 'node:fs/promises';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { fs } from '@storagesdk/adapters/fs';
 import { Storage } from '@storagesdk/core';
+import { getAdapter } from '../adapter.js';
 
-const root = path.join(os.tmpdir(), 'storagesdk-fork-experiment');
-await fsp.rm(root, { recursive: true, force: true });
-
-const storage = new Storage({ adapter: fs({ root, folder: 'main' }) });
+const storage = new Storage({ adapter: getAdapter() });
 
 // Baseline.
 await storage.upload('data.json', JSON.stringify({ value: 1, runs: 0 }));
@@ -15,9 +9,12 @@ await storage.upload('data.json', JSON.stringify({ value: 1, runs: 0 }));
 // Forks must be seeded from a snapshot — take one of the current state.
 const snap = await storage.snapshots.create({ name: 'baseline' });
 
-// Spin up an experiment that won't touch the main location.
+// Fork name has to be unique within the location's siblings — for cloud
+// adapters that means a unique bucket name. A timestamp suffix keeps the
+// example safe to run repeatedly across all adapters.
+const forkName = `experiment-${Date.now().toString(36)}`;
 const info = await storage.forks.create({
-  name: 'experiment',
+  name: forkName,
   fromSnapshot: snap.id,
 });
 
