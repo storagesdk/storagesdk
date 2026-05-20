@@ -49,8 +49,8 @@ storagesdk/
 │       └── tsconfig.build.json
 ├── examples/
 │   ├── quickstart/
-│   ├── snapshot-restore/
-│   ├── fork-experiment/
+│   ├── snapshots/
+│   ├── forks/
 │   └── browser-upload/
 └── docs/
     ├── RFC.md
@@ -208,10 +208,16 @@ Exit: Tigris works with the same end-user code as S3 for the cross-provider verb
 Each example is a separate package under `examples/` with its own `package.json` so people can copy them out and run them.
 
 - `examples/quickstart` — upload, download, list, delete
-- `examples/snapshot-restore` — make a snapshot, mutate the storage, read at snapshot, restore
-- `examples/fork-experiment` — fork, experiment, optionally promote (or just toss)
+- `examples/snapshots` — capture multiple snapshots, list them, print a git-log-style graph of the state at each point in time
+- `examples/forks` — spin up multiple forks of the live parent in parallel, mutate them independently, show the divergence side-by-side
 - `examples/browser-upload` — server route that issues `uploadUrl`, browser client that PUTs the file directly
 - Top-level README that points to each example
+
+A snapshot-restore example was intentionally cut: restore is going to be
+a first-class adapter method (`snapshots.restore`) once the API surface
+lands, and shipping a manual-loop example now would teach an idiom we're
+about to replace. Same reasoning for promote/merge of forks
+(`forks.merge`) — out of v1 scope, planned as a follow-up.
 
 Exit: every example runs against the FS adapter with `pnpm dev` from the example directory.
 

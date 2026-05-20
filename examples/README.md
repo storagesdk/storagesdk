@@ -22,8 +22,8 @@ pnpm --filter @storagesdk/examples quickstart
 | Folder | What it demonstrates |
 | --- | --- |
 | [`quickstart`](./quickstart) | Construct a `Storage`, upload, list, download, get a URL, delete. |
-| [`snapshot-restore`](./snapshot-restore) | Take a snapshot before a risky change, read it back, restore from it. |
-| [`fork-experiment`](./fork-experiment) | Fork from a snapshot, mutate the fork in isolation, throw it away or promote. |
+| [`snapshots`](./snapshots) | Capture multiple snapshots, list them, and print a git-log-style graph showing the keys at each point in time. |
+| [`forks`](./forks) | Spin up multiple forks of the live parent in parallel, mutate them independently, list them, show the divergence side-by-side. |
 
 ## Picking an adapter
 

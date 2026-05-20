@@ -6,8 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "quickstart": "tsx quickstart/index.ts",
-    "snapshot-restore": "tsx snapshot-restore/index.ts",
-    "fork-experiment": "tsx fork-experiment/index.ts"
+    "snapshots": "tsx snapshots/index.ts",
+    "forks": "tsx forks/index.ts"
   },
   "dependencies": {
     "@storagesdk/adapters": "workspace:*",
