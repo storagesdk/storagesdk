@@ -1,47 +1,51 @@
 import { Storage } from '@storagesdk/core';
 import { getAdapter } from '../adapter.js';
 
+// Walk a tiny app through four releases, snapshotting before each one.
+// Every release ADDS a new file so the file list at each snapshot
+// differs from the next — easy to see in the graph at the end.
+
 const storage = new Storage({ adapter: getAdapter() });
 
-// 1. Baseline.
-await storage.upload('readme.md', '# v1\nfresh project\n');
-await storage.upload('config.json', JSON.stringify({ env: 'dev' }));
+// v0.1.0 — first cut, just a README.
+await storage.upload('README.md', '# my-app\n');
+const v0_1 = await storage.snapshots.create({ name: 'v0.1.0' });
 
-// 2. First snapshot — captures the baseline.
-const snap1 = await storage.snapshots.create({ name: 'baseline' });
+// v0.2.0 — ship the auth module.
+await storage.upload('auth.ts', '// auth module\n');
+const v0_2 = await storage.snapshots.create({ name: 'v0.2.0' });
 
-// 3. Upload more on top of the baseline.
-await storage.upload('feature.ts', 'export const feature = true;\n');
+// v0.3.0 — billing module.
+await storage.upload('billing.ts', '// billing module\n');
+const v0_3 = await storage.snapshots.create({ name: 'v0.3.0' });
+
+// v1.0.0 — stable; publish a CHANGELOG.
 await storage.upload(
-  'config.json',
-  JSON.stringify({ env: 'dev', feature: 'on' })
+  'CHANGELOG.md',
+  '# Changelog\n\n## v1.0.0\n- auth, billing\n'
 );
+const v1 = await storage.snapshots.create({ name: 'v1.0.0' });
 
-// 4. Second snapshot — captures the post-feature state.
-const snap2 = await storage.snapshots.create({ name: 'feature-added' });
+// HEAD — in-development analytics module, not snapshotted yet.
+await storage.upload('analytics.ts', '// analytics — WIP\n');
 
-// 5. List all snapshots.
 const all = await storage.snapshots.list();
-console.log(`${all.length} snapshot(s):\n`);
+console.log(`${all.length} snapshot(s) on the timeline:\n`);
 
-// 6. Show what each state looks like via a git-like graph.
-const live = await listPaths(storage);
-const at1 = await listPaths(storage.snapshots.get(snap1.id));
-const at2 = await listPaths(storage.snapshots.get(snap2.id));
-
-console.log('* HEAD (live)');
-console.log(indent(live));
+await print('HEAD (live, v1.1.0-dev)', storage);
 console.log('|');
-console.log(`* ${snap2.name ?? snap2.id} ${snap2.id}`);
-console.log(indent(at2));
+await print(`${v1.name} ${v1.id}`, storage.snapshots.get(v1.id));
 console.log('|');
-console.log(`* ${snap1.name ?? snap1.id} ${snap1.id}`);
-console.log(indent(at1));
+await print(`${v0_3.name} ${v0_3.id}`, storage.snapshots.get(v0_3.id));
+console.log('|');
+await print(`${v0_2.name} ${v0_2.id}`, storage.snapshots.get(v0_2.id));
+console.log('|');
+await print(`${v0_1.name} ${v0_1.id}`, storage.snapshots.get(v0_1.id));
 
-// 7. Clean up. Tigris snapshots are point-in-time references, not
-// separate copies, so its `snapshots.delete` throws NotSupported — handle
-// it gracefully so the demo still completes.
-for (const s of [snap1, snap2]) {
+// Tigris snapshots are point-in-time references rather than copies, so
+// its `snapshots.delete` throws `NotSupported`. Catch that so the demo
+// still finishes on Tigris.
+for (const s of [v0_1, v0_2, v0_3, v1]) {
   try {
     await storage.snapshots.delete(s.id);
   } catch (err) {
@@ -50,19 +54,10 @@ for (const s of [snap1, snap2]) {
 }
 console.log('\nDone.');
 
-async function listPaths(s: { list: typeof storage.list }): Promise<string[]> {
-  const out: string[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await s.list(cursor !== undefined ? { cursor } : undefined);
-    for (const it of page.items) out.push(it.path);
-    cursor = page.cursor;
-  } while (cursor);
-  out.sort();
-  return out;
-}
-
-function indent(paths: string[]): string {
-  if (paths.length === 0) return '|   (empty)';
-  return paths.map((p) => `|   ${p}`).join('\n');
+async function print(label: string, r: { list: typeof storage.list }) {
+  console.log(`* ${label}`);
+  const { items } = await r.list();
+  for (const it of items.sort((a, b) => a.path.localeCompare(b.path))) {
+    console.log(`|   ${it.path}`);
+  }
 }

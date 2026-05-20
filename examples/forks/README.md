@@ -1,6 +1,6 @@
 # forks
 
-Demonstrates `storage.forks` end to end: spin up multiple forks of the parent's live state, mutate them in parallel, list them, and read each side-by-side to show they're independent.
+Demonstrates `storage.forks` by running three pricing experiments side-by-side. The parent has a single `pricing.json`; each fork rewrites *that same file* with its own variant, so the divergence between forks shows up immediately when you read the file back.
 
 ## Run
 
@@ -13,9 +13,9 @@ Defaults to the filesystem adapter. See the [top-level examples README](../READM
 
 ## What the script does
 
-1. Upload a baseline file to the parent.
-2. **`storage.forks.create({ name })`** — three times, with `fromSnapshot` omitted so the fork seeds from the parent's live state directly. Copy-based adapters (FS, S3) just copy the source; Tigris forks the bucket natively.
-3. Use **`storage.forks.get(name)`** on each fork and upload a different file in parallel.
+1. Upload `pricing.json` to the parent (basic plan, $9.99).
+2. **`storage.forks.create({ name })`** — three times, using branch-style names (`pricing-cheap`, `pricing-premium`, `pricing-free`, each with a per-run suffix). `fromSnapshot` is omitted, so each fork seeds directly from the parent's live state — copy-based adapters (FS, S3) just copy the source; Tigris forks the bucket natively.
+3. In parallel, each fork rewrites `pricing.json` with its own variant (`$4.99`, `$19.99`, `$0`).
 4. **`storage.forks.list()`** — enumerate forks. On Tigris this currently throws `NotSupported` pending an upstream `listBuckets({ sourceBucketName })` filter; the example catches that and falls back to the names it just created.
-5. Walk the parent and each fork via `download`/`list` and print a side-by-side view showing the divergent contents.
+5. Read `pricing.json` across the parent and each fork to show the four divergent values side-by-side.
 6. **`storage.forks.delete(name)`** — clean up all three forks.
