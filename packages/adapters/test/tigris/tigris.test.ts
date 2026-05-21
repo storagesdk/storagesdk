@@ -8,14 +8,12 @@ const ACCESS_KEY_ID = process.env.TIGRIS_ACCESS_KEY_ID;
 const SECRET_ACCESS_KEY = process.env.TIGRIS_SECRET_ACCESS_KEY;
 
 // Live tests against a real Tigris bucket. Skip entirely when required
-// env vars are missing so contributors without credentials can still run
-// the rest of the suite. CI provides creds via repo secrets.
-// `TIGRIS_ENDPOINT` is optional — when unset, the adapter falls back to
-// the Tigris SDK's default endpoint.
-const configured =
-  BUCKET !== undefined &&
-  ACCESS_KEY_ID !== undefined &&
-  SECRET_ACCESS_KEY !== undefined;
+// env vars are missing or empty so contributors without credentials can
+// still run the rest of the suite. CI sets `${{ secrets.X }}` even when
+// the secret is undefined, which produces an empty string — `!truthy`
+// covers both cases. `TIGRIS_ENDPOINT` is optional — when unset, the
+// adapter falls back to the Tigris SDK's default endpoint.
+const configured = Boolean(BUCKET && ACCESS_KEY_ID && SECRET_ACCESS_KEY);
 
 const d = configured ? describe : describe.skip;
 

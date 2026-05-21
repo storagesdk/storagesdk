@@ -6,7 +6,6 @@ import {
   type ListOptions,
   type ListResult,
   type ReadOnlyAdapter,
-  readStreamToBytes,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
@@ -140,12 +139,19 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
     },
 
     async download(key): Promise<StorageItem> {
-      const res = await get(key, 'stream', { config });
-      const stream = unwrap(res);
-      const bytes = await readStreamToBytes(stream);
-      // Stream-format get doesn't return metadata; fetch it separately.
-      const meta = await this.head(key);
-      return { ...meta, body: bytes };
+      // Use `'file'` format so body + metadata come from a single request —
+      // avoids the body/metadata mismatch that an interleaved write between
+      // `get` and a separate `head` would cause.
+      const res = await get(key, 'file', { config });
+      const file = unwrap(res);
+      return {
+        path: key,
+        size: file.size,
+        contentType: file.type || 'application/octet-stream',
+        etag: '',
+        lastModified: new Date(file.lastModified),
+        body: new Uint8Array(await file.arrayBuffer()),
+      };
     },
 
     async head(key): Promise<StorageItemMeta> {
@@ -299,7 +305,7 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         const data = unwrap(res);
         return data.forks.map((f) => ({
           name: f.name,
-          createdAt: f.forkCreatedAt,
+          createdAt: f.forkCreatedAt ?? new Date(),
           // `snapshot` is the source snapshot version; forks created from
           // the parent's live state may return an empty string here, in
           // which case `fromSnapshot` stays undefined to match our
@@ -341,11 +347,16 @@ function snapshotReader(
 ): ReadOnlyAdapter {
   return {
     async download(key): Promise<StorageItem> {
-      const res = await get(key, 'stream', { config, snapshotVersion });
-      const stream = unwrap(res);
-      const bytes = await readStreamToBytes(stream);
-      const meta = await this.head(key);
-      return { ...meta, body: bytes };
+      const res = await get(key, 'file', { config, snapshotVersion });
+      const file = unwrap(res);
+      return {
+        path: key,
+        size: file.size,
+        contentType: file.type || 'application/octet-stream',
+        etag: '',
+        lastModified: new Date(file.lastModified),
+        body: new Uint8Array(await file.arrayBuffer()),
+      };
     },
 
     async head(key): Promise<StorageItemMeta> {
