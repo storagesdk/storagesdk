@@ -388,7 +388,10 @@ function createImpl(config: FsConfig): Adapter {
         }
 
         // Seed the fork from either a named snapshot or the parent's live
-        // state. Both are just recursive copies of a sibling folder.
+        // state. Both are just recursive copies of a sibling folder. The
+        // parent folder may not exist yet on disk if nothing's been written
+        // — that's a valid "fork an empty parent" case, so we ensure it
+        // exists before copying. (snapshots.create does the same.)
         let sourcePath: string;
         if (opts.fromSnapshot !== undefined) {
           sourcePath = resolveSiblingSafe(config.root, opts.fromSnapshot);
@@ -400,6 +403,11 @@ function createImpl(config: FsConfig): Adapter {
           }
         } else {
           sourcePath = folderPath;
+          try {
+            await fsp.mkdir(sourcePath, { recursive: true });
+          } catch (err) {
+            throw asStorageError(err);
+          }
         }
 
         try {

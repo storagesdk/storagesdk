@@ -240,6 +240,20 @@ describe('fs adapter', () => {
       expect(info.fromSnapshot).toBeUndefined();
     });
 
+    it('creates a fork even when the parent folder has not been written to yet', async () => {
+      // Forking from live state should work on an empty (or unmaterialized)
+      // parent — useful for "spin up a sandbox before doing anything" flows.
+      await storage.forks.create({ name: 'empty-fork' });
+
+      const fork = storage.forks.get('empty-fork');
+      const { items } = await fork.list();
+      expect(items).toEqual([]);
+
+      // The fork is still a writable Storage rooted at the new folder.
+      await fork.upload('hello.txt', 'hi');
+      expect(bodyText(await fork.download('hello.txt'))).toBe('hi');
+    });
+
     it('throws Conflict when a fork name already exists', async () => {
       await storage.upload('a.jpg', 'a');
       const snap = await storage.snapshots.create();
