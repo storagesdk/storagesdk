@@ -20,6 +20,7 @@ import * as tigrisSdk from '@tigrisdata/storage';
 import {
   createBucket,
   createBucketSnapshot,
+  deleteBucketSnapshot,
   get,
   getPresignedUrl,
   listBucketSnapshots,
@@ -264,17 +265,9 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         return found;
       },
 
-      async delete(_id): Promise<void> {
-        // Tigris snapshots are point-in-time references to existing bucket
-        // state, not separate copies. There is no per-snapshot data to
-        // remove; storage cost is tied to underlying object versions. So we
-        // surface this as NotSupported rather than silently no-op'ing,
-        // matching the SDK's "native or NotSupported, no polyfill" rule.
-        throw new StorageError({
-          code: 'NotSupported',
-          message:
-            'Tigris snapshots are point-in-time references to bucket state, not separate copies — there is no per-snapshot data to delete.',
-        });
+      async delete(id): Promise<void> {
+        const res = await deleteBucketSnapshot(bucket, id, { config });
+        if (res?.error !== undefined) throw asStorageError(res.error);
       },
 
       get(id): ReadOnlyAdapter {

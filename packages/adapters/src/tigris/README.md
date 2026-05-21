@@ -39,7 +39,7 @@ Native — no manifest sidecar, no `CopyObject` loop. The adapter wraps the corr
 - `storage.snapshots.create({ name })` → `createBucketSnapshot`
 - `storage.snapshots.list()` → `listBucketSnapshots`
 - `storage.snapshots.get(id)` → returns a `ReadOnlyStorage` whose reads pass `snapshotVersion: id` through to every Tigris call. No data is copied. `url()` uses `getPresignedUrl({ snapshotVersion })` so the signed URL serves the frozen snapshot bytes.
-- **`storage.snapshots.delete(id)` throws `NotSupported`.** Tigris snapshots are point-in-time *references* to existing bucket state, not separate copies. There is no per-snapshot data to remove — storage cost is tied to the underlying object versions.
+- `storage.snapshots.delete(id)` → `deleteBucketSnapshot(bucket, id)`. Drops the snapshot record on the Tigris side; underlying object versions remain.
 - `storage.forks.create({ name, fromSnapshot })` → `createBucket({ sourceBucketName, sourceBucketSnapshot })`
 - `storage.forks.list()` / `storage.forks.head(name)` → `listForks(bucket)`, then map / find by name
 - `storage.forks.delete(name)` → `removeBucket(name, { force: true })`

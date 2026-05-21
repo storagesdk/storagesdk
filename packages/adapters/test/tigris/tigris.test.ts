@@ -178,11 +178,16 @@ d('tigris adapter', () => {
       expect(after.find((s) => s.id === info.id)).toBeDefined();
     });
 
-    it('snapshots.delete throws NotSupported (Tigris snapshots are references, not copies)', async () => {
-      const info = await storage.snapshots.create();
-      await expect(storage.snapshots.delete(info.id)).rejects.toMatchObject({
-        code: 'NotSupported',
-      });
+    it('deletes a snapshot via deleteBucketSnapshot', async () => {
+      const info = await storage.snapshots.create({ name: 'delete-test' });
+
+      const before = await storage.snapshots.list();
+      expect(before.find((s) => s.id === info.id)).toBeDefined();
+
+      await storage.snapshots.delete(info.id);
+
+      const after = await storage.snapshots.list();
+      expect(after.find((s) => s.id === info.id)).toBeUndefined();
     });
 
     it('snapshot reader url() returns a presigned URL scoped to the snapshot version', async () => {
