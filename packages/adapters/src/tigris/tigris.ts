@@ -23,6 +23,7 @@ import {
   get,
   getPresignedUrl,
   listBucketSnapshots,
+  listForks,
   put,
   remove,
   removeBucket,
@@ -301,23 +302,29 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
       },
 
       async list(): Promise<ForkInfo[]> {
-        // BLOCKED: requires `listBuckets({ sourceBucketName })` filter in
-        // `@tigrisdata/storage` (in-flight Tigris SDK work). Until that
-        // ships, enumerating forks of a specific bucket isn't possible
-        // without an account-wide scan.
-        throw new StorageError({
-          code: 'NotSupported',
-          message:
-            'forks.list requires @tigrisdata/storage with sourceBucketName on listBuckets (pending SDK update)',
-        });
+        const res = await listForks(bucket, { config });
+        const data = unwrap(res);
+        return data.forks.map((f) => ({
+          name: f.name,
+          createdAt: f.forkCreatedAt,
+          // `snapshot` is the source snapshot version; forks created from
+          // the parent's live state may return an empty string here, in
+          // which case `fromSnapshot` stays undefined to match our
+          // contract (see ForkInfo).
+          ...(f.snapshot ? { fromSnapshot: f.snapshot } : {}),
+        }));
       },
 
-      async head(_name): Promise<ForkInfo> {
-        throw new StorageError({
-          code: 'NotSupported',
-          message:
-            'forks.head requires @tigrisdata/storage with sourceBucketName on listBuckets (pending SDK update)',
-        });
+      async head(name): Promise<ForkInfo> {
+        const all = await this.list();
+        const found = all.find((f) => f.name === name);
+        if (!found) {
+          throw new StorageError({
+            code: 'NotFound',
+            message: `fork ${name} not found`,
+          });
+        }
+        return found;
       },
 
       async delete(name): Promise<void> {
@@ -388,15 +395,14 @@ function snapshotReader(
         : { items };
     },
 
-    async url(_key, _opts?: UrlOptions): Promise<string> {
-      // BLOCKED: requires `snapshotVersion` on `getPresignedUrl` in
-      // `@tigrisdata/storage` (in-flight Tigris SDK work). Until that ships,
-      // snapshot-scoped presigned URLs aren't producible.
-      throw new StorageError({
-        code: 'NotSupported',
-        message:
-          'snapshot-scoped presigned URLs require @tigrisdata/storage with snapshotVersion on getPresignedUrl (pending SDK update)',
+    async url(key, opts?: UrlOptions): Promise<string> {
+      const res = await getPresignedUrl(key, {
+        operation: 'get',
+        snapshotVersion,
+        config,
+        ...(opts?.expiresIn !== undefined ? { expiresIn: opts.expiresIn } : {}),
       });
+      return unwrap(res).url;
     },
   };
 }

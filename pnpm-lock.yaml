@@ -58,8 +58,8 @@ importers:
         specifier: ^3.0.0
         version: 3.1048.0
       '@tigrisdata/storage':
-        specifier: ^3.6.0
-        version: 3.6.0
+        specifier: ^3.7.0
+        version: 3.7.0
 
   packages/core: {}
 
@@ -686,8 +686,8 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@tigrisdata/storage@3.6.0':
-    resolution: {integrity: sha512-l+FHRAA903MOZ/PFBlz6S73YwlJ1Fs+D5/gTPiI2/NtiyIsqj3eNRGDYB+DszT75NIxKWCRoyNornUM+7qXkVw==}
+  '@tigrisdata/storage@3.7.0':
+    resolution: {integrity: sha512-MtJE2sspBPq3t/tJ1BVICCtoNXw+GyP0in0/ykmdraryi4/5s0jKZL87RvjEYoS7/Ryih1ueaD9yP6E5nmcy3w==}
 
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
@@ -2154,7 +2154,7 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@tigrisdata/storage@3.6.0':
+  '@tigrisdata/storage@3.7.0':
     dependencies:
       '@aws-crypto/sha256-js': 5.2.0
       '@aws-sdk/client-s3': 3.1048.0

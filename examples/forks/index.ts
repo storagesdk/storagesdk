@@ -42,29 +42,17 @@ await Promise.all(
   })
 );
 
-// Tigris's forks.list is currently `NotSupported` pending an upstream
-// `listBuckets({ sourceBucketName })` filter — fall back to the names we
-// created so the rest of the demo still runs.
-let listed: string[];
-try {
-  const all = await storage.forks.list();
-  listed = all.map((f) => f.name);
-  console.log(`${all.length} fork(s):\n`);
-} catch (err) {
-  if ((err as { code?: string }).code !== 'NotSupported') throw err;
-  console.log(
-    'forks.list() is NotSupported on this adapter — using the names we just created.\n'
-  );
-  listed = experiments.map((e) => e.name);
-}
+// Enumerate the forks via the SDK rather than reusing the names we created.
+const listed = await storage.forks.list();
+console.log(`${listed.length} fork(s):\n`);
 
 // Read the same file across parent and each fork to show divergence.
 console.log('parent (HEAD)');
 console.log(`  pricing.json: ${await readText(storage, 'pricing.json')}`);
 
-for (const name of listed) {
-  console.log(`\nfork: ${name}`);
-  const fork = storage.forks.get(name);
+for (const f of listed) {
+  console.log(`\nfork: ${f.name}`);
+  const fork = storage.forks.get(f.name);
   console.log(`  pricing.json: ${await readText(fork, 'pricing.json')}`);
 }
 

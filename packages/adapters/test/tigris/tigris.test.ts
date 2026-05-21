@@ -185,13 +185,20 @@ d('tigris adapter', () => {
       });
     });
 
-    it('snapshot reader url() throws NotSupported until SDK update lands', async () => {
-      await storage.upload(key('snapurl.txt'), 'x');
+    it('snapshot reader url() returns a presigned URL scoped to the snapshot version', async () => {
+      await storage.upload(key('snapurl.txt'), 'snapshot-bytes');
       const info = await storage.snapshots.create();
+
+      // Mutate live so we can prove the URL points at the snapshot bytes.
+      await storage.upload(key('snapurl.txt'), 'live-bytes');
+
       const reader = storage.snapshots.get(info.id);
-      await expect(reader.url(key('snapurl.txt'))).rejects.toMatchObject({
-        code: 'NotSupported',
-      });
+      const url = await reader.url(key('snapurl.txt'), { expiresIn: 300 });
+      expect(typeof url).toBe('string');
+
+      const res = await fetch(url);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe('snapshot-bytes');
     });
   });
 
@@ -225,16 +232,22 @@ d('tigris adapter', () => {
       expect(bodyText(await fork.download(key('live.txt')))).toBe('live');
     });
 
-    it('forks.list throws NotSupported until SDK update lands', async () => {
-      await expect(storage.forks.list()).rejects.toMatchObject({
-        code: 'NotSupported',
-      });
+    it('lists and heads forks via listForks', async () => {
+      const forkName = `${BUCKET}-${RUN_PREFIX}-ls`.slice(0, 60);
+      createdForks.push(forkName);
+      await storage.forks.create({ name: forkName });
+
+      const all = await storage.forks.list();
+      expect(all.find((f) => f.name === forkName)).toBeDefined();
+
+      const head = await storage.forks.head(forkName);
+      expect(head.name).toBe(forkName);
     });
 
-    it('forks.head throws NotSupported until SDK update lands', async () => {
-      await expect(storage.forks.head('any-name')).rejects.toMatchObject({
-        code: 'NotSupported',
-      });
+    it('forks.head throws NotFound for a missing fork name', async () => {
+      await expect(
+        storage.forks.head('definitely-not-a-fork')
+      ).rejects.toMatchObject({ code: 'NotFound' });
     });
   });
 });
