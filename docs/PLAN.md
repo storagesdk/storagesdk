@@ -170,38 +170,29 @@ Stream normalization: `get(..., 'stream')` already returns Web `ReadableStream`,
 - `snapshots.list()` → `listBucketSnapshots()`.
 - `snapshots.head(id)` → looks up in `listBucketSnapshots` result (no dedicated head API).
 - `snapshots.get(id)` → returns a `ReadOnlyAdapter` whose `download`/`head`/`list`/`url` calls pass `snapshotVersion: id` through to the corresponding Tigris fn. No copy, no manifest.
-- `snapshots.delete(id)` → throws `StorageError({ code: 'NotSupported' })` with a message framing it correctly: **Tigris snapshots are point-in-time references to existing bucket state, not separate copies. There's no per-snapshot data to delete; storage cost is tied to the underlying object versions, not the snapshot record.**
+- `snapshots.delete(id)` → `deleteBucketSnapshot(bucket, id)`. Drops the snapshot record on the Tigris side; underlying object versions remain.
 
 **Forks — fully native**
 
-- `forks.create({ name, fromSnapshot })` → `createBucket(name, { sourceBucketName: bucket, sourceBucketSnapshot: fromSnapshot })`.
-- `forks.list()` → `listBuckets({ sourceBucketName: bucket })` filtered to forks of *this* bucket. **Depends on a `sourceBucketName` filter being added to `listBuckets` in `@tigrisdata/storage` (in-flight Tigris SDK work).**
-- `forks.head(name)` → from `listBuckets({ sourceBucketName: bucket })` result.
+- `forks.create({ name, fromSnapshot? })` → `createBucket(name, { sourceBucketName: bucket, sourceBucketSnapshot? })`. With `fromSnapshot` omitted, Tigris forks from the parent's current bucket state.
+- `forks.list()` → `listForks(bucket)`; maps `ForkedBucket` to `ForkInfo`.
+- `forks.head(name)` → list, then find by name.
 - `forks.delete(name)` → `removeBucket(name, { force: true })`.
 - `forks.get(name)` → returns a `Storage<TigrisRaw>` scoped to that bucket via a new adapter instance.
 
-**Tigris-only bucket settings** (lifecycle, CORS, TTL, notifications, migration, access, etc.) are deliberately *not* exposed on the adapter surface. Advanced users reach them via the standalone `@tigrisdata/storage` functions, passing a Tigris config that includes the same bucket. Per the SDK's primitives-first rule.
+**Tigris-only bucket settings** (lifecycle, CORS, TTL, notifications, migration, access, etc.) are deliberately *not* exposed on the adapter surface. Advanced users reach them via `storage.raw` — see below — per the SDK's primitives-first rule.
 
 **Raw escape hatch**
 
-`storage.raw` is the resolved `TigrisStorageConfig` — bucket plus credentials — that the user can pass to `@tigrisdata/storage` functions directly. (Tigris's API is module-level, not a client class, so the raw "handle" is the config object itself.)
+`storage.raw` is a Proxy mirroring every value-namespace export of `@tigrisdata/storage`. The adapter's resolved config (auth, endpoint, bucket) is auto-injected into each call so consumers don't re-thread credentials. Per-call `config` overrides merge on top of the adapter's (user wins, adapter fills gaps). `handleClientUpload`'s positional config arg is special-cased.
 
 **Tests**
 
-- Conformance suite from `@storagesdk/core/test` (where shared tests exist) plus adapter-specific tests for the native snapshot/fork paths.
+- Adapter-specific tests for the native snapshot/fork paths.
 - Live against a real Tigris bucket gated on `TIGRIS_*` env vars (`TIGRIS_BUCKET`, `TIGRIS_ACCESS_KEY_ID`, `TIGRIS_SECRET_ACCESS_KEY`, optional `TIGRIS_ENDPOINT`). CI uses repo secrets; local dev skips when unconfigured.
 - No emulator — Tigris doesn't have one, and the local-skip story is what matters for contributors without credentials.
 
-**Blocked on Tigris SDK updates**
-
-Two pieces of `@tigrisdata/storage` need updates before the adapter can land its native paths:
-
-1. `listBuckets` accepting `sourceBucketName` for filtering — required for `forks.list` / `forks.head`.
-2. `getPresignedUrl` accepting `snapshotVersion` — required for `snapshots.get(id).url(key)`.
-
-Adapter work can start in parallel against the existing SDK shape (stubbing the two methods with `NotSupported` until the SDK lands), then swap in the real implementations once the upstream PR ships.
-
-Exit: Tigris works with the same end-user code as S3 for the cross-provider verbs, plus first-class native snapshots/forks. `snapshots.delete` deliberately throws `NotSupported` and is documented as such.
+Exit: Tigris works with the same end-user code as S3 for the cross-provider verbs, plus first-class native snapshots/forks.
 
 ### Phase 6 — examples
 
