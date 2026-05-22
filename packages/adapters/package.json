@@ -48,7 +48,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tigrisdata/storagesdk.git",
+    "url": "git+https://github.com/storagesdk/storagesdk.git",
     "directory": "packages/adapters"
   },
   "engines": {

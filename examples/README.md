@@ -1,6 +1,6 @@
 # storagesdk examples
 
-Runnable examples for each feature of [storagesdk](https://github.com/tigrisdata/storagesdk). All examples live under a single `@storagesdk/examples` workspace package and share a single shared `adapter.ts` helper — the examples themselves are pure feature demos, the adapter is picked at runtime via env vars.
+Runnable examples for each feature of [storagesdk](https://github.com/storagesdk/storagesdk). All examples live under a single `@storagesdk/examples` workspace package and share a single shared `adapter.ts` helper — the examples themselves are pure feature demos, the adapter is picked at runtime via env vars.
 
 ## Run an example
 
