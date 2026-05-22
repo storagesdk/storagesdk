@@ -1,4 +1,8 @@
-import { StorageError, type StorageErrorCode } from '@storagesdk/core';
+import {
+  isAbortError,
+  StorageError,
+  type StorageErrorCode,
+} from '@storagesdk/core';
 
 /**
  * Map `fs`/`fs/promises` errors to `StorageError`. ENOENT → NotFound,
@@ -9,11 +13,14 @@ export function asStorageError(
   fallback: StorageErrorCode = 'Provider'
 ): StorageError {
   if (err instanceof StorageError) return err;
+  const cause = err instanceof Error ? err : undefined;
+  if (isAbortError(err)) {
+    return new StorageError({ code: 'Aborted', cause });
+  }
   const code =
     err && typeof err === 'object' && 'code' in err
       ? (err as { code?: unknown }).code
       : undefined;
-  const cause = err instanceof Error ? err : undefined;
   if (code === 'ENOENT') {
     return new StorageError({ code: 'NotFound', cause });
   }

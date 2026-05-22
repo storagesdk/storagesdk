@@ -1,4 +1,8 @@
-import { StorageError, type StorageErrorCode } from '@storagesdk/core';
+import {
+  isAbortError,
+  StorageError,
+  type StorageErrorCode,
+} from '@storagesdk/core';
 
 interface AwsError {
   name?: string;
@@ -17,6 +21,9 @@ export function asStorageError(
   if (err instanceof StorageError) return err;
 
   const cause = err instanceof Error ? err : undefined;
+  if (isAbortError(err)) {
+    return new StorageError({ code: 'Aborted', cause });
+  }
   const aws = err as AwsError | null | undefined;
   const name = aws?.name;
   const status = aws?.$metadata?.httpStatusCode;

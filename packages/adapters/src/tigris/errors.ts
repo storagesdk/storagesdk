@@ -1,4 +1,8 @@
-import { StorageError, type StorageErrorCode } from '@storagesdk/core';
+import {
+  isAbortError,
+  StorageError,
+  type StorageErrorCode,
+} from '@storagesdk/core';
 
 interface TigrisError {
   name?: string;
@@ -22,6 +26,9 @@ export function asStorageError(
   if (err instanceof StorageError) return err;
 
   const cause = err instanceof Error ? err : undefined;
+  if (isAbortError(err)) {
+    return new StorageError({ code: 'Aborted', cause });
+  }
   const t = err as TigrisError | null | undefined;
   const name = t?.name;
   const status = t?.$metadata?.httpStatusCode ?? t?.status;
