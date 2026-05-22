@@ -57,6 +57,44 @@ pnpm publint
 
 CI runs the same gates on Node 20, 22, and 24.
 
+## Running tests
+
+Tests treat the SDK like a user would: the bucket/root the adapter is pointed at must exist before the test starts, and the credentials must already have sufficient rights. Tests never create infrastructure; they isolate per-test by key prefix and clean up via the SDK itself.
+
+- **Core + FS**: no setup. `pnpm test` works out of the box. FS defaults to `os.tmpdir()`.
+- **S3 (MinIO)**: requires a pre-existing bucket.
+
+    ```sh
+    # One-time: start MinIO and create the test bucket.
+    docker compose up -d minio
+    aws --endpoint-url http://localhost:9000 \
+        --no-sign-request \
+        s3 mb s3://storagesdk-test
+    # (or use any S3 client — `mc`, the AWS Console, etc.)
+
+    # Run the S3 suite:
+    S3_TEST_BUCKET=storagesdk-test pnpm --filter @storagesdk/adapters test
+    ```
+
+    Override any other connection setting via `S3_TEST_ENDPOINT`, `S3_TEST_REGION`, `S3_TEST_ACCESS_KEY_ID`, `S3_TEST_SECRET_ACCESS_KEY`, `S3_TEST_FORCE_PATH_STYLE`. Defaults match the MinIO `docker compose` stack.
+
+- **Tigris**: requires a live bucket and credentials.
+
+    ```sh
+    TIGRIS_BUCKET=<your-bucket> \
+    TIGRIS_ACCESS_KEY_ID=<...> \
+    TIGRIS_SECRET_ACCESS_KEY=<...> \
+    pnpm --filter @storagesdk/adapters test
+    ```
+
+    The Tigris suite skips entirely when any of those env vars is missing or empty.
+
+The S3 and Tigris suites use diff-based cleanup: on setup they snapshot what already exists in the bucket; on teardown they delete only what this test created. Multiple concurrent runs against the same backend don't collide on cleanup, but they will share the bucket's namespace — use distinct buckets for parallel CI shards.
+
+### Conformance suite
+
+The shared cross-adapter behavior is in `packages/adapters/src/test-suite.ts`. Each adapter's test file is a thin setup/dispose call plus an "implementation" describe block holding adapter-specific tests (sidecar files, multipart, presigned-URL fetching). Third-party adapter authors will eventually import the suite via `@storagesdk/adapters/test-suite`.
+
 ## Commits and PRs
 
 - **Conventional commits.** Format: `type(scope): subject`. Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `ci`, `perf`, `style`, `revert`. Subject is imperative mood, lowercase, no trailing period. Scope is optional and names the package or area, e.g. `core`, `s3`, `release.yml`.
