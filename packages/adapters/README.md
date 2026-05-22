@@ -1,6 +1,6 @@
 # @storagesdk/adapters
 
-Backend adapters for [storagesdk](https://github.com/tigrisdata/storagesdk). Import the adapter you need via a subpath; the others are tree-shaken out.
+Backend adapters for [storagesdk](https://github.com/storagesdk/storagesdk). Import the adapter you need via a subpath; the others are tree-shaken out.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters

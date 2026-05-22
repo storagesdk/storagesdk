@@ -1,6 +1,6 @@
 # @storagesdk/adapters/fs
 
-Filesystem adapter for [storagesdk](https://github.com/tigrisdata/storagesdk). Targets `node:fs/promises`; primarily for local development and tests.
+Filesystem adapter for [storagesdk](https://github.com/storagesdk/storagesdk). Targets `node:fs/promises`; primarily for local development and tests.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
