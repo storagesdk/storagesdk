@@ -307,24 +307,31 @@ function createImpl(state: AdapterState): Adapter {
 
     forks: {
       async create(opts) {
-        const snap = state.snapshots.get(opts.fromSnapshot);
-        if (!snap) throw notFound(`snapshot ${opts.fromSnapshot} not found`);
         if (state.forks.has(opts.name)) {
           throw new StorageError({
             code: 'Conflict',
             message: `fork ${opts.name} already exists`,
           });
         }
-        // Materialize a fresh state seeded with a deep copy of the snapshot,
-        // then build a raw impl on top of it. The fork has its own independent
-        // snapshots/forks maps, so nested operations behave like fresh storage.
-        // We stash the raw impl (not a `defineAdapter`-wrapped adapter) so the
-        // outer wrap that runs when callers do `storage.forks.get(name)` is
-        // the only wrap layer.
+        // Seed from either a named snapshot or the parent's live entries.
+        // Either way, we deep-copy so the fork is independent.
+        let source: Map<string, Entry>;
+        if (opts.fromSnapshot !== undefined) {
+          const snap = state.snapshots.get(opts.fromSnapshot);
+          if (!snap) throw notFound(`snapshot ${opts.fromSnapshot} not found`);
+          source = snap.entries;
+        } else {
+          source = state.entries;
+        }
         const cloned = new Map<string, Entry>();
-        for (const [p, e] of snap.entries) {
+        for (const [p, e] of source) {
           cloned.set(p, { ...e, body: new Uint8Array(e.body) });
         }
+        // Materialize a fresh state and build a raw impl on top. The fork
+        // has its own independent snapshots/forks maps, so nested operations
+        // behave like fresh storage. We stash the raw impl (not a
+        // `defineAdapter`-wrapped adapter) so the outer wrap that runs when
+        // callers do `storage.forks.get(name)` is the only wrap layer.
         const forkState: AdapterState = {
           entries: cloned,
           snapshots: new Map(),
@@ -332,8 +339,10 @@ function createImpl(state: AdapterState): Adapter {
         };
         const info: ForkInfo = {
           name: opts.name,
-          fromSnapshot: opts.fromSnapshot,
           createdAt: new Date(),
+          ...(opts.fromSnapshot !== undefined
+            ? { fromSnapshot: opts.fromSnapshot }
+            : {}),
         };
         state.forks.set(opts.name, {
           info,

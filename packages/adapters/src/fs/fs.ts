@@ -14,6 +14,7 @@ import {
   nextSnapshotId,
   type ReadOnlyAdapter,
   readManifest,
+  readStreamToBytes,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
@@ -66,24 +67,7 @@ async function bodyToBytes(body: BodyInput): Promise<Uint8Array> {
   if (body instanceof ArrayBuffer) return new Uint8Array(body);
   if (typeof body === 'string') return new TextEncoder().encode(body);
   if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
-  if (body instanceof ReadableStream) {
-    const reader = body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    while (true) {
-      const result = await reader.read();
-      if (result.done) break;
-      chunks.push(result.value);
-      total += result.value.byteLength;
-    }
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      out.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return out;
-  }
+  if (body instanceof ReadableStream) return readStreamToBytes(body);
   throw new StorageError({
     code: 'InvalidArgument',
     message: 'unsupported body type',
@@ -396,22 +380,38 @@ function createImpl(config: FsConfig): Adapter {
     forks: {
       async create(opts): Promise<ForkInfo> {
         const forkPath = resolveSiblingSafe(config.root, opts.name);
-        const snapPath = resolveSiblingSafe(config.root, opts.fromSnapshot);
         if (existsSync(forkPath)) {
           throw new StorageError({
             code: 'Conflict',
             message: `fork ${opts.name} already exists`,
           });
         }
-        if (!existsSync(snapPath)) {
-          throw new StorageError({
-            code: 'NotFound',
-            message: `snapshot ${opts.fromSnapshot} not found`,
-          });
+
+        // Seed the fork from either a named snapshot or the parent's live
+        // state. Both are just recursive copies of a sibling folder. The
+        // parent folder may not exist yet on disk if nothing's been written
+        // — that's a valid "fork an empty parent" case, so we ensure it
+        // exists before copying. (snapshots.create does the same.)
+        let sourcePath: string;
+        if (opts.fromSnapshot !== undefined) {
+          sourcePath = resolveSiblingSafe(config.root, opts.fromSnapshot);
+          if (!existsSync(sourcePath)) {
+            throw new StorageError({
+              code: 'NotFound',
+              message: `snapshot ${opts.fromSnapshot} not found`,
+            });
+          }
+        } else {
+          sourcePath = folderPath;
+          try {
+            await fsp.mkdir(sourcePath, { recursive: true });
+          } catch (err) {
+            throw asStorageError(err);
+          }
         }
 
         try {
-          await fsp.cp(snapPath, forkPath, { recursive: true });
+          await fsp.cp(sourcePath, forkPath, { recursive: true });
         } catch (err) {
           throw asStorageError(err);
         }
@@ -421,7 +421,7 @@ function createImpl(config: FsConfig): Adapter {
           forkImpl,
           emptyManifest({
             location: config.folder,
-            snapshotId: opts.fromSnapshot,
+            snapshotId: opts.fromSnapshot ?? null,
           })
         );
 
@@ -429,8 +429,10 @@ function createImpl(config: FsConfig): Adapter {
         const meta = await readManifest(thisImpl);
         const info: ForkInfo = {
           name: opts.name,
-          fromSnapshot: opts.fromSnapshot,
           createdAt: new Date(),
+          ...(opts.fromSnapshot !== undefined
+            ? { fromSnapshot: opts.fromSnapshot }
+            : {}),
         };
         meta.forks.push(info);
         await writeManifest(thisImpl, meta);

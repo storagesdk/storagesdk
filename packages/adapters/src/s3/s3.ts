@@ -379,9 +379,13 @@ function impl(
 
     forks: {
       async create(opts): Promise<ForkInfo> {
+        // Seed the fork from either a named snapshot bucket or the parent
+        // bucket's live state. Both are server-side `CopyObject` per entry
+        // via `copyAllObjects`.
+        const sourceBucket = opts.fromSnapshot ?? bucket;
         await createSibling(client, opts.name);
         try {
-          await copyAllObjects(client, opts.fromSnapshot, opts.name, {
+          await copyAllObjects(client, sourceBucket, opts.name, {
             onProgress: (e) => {
               opts.onProgress?.({ copied: e.copied, total: e.total });
             },
@@ -392,15 +396,17 @@ function impl(
             opts.name,
             emptyManifest({
               location: bucket,
-              snapshotId: opts.fromSnapshot,
+              snapshotId: opts.fromSnapshot ?? null,
             })
           );
 
           const meta = await manifest.read(client, bucket);
           const info: ForkInfo = {
             name: opts.name,
-            fromSnapshot: opts.fromSnapshot,
             createdAt: new Date(),
+            ...(opts.fromSnapshot !== undefined
+              ? { fromSnapshot: opts.fromSnapshot }
+              : {}),
           };
           meta.forks.push(info);
           await manifest.write(client, bucket, meta);

@@ -79,6 +79,13 @@ jobs:
 
       - name: Test
         run: pnpm test
+        env:
+          # Live Tigris tests skip themselves when these are unset (e.g. on
+          # forks without secret access). Configured secrets enable them.
+          TIGRIS_BUCKET: ${{ secrets.TIGRIS_BUCKET }}
+          TIGRIS_ACCESS_KEY_ID: ${{ secrets.TIGRIS_ACCESS_KEY_ID }}
+          TIGRIS_SECRET_ACCESS_KEY: ${{ secrets.TIGRIS_SECRET_ACCESS_KEY }}
+          TIGRIS_ENDPOINT: ${{ secrets.TIGRIS_ENDPOINT }}
 
       - name: Publint
         run: pnpm publint

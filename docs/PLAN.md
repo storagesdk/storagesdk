@@ -49,8 +49,8 @@ storagesdk/
 │       └── tsconfig.build.json
 ├── examples/
 │   ├── quickstart/
-│   ├── snapshot-restore/
-│   ├── fork-experiment/
+│   ├── snapshots/
+│   ├── forks/
 │   └── browser-upload/
 └── docs/
     ├── RFC.md
@@ -139,26 +139,76 @@ Exit: S3 works against a local emulator. CI runs the S3 test suite.
 
 ### Phase 5 — Tigris adapter
 
-The native-everything adapter, in parallel with phase 4 once phase 3 is done.
+The native-everything adapter. Snapshots and forks are first-class on Tigris, so this adapter doesn't use the manifest convention at all — every list/lookup goes through a Tigris API.
 
-- `@storagesdk/adapters/tigris`
-- Built on the existing Tigris client (reuse `@tigrisdata/storage` internals where useful)
-- 9 basic ops
-- Native `snapshots` (delegates to Tigris's snapshot API)
-- Native `fork` (delegates to `createBucket({ sourceBucketName, sourceBucketSnapshot })`, returns a new `Storage` wrapping the Tigris adapter at the new bucket)
-- Live tests against a real Tigris bucket in CI (gated on secrets)
+**Package**
 
-Exit: Tigris works with the same end-user code as S3, including snapshot and fork.
+- `@storagesdk/adapters/tigris`, sibling subpath to `/fs` and `/s3`.
+- Optional peer dep on `@tigrisdata/storage` (Tigris's official client).
+- Adapter config is flat and Tigris-flavored, no client-SDK types exposed: `{ bucket, endpoint?, iamEndpoint?, mgmtEndpoint?, organizationId?, accessKeyId?, secretAccessKey?, sessionToken?, credentialProvider?, forcePathStyle? }`. Matches the S3 adapter's style; the underlying `@tigrisdata/storage` config is constructed internally.
+- Bucket lifecycle is the caller's concern (mirrors S3) — the adapter operates on an existing bucket.
+
+**Object ops** — 1:1 with Tigris functions, no convention layer
+
+| Verb | Tigris fn |
+| --- | --- |
+| `upload` | `put(path, body, { contentType, contentDisposition, multipart, partSize, queueSize, abortController, onUploadProgress, config })` |
+| `download` | `get(path, 'stream' \| 'file' \| 'string', { snapshotVersion?, versionId?, config })` |
+| `head` | `head(path, { snapshotVersion?, versionId?, config })` |
+| `list` | `list({ prefix, delimiter, limit, paginationToken, snapshotVersion?, config })` |
+| `delete` | `remove(path, { versionId?, config })` |
+| `copy` | `copy(src, dest, { srcBucket?, destBucket?, config })` |
+| `move` | `move(src, dest, { config })` |
+| `url` | `getPresignedUrl(path, { operation: 'get', expiresIn, snapshotVersion?, config })` |
+| `uploadUrl` | `getPresignedUrl(path, { operation: 'put', expiresIn, config })` |
+
+Stream normalization: `get(..., 'stream')` already returns Web `ReadableStream`, so no conversion needed.
+
+**Snapshots — fully native**
+
+- `snapshots.create({ name })` → `createBucketSnapshot({ name })` returns `{ snapshotVersion }`. The adapter maps that to `SnapshotInfo { id: snapshotVersion, name?, createdAt }`.
+- `snapshots.list()` → `listBucketSnapshots()`.
+- `snapshots.head(id)` → looks up in `listBucketSnapshots` result (no dedicated head API).
+- `snapshots.get(id)` → returns a `ReadOnlyAdapter` whose `download`/`head`/`list`/`url` calls pass `snapshotVersion: id` through to the corresponding Tigris fn. No copy, no manifest.
+- `snapshots.delete(id)` → `deleteBucketSnapshot(bucket, id)`. Drops the snapshot record on the Tigris side; underlying object versions remain.
+
+**Forks — fully native**
+
+- `forks.create({ name, fromSnapshot? })` → `createBucket(name, { sourceBucketName: bucket, sourceBucketSnapshot? })`. With `fromSnapshot` omitted, Tigris forks from the parent's current bucket state.
+- `forks.list()` → `listForks(bucket)`; maps `ForkedBucket` to `ForkInfo`.
+- `forks.head(name)` → list, then find by name.
+- `forks.delete(name)` → `removeBucket(name, { force: true })`.
+- `forks.get(name)` → returns a `Storage<TigrisRaw>` scoped to that bucket via a new adapter instance.
+
+**Tigris-only bucket settings** (lifecycle, CORS, TTL, notifications, migration, access, etc.) are deliberately *not* exposed on the adapter surface. Advanced users reach them via `storage.raw` — see below — per the SDK's primitives-first rule.
+
+**Raw escape hatch**
+
+`storage.raw` is a Proxy mirroring every value-namespace export of `@tigrisdata/storage`. The adapter's resolved config (auth, endpoint, bucket) is auto-injected into each call so consumers don't re-thread credentials. Per-call `config` overrides merge on top of the adapter's (user wins, adapter fills gaps). `handleClientUpload`'s positional config arg is special-cased.
+
+**Tests**
+
+- Adapter-specific tests for the native snapshot/fork paths.
+- Live against a real Tigris bucket gated on `TIGRIS_*` env vars (`TIGRIS_BUCKET`, `TIGRIS_ACCESS_KEY_ID`, `TIGRIS_SECRET_ACCESS_KEY`, optional `TIGRIS_ENDPOINT`). CI uses repo secrets; local dev skips when unconfigured.
+- No emulator — Tigris doesn't have one, and the local-skip story is what matters for contributors without credentials.
+
+Exit: Tigris works with the same end-user code as S3 for the cross-provider verbs, plus first-class native snapshots/forks.
 
 ### Phase 6 — examples
 
 Each example is a separate package under `examples/` with its own `package.json` so people can copy them out and run them.
 
 - `examples/quickstart` — upload, download, list, delete
-- `examples/snapshot-restore` — make a snapshot, mutate the storage, read at snapshot, restore
-- `examples/fork-experiment` — fork, experiment, optionally promote (or just toss)
+- `examples/snapshots` — capture multiple snapshots, list them, print a git-log-style graph of the state at each point in time
+- `examples/forks` — spin up multiple forks of the live parent in parallel, mutate them independently, show the divergence side-by-side
 - `examples/browser-upload` — server route that issues `uploadUrl`, browser client that PUTs the file directly
 - Top-level README that points to each example
+
+A snapshot-restore example was intentionally cut: restore is going to be
+a first-class adapter method (`snapshots.restore`) once the API surface
+lands, and shipping a manual-loop example now would teach an idiom we're
+about to replace. Same reasoning for promote/merge of forks
+(`forks.merge`) — out of v1 scope, planned as a follow-up.
 
 Exit: every example runs against the FS adapter with `pnpm dev` from the example directory.
 

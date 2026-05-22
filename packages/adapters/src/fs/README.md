@@ -84,6 +84,21 @@ Keys containing `..` segments that resolve outside the adapter's folder are reje
 
 ## Snapshots and forks
 
-Both follow the SDK's [Phase 2 convention](../../../../docs/RFC.md#snapshot-and-fork-convention) — each snapshot/fork is a sibling folder with its own `.storagesdk.metadata.json`. `snapshots.list()` and `forks.list()` read the parent's manifest. The adapter uses plain `fs.cp` recursive copy — no hardlinks, no reflinks. Each fork is a full copy of the source snapshot.
+Both follow the SDK's [Phase 2 convention](../../../../docs/RFC.md#snapshot-and-fork-convention) — each snapshot/fork is a **sibling folder** under `<root>` with its own `.storagesdk.metadata.json`. `snapshots.list()` and `forks.list()` read the parent's manifest.
 
-See [`examples/snapshot-restore`](../../../../examples/snapshot-restore) and [`examples/fork-experiment`](../../../../examples/fork-experiment) for runnable walkthroughs.
+### How creation works
+
+Both `snapshots.create` and `forks.create` follow the same five-step recipe — they only differ in how they name the sibling and what they record in the parent's manifest:
+
+1. **Pick a sibling name.** Snapshots: `nextSnapshotId(folder)` → `<folder>-snapshot-<25 digits>` (13-digit ms + 12-digit crypto-random; the id doubles as the folder name). Forks: user-provided `name`.
+2. **Resolve safely.** `resolveSiblingSafe(root, name)` requires the resolved path to be a direct child of `<root>`. Names with separators, `.`, `..`, or anything escaping `<root>` throw `InvalidArgument` synchronously. Forks also bail with `Conflict` if the target folder already exists.
+3. **Copy the source folder.** `fsp.cp(source, sibling, { recursive: true })`. The source is:
+   - For snapshots → the parent's live folder.
+   - For forks with `fromSnapshot` set → the named snapshot folder (must exist, else `NotFound`).
+   - For forks with `fromSnapshot` omitted → the parent's live folder.
+4. **Write the child's own manifest.** `writeManifest(siblingImpl, emptyManifest({ location: folder, snapshotId }))`. This overwrites the parent's manifest that step 3 just copied across, so the new sibling tracks its own lineage with empty snapshot/fork lists.
+5. **Append to the parent's manifest.** `readManifest(parent)` → push the new `SnapshotInfo` / `ForkInfo` → `writeManifest(parent, ...)`. Concurrent creates on the same parent will race this read-modify-write — serialize calls per parent until that's fixed.
+
+The recursive copy is plain `fs.cp` — no hardlinks, no reflinks. Each snapshot and fork is a full bytewise copy, which is simple and portable but proportional to the data size. `snapshots.get(id)` returns a `ReadOnlyAdapter` scoped to the sibling folder; the read-only contract is enforced by type, not by filesystem permissions.
+
+See [`examples/snapshots`](../../../../examples/snapshots) and [`examples/forks`](../../../../examples/forks) for runnable walkthroughs.

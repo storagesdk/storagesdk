@@ -4,21 +4,23 @@ The five-minute tour: construct a `Storage`, upload, list, download, get a URL, 
 
 ## Run
 
-From the repo root:
-
 ```sh
 pnpm install
 pnpm --filter @storagesdk/examples quickstart
 ```
 
-The example uses the FS adapter against a fresh directory under `os.tmpdir()`. To use a different backend, swap the import and adapter config in `index.ts` — the rest of the code stays the same.
+By default the example runs against the local filesystem (no config needed). To run against a cloud adapter, set `EXAMPLE_ADAPTER` and the relevant env vars — see the [top-level examples README](../README.md#picking-an-adapter) for the full table.
 
-```ts
-// FS (this example)
-import { fs } from '@storagesdk/adapters/fs';
-new Storage({ adapter: fs({ root: '/var/data', folder: 'photos' }) });
+```sh
+# S3
+EXAMPLE_ADAPTER=s3 EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_ACCESS_KEY_ID=... EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
 
-// S3
-import { s3 } from '@storagesdk/adapters/s3';
-new Storage({ adapter: s3({ bucket: 'photos', /* ... */ }) });
+# Tigris
+EXAMPLE_ADAPTER=tigris EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_ACCESS_KEY_ID=... EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
 ```
+
+The example code itself doesn't change between adapters — `getAdapter()` in `../adapter.ts` handles the selection.
