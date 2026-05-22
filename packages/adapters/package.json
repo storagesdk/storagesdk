@@ -65,7 +65,7 @@
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-storage": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "@tigrisdata/storage": "^3.7.0",
+    "@tigrisdata/storage": "^3.8.1",
     "vitest": "^4.0.0"
   },
   "peerDependenciesMeta": {
@@ -89,6 +89,6 @@
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-storage": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "@tigrisdata/storage": "^3.7.0"
+    "@tigrisdata/storage": "^3.8.1"
   }
 }
