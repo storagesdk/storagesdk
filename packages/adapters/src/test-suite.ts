@@ -205,11 +205,22 @@ export function setupTestStorage<Raw = unknown>(
     } catch {
       /* swallow */
     }
-    // Forks this test created.
+    // Forks this test created. Walk each new fork's snapshots and delete
+    // them first — on copy-based adapters those are sibling buckets/folders
+    // of the fork itself, so deleting only the fork would orphan them.
     try {
       const forks = await storage.forks.list();
       for (const f of forks) {
         if (!baseline.forkNames.has(f.name)) {
+          try {
+            const fork = storage.forks.get(f.name);
+            const forkSnaps = await fork.snapshots.list();
+            for (const s of forkSnaps) {
+              await fork.snapshots.delete(s.id).catch(() => {});
+            }
+          } catch {
+            /* swallow */
+          }
           await storage.forks.delete(f.name).catch(() => {});
         }
       }

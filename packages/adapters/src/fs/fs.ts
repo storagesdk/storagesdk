@@ -327,27 +327,33 @@ function createImpl(config: FsConfig): Adapter {
             recursive: true,
             ...(opts?.signal ? { signal: opts.signal } : {}),
           });
+
+          // Overwrite the copied parent's manifest with the snapshot's own.
+          const snapImpl = createImpl({ root: config.root, folder: id });
+          await writeManifest(
+            snapImpl,
+            emptyManifest({ location: config.folder, snapshotId: null })
+          );
+
+          const thisImpl = createImpl(config);
+          const meta = await readManifest(thisImpl);
+          const info: SnapshotInfo = {
+            id,
+            createdAt: new Date(),
+            ...(opts?.name !== undefined ? { name: opts.name } : {}),
+          };
+          meta.snapshots.push(info);
+          await writeManifest(thisImpl, meta);
+          return info;
         } catch (err) {
+          // Best-effort rollback — remove the partial sibling folder so a
+          // failed or aborted snapshot doesn't leave orphan state on disk.
+          // Matches the S3 adapter's `destroySibling` pattern.
+          await fsp
+            .rm(snapPath, { recursive: true, force: true })
+            .catch(() => {});
           throw asStorageError(err);
         }
-
-        // Overwrite the copied parent's manifest with the snapshot's own.
-        const snapImpl = createImpl({ root: config.root, folder: id });
-        await writeManifest(
-          snapImpl,
-          emptyManifest({ location: config.folder, snapshotId: null })
-        );
-
-        const thisImpl = createImpl(config);
-        const meta = await readManifest(thisImpl);
-        const info: SnapshotInfo = {
-          id,
-          createdAt: new Date(),
-          ...(opts?.name !== undefined ? { name: opts.name } : {}),
-        };
-        meta.snapshots.push(info);
-        await writeManifest(thisImpl, meta);
-        return info;
       },
 
       async list(): Promise<SnapshotInfo[]> {
@@ -439,31 +445,36 @@ function createImpl(config: FsConfig): Adapter {
             recursive: true,
             ...(opts.signal ? { signal: opts.signal } : {}),
           });
+
+          const forkImpl = createImpl({ root: config.root, folder: opts.name });
+          await writeManifest(
+            forkImpl,
+            emptyManifest({
+              location: config.folder,
+              snapshotId: opts.fromSnapshot ?? null,
+            })
+          );
+
+          const thisImpl = createImpl(config);
+          const meta = await readManifest(thisImpl);
+          const info: ForkInfo = {
+            name: opts.name,
+            createdAt: new Date(),
+            ...(opts.fromSnapshot !== undefined
+              ? { fromSnapshot: opts.fromSnapshot }
+              : {}),
+          };
+          meta.forks.push(info);
+          await writeManifest(thisImpl, meta);
+          return info;
         } catch (err) {
+          // Best-effort rollback so a failed or aborted fork doesn't leave
+          // orphan state on disk.
+          await fsp
+            .rm(forkPath, { recursive: true, force: true })
+            .catch(() => {});
           throw asStorageError(err);
         }
-
-        const forkImpl = createImpl({ root: config.root, folder: opts.name });
-        await writeManifest(
-          forkImpl,
-          emptyManifest({
-            location: config.folder,
-            snapshotId: opts.fromSnapshot ?? null,
-          })
-        );
-
-        const thisImpl = createImpl(config);
-        const meta = await readManifest(thisImpl);
-        const info: ForkInfo = {
-          name: opts.name,
-          createdAt: new Date(),
-          ...(opts.fromSnapshot !== undefined
-            ? { fromSnapshot: opts.fromSnapshot }
-            : {}),
-        };
-        meta.forks.push(info);
-        await writeManifest(thisImpl, meta);
-        return info;
       },
 
       async list(): Promise<ForkInfo[]> {

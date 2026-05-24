@@ -1,6 +1,7 @@
 import {
   type Adapter,
   type BodyInput,
+  bridgeSignalToController,
   checkSignal,
   defineAdapter,
   type ForkInfo,
@@ -110,36 +111,42 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
       checkSignal(opts?.signal);
       // Tigris's `put` takes an `abortController` (not `abortSignal`); bridge
       // the caller's signal into a fresh controller so an abort propagates.
-      const abortController = bridgeSignalToController(opts?.signal);
-      const res = await put(key, toTigrisBody(body), {
-        config,
-        ...(opts?.contentType !== undefined
-          ? { contentType: opts.contentType }
-          : {}),
-        ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
-        ...(opts?.multipart !== undefined ? { multipart: opts.multipart } : {}),
-        ...(opts?.partSize !== undefined ? { partSize: opts.partSize } : {}),
-        ...(opts?.concurrency !== undefined
-          ? { queueSize: opts.concurrency }
-          : {}),
-        ...(abortController ? { abortController } : {}),
-        ...(opts?.onProgress !== undefined
-          ? {
-              onUploadProgress: (e) =>
-                opts.onProgress?.({ loaded: e.loaded, total: e.total }),
-            }
-          : {}),
-      });
-      const data = unwrap(res);
-      return {
-        path: data.path,
-        size: data.size,
-        contentType:
-          data.contentType ?? opts?.contentType ?? 'application/octet-stream',
-        etag: data.etag,
-        lastModified: data.modified,
-        ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
-      };
+      const bridge = bridgeSignalToController(opts?.signal);
+      try {
+        const res = await put(key, toTigrisBody(body), {
+          config,
+          ...(opts?.contentType !== undefined
+            ? { contentType: opts.contentType }
+            : {}),
+          ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
+          ...(opts?.multipart !== undefined
+            ? { multipart: opts.multipart }
+            : {}),
+          ...(opts?.partSize !== undefined ? { partSize: opts.partSize } : {}),
+          ...(opts?.concurrency !== undefined
+            ? { queueSize: opts.concurrency }
+            : {}),
+          ...(bridge.controller ? { abortController: bridge.controller } : {}),
+          ...(opts?.onProgress !== undefined
+            ? {
+                onUploadProgress: (e) =>
+                  opts.onProgress?.({ loaded: e.loaded, total: e.total }),
+              }
+            : {}),
+        });
+        const data = unwrap(res);
+        return {
+          path: data.path,
+          size: data.size,
+          contentType:
+            data.contentType ?? opts?.contentType ?? 'application/octet-stream',
+          etag: data.etag,
+          lastModified: data.modified,
+          ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
+        };
+      } finally {
+        bridge.dispose();
+      }
     },
 
     async download(key, opts): Promise<StorageItem> {
@@ -523,24 +530,4 @@ function makeRaw(config: TigrisConfig): TigrisRaw {
       };
     },
   }) as TigrisRaw;
-}
-
-/**
- * Tigris's `put` accepts an `AbortController` (not an `AbortSignal`). Bridge
- * the caller's signal into a fresh controller so an abort propagates. Returns
- * undefined when no signal — `put` runs uncancelable in that case.
- */
-function bridgeSignalToController(
-  signal: AbortSignal | undefined
-): AbortController | undefined {
-  if (!signal) return undefined;
-  const ctrl = new AbortController();
-  if (signal.aborted) {
-    ctrl.abort(signal.reason);
-  } else {
-    signal.addEventListener('abort', () => ctrl.abort(signal.reason), {
-      once: true,
-    });
-  }
-  return ctrl;
 }

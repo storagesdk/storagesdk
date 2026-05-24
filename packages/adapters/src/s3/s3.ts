@@ -24,6 +24,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   type Adapter,
   type BodyInput,
+  bridgeSignalToController,
   checkSignal,
   defineAdapter,
   emptyManifest,
@@ -127,30 +128,36 @@ function impl(
 
       try {
         if (useMultipart) {
-          const abortController = bridgeSignalToController(opts?.signal);
-          const upload = new Upload({
-            client,
-            params: buildPutParams(bucket, key, payload, opts),
-            ...(opts?.partSize !== undefined
-              ? { partSize: opts.partSize }
-              : {}),
-            ...(opts?.concurrency !== undefined
-              ? { queueSize: opts.concurrency }
-              : {}),
-            ...(abortController ? { abortController } : {}),
-          });
-          if (opts?.onProgress) {
-            const cb = opts.onProgress;
-            upload.on('httpUploadProgress', (e) => {
-              if (e.loaded !== undefined && e.total !== undefined) {
-                cb({ loaded: e.loaded, total: e.total });
-              }
+          const bridge = bridgeSignalToController(opts?.signal);
+          try {
+            const upload = new Upload({
+              client,
+              params: buildPutParams(bucket, key, payload, opts),
+              ...(opts?.partSize !== undefined
+                ? { partSize: opts.partSize }
+                : {}),
+              ...(opts?.concurrency !== undefined
+                ? { queueSize: opts.concurrency }
+                : {}),
+              ...(bridge.controller
+                ? { abortController: bridge.controller }
+                : {}),
             });
+            if (opts?.onProgress) {
+              const cb = opts.onProgress;
+              upload.on('httpUploadProgress', (e) => {
+                if (e.loaded !== undefined && e.total !== undefined) {
+                  cb({ loaded: e.loaded, total: e.total });
+                }
+              });
+            }
+            await upload.done();
+            // Multipart bodies may be streams (size unknown upfront), so the
+            // authoritative metadata is what S3 has now. One HEAD round-trip.
+            return await headObject(client, bucket, key, opts?.signal);
+          } finally {
+            bridge.dispose();
           }
-          await upload.done();
-          // Multipart bodies may be streams (size unknown upfront), so the
-          // authoritative metadata is what S3 has now. One HEAD round-trip.
-          return await headObject(client, bucket, key, opts?.signal);
         }
 
         const out = await client.send(
@@ -275,7 +282,6 @@ function impl(
 
     async move(from, to, opts): Promise<void> {
       checkSignal(opts?.signal);
-      const sendOpts = opts?.signal ? { abortSignal: opts.signal } : undefined;
       try {
         await client.send(
           new CopyObjectCommand({
@@ -283,11 +289,14 @@ function impl(
             Key: to,
             CopySource: copySource(bucket, from),
           }),
-          sendOpts
+          opts?.signal ? { abortSignal: opts.signal } : undefined
         );
+        // Copy succeeded — commit the move. Don't pass the caller's signal
+        // to the delete: if the user aborts here we'd leave both src and
+        // dst, violating move semantics. Once copy is done we see it
+        // through.
         await client.send(
-          new DeleteObjectCommand({ Bucket: bucket, Key: from }),
-          sendOpts
+          new DeleteObjectCommand({ Bucket: bucket, Key: from })
         );
       } catch (err) {
         throw asStorageError(err);
@@ -1119,24 +1128,4 @@ function isTagsUnsupportedError(err: unknown): boolean {
   return (
     aws?.name === 'MethodNotAllowed' || aws?.$metadata?.httpStatusCode === 405
   );
-}
-
-/**
- * `@aws-sdk/lib-storage`'s `Upload` class takes an `AbortController`, not an
- * `AbortSignal`. Bridge: when the caller's signal aborts, abort the fresh
- * controller too. Returns undefined if no signal — `Upload` runs uncancelable.
- */
-function bridgeSignalToController(
-  signal: AbortSignal | undefined
-): AbortController | undefined {
-  if (!signal) return undefined;
-  const ctrl = new AbortController();
-  if (signal.aborted) {
-    ctrl.abort(signal.reason);
-  } else {
-    signal.addEventListener('abort', () => ctrl.abort(signal.reason), {
-      once: true,
-    });
-  }
-  return ctrl;
 }
