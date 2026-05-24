@@ -1,3 +1,8 @@
+export {
+  bridgeSignalToController,
+  checkSignal,
+  isAbortError,
+} from './abort.js';
 export type { StorageErrorCode, StorageErrorInit } from './errors.js';
 export { StorageError } from './errors.js';
 export type {

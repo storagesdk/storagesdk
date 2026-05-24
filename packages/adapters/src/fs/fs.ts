@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import {
   type Adapter,
   type BodyInput,
+  checkSignal,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -180,6 +181,7 @@ function createImpl(config: FsConfig): Adapter {
     raw: { root: config.root, folder: config.folder, folderPath },
 
     async upload(key, body, opts?: UploadOptions): Promise<StorageItemMeta> {
+      checkSignal(opts?.signal);
       // The manifest path flows through `upload` from the SDK's own
       // `writeManifest` helper, so we can't reject it. The sidecar suffix
       // IS rejected — only the adapter's own logic writes sidecars.
@@ -193,7 +195,11 @@ function createImpl(config: FsConfig): Adapter {
       const bytes = await bodyToBytes(body);
       try {
         await fsp.mkdir(path.dirname(fullPath), { recursive: true });
-        await fsp.writeFile(fullPath, bytes);
+        await fsp.writeFile(
+          fullPath,
+          bytes,
+          opts?.signal ? { signal: opts.signal } : undefined
+        );
       } catch (err) {
         throw asStorageError(err);
       }
@@ -204,11 +210,15 @@ function createImpl(config: FsConfig): Adapter {
       return statToMeta(fullPath, key);
     },
 
-    async download(key): Promise<StorageItem> {
+    async download(key, opts): Promise<StorageItem> {
+      checkSignal(opts?.signal);
       const fullPath = resolveSafe(folderPath, key);
       let bytes: Uint8Array;
       try {
-        bytes = await fsp.readFile(fullPath);
+        bytes = await fsp.readFile(
+          fullPath,
+          opts?.signal ? { signal: opts.signal } : undefined
+        );
       } catch (err) {
         throw asStorageError(err);
       }
@@ -216,12 +226,14 @@ function createImpl(config: FsConfig): Adapter {
       return { ...meta, body: new Uint8Array(bytes) };
     },
 
-    async head(key): Promise<StorageItemMeta> {
+    async head(key, opts): Promise<StorageItemMeta> {
+      checkSignal(opts?.signal);
       const fullPath = resolveSafe(folderPath, key);
       return statToMeta(fullPath, key);
     },
 
     async list(opts?: ListOptions): Promise<ListResult> {
+      checkSignal(opts?.signal);
       const prefix = opts?.prefix ?? '';
       const limit = opts?.limit ?? 100;
       const cursor = opts?.cursor ?? '';
@@ -244,7 +256,8 @@ function createImpl(config: FsConfig): Adapter {
         : { items };
     },
 
-    async delete(key): Promise<void> {
+    async delete(key, opts): Promise<void> {
+      checkSignal(opts?.signal);
       const fullPath = resolveSafe(folderPath, key);
       try {
         await fsp.rm(fullPath, { force: true });
@@ -254,7 +267,8 @@ function createImpl(config: FsConfig): Adapter {
       await deleteSidecar(fullPath);
     },
 
-    async copy(from, to): Promise<void> {
+    async copy(from, to, opts): Promise<void> {
+      checkSignal(opts?.signal);
       const fromPath = resolveSafe(folderPath, from);
       const toPath = resolveSafe(folderPath, to);
       try {
@@ -266,7 +280,8 @@ function createImpl(config: FsConfig): Adapter {
       await copySidecar(fromPath, toPath);
     },
 
-    async move(from, to): Promise<void> {
+    async move(from, to, opts): Promise<void> {
+      checkSignal(opts?.signal);
       const fromPath = resolveSafe(folderPath, from);
       const toPath = resolveSafe(folderPath, to);
       try {
@@ -279,6 +294,7 @@ function createImpl(config: FsConfig): Adapter {
     },
 
     async url(key, opts?: UrlOptions): Promise<string> {
+      checkSignal(opts?.signal);
       const fullPath = resolveSafe(folderPath, key);
       if (!existsSync(fullPath)) {
         throw new StorageError({
@@ -290,12 +306,14 @@ function createImpl(config: FsConfig): Adapter {
     },
 
     async uploadUrl(key, opts?: UploadUrlOptions): Promise<UploadUrlResult> {
+      checkSignal(opts?.signal);
       const fullPath = resolveSafe(folderPath, key);
       return { method: 'PUT', url: fileUrl(fullPath, opts?.expiresIn) };
     },
 
     snapshots: {
       async create(opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
         try {
           await fsp.mkdir(folderPath, { recursive: true });
         } catch (err) {
@@ -305,28 +323,37 @@ function createImpl(config: FsConfig): Adapter {
         const snapPath = resolveSiblingSafe(config.root, id);
 
         try {
-          await fsp.cp(folderPath, snapPath, { recursive: true });
+          await fsp.cp(folderPath, snapPath, {
+            recursive: true,
+            ...(opts?.signal ? { signal: opts.signal } : {}),
+          });
+
+          // Overwrite the copied parent's manifest with the snapshot's own.
+          const snapImpl = createImpl({ root: config.root, folder: id });
+          await writeManifest(
+            snapImpl,
+            emptyManifest({ location: config.folder, snapshotId: null })
+          );
+
+          const thisImpl = createImpl(config);
+          const meta = await readManifest(thisImpl);
+          const info: SnapshotInfo = {
+            id,
+            createdAt: new Date(),
+            ...(opts?.name !== undefined ? { name: opts.name } : {}),
+          };
+          meta.snapshots.push(info);
+          await writeManifest(thisImpl, meta);
+          return info;
         } catch (err) {
+          // Best-effort rollback — remove the partial sibling folder so a
+          // failed or aborted snapshot doesn't leave orphan state on disk.
+          // Matches the S3 adapter's `destroySibling` pattern.
+          await fsp
+            .rm(snapPath, { recursive: true, force: true })
+            .catch(() => {});
           throw asStorageError(err);
         }
-
-        // Overwrite the copied parent's manifest with the snapshot's own.
-        const snapImpl = createImpl({ root: config.root, folder: id });
-        await writeManifest(
-          snapImpl,
-          emptyManifest({ location: config.folder, snapshotId: null })
-        );
-
-        const thisImpl = createImpl(config);
-        const meta = await readManifest(thisImpl);
-        const info: SnapshotInfo = {
-          id,
-          createdAt: new Date(),
-          ...(opts?.name !== undefined ? { name: opts.name } : {}),
-        };
-        meta.snapshots.push(info);
-        await writeManifest(thisImpl, meta);
-        return info;
       },
 
       async list(): Promise<SnapshotInfo[]> {
@@ -334,7 +361,8 @@ function createImpl(config: FsConfig): Adapter {
         return (await readManifest(thisImpl)).snapshots;
       },
 
-      async head(id): Promise<SnapshotInfo> {
+      async head(id, opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
         const thisImpl = createImpl(config);
         const meta = await readManifest(thisImpl);
         const found = meta.snapshots.find((s) => s.id === id);
@@ -347,7 +375,8 @@ function createImpl(config: FsConfig): Adapter {
         return found;
       },
 
-      async delete(id): Promise<void> {
+      async delete(id, opts): Promise<void> {
+        checkSignal(opts?.signal);
         const snapPath = resolveSiblingSafe(config.root, id);
         const thisImpl = createImpl(config);
         const meta = await readManifest(thisImpl);
@@ -379,6 +408,7 @@ function createImpl(config: FsConfig): Adapter {
 
     forks: {
       async create(opts): Promise<ForkInfo> {
+        checkSignal(opts.signal);
         const forkPath = resolveSiblingSafe(config.root, opts.name);
         if (existsSync(forkPath)) {
           throw new StorageError({
@@ -411,32 +441,40 @@ function createImpl(config: FsConfig): Adapter {
         }
 
         try {
-          await fsp.cp(sourcePath, forkPath, { recursive: true });
+          await fsp.cp(sourcePath, forkPath, {
+            recursive: true,
+            ...(opts.signal ? { signal: opts.signal } : {}),
+          });
+
+          const forkImpl = createImpl({ root: config.root, folder: opts.name });
+          await writeManifest(
+            forkImpl,
+            emptyManifest({
+              location: config.folder,
+              snapshotId: opts.fromSnapshot ?? null,
+            })
+          );
+
+          const thisImpl = createImpl(config);
+          const meta = await readManifest(thisImpl);
+          const info: ForkInfo = {
+            name: opts.name,
+            createdAt: new Date(),
+            ...(opts.fromSnapshot !== undefined
+              ? { fromSnapshot: opts.fromSnapshot }
+              : {}),
+          };
+          meta.forks.push(info);
+          await writeManifest(thisImpl, meta);
+          return info;
         } catch (err) {
+          // Best-effort rollback so a failed or aborted fork doesn't leave
+          // orphan state on disk.
+          await fsp
+            .rm(forkPath, { recursive: true, force: true })
+            .catch(() => {});
           throw asStorageError(err);
         }
-
-        const forkImpl = createImpl({ root: config.root, folder: opts.name });
-        await writeManifest(
-          forkImpl,
-          emptyManifest({
-            location: config.folder,
-            snapshotId: opts.fromSnapshot ?? null,
-          })
-        );
-
-        const thisImpl = createImpl(config);
-        const meta = await readManifest(thisImpl);
-        const info: ForkInfo = {
-          name: opts.name,
-          createdAt: new Date(),
-          ...(opts.fromSnapshot !== undefined
-            ? { fromSnapshot: opts.fromSnapshot }
-            : {}),
-        };
-        meta.forks.push(info);
-        await writeManifest(thisImpl, meta);
-        return info;
       },
 
       async list(): Promise<ForkInfo[]> {
@@ -444,7 +482,8 @@ function createImpl(config: FsConfig): Adapter {
         return (await readManifest(thisImpl)).forks;
       },
 
-      async head(name): Promise<ForkInfo> {
+      async head(name, opts): Promise<ForkInfo> {
+        checkSignal(opts?.signal);
         const thisImpl = createImpl(config);
         const meta = await readManifest(thisImpl);
         const found = meta.forks.find((f) => f.name === name);
@@ -457,7 +496,8 @@ function createImpl(config: FsConfig): Adapter {
         return found;
       },
 
-      async delete(name): Promise<void> {
+      async delete(name, opts): Promise<void> {
+        checkSignal(opts?.signal);
         const forkPath = resolveSiblingSafe(config.root, name);
         const thisImpl = createImpl(config);
         const meta = await readManifest(thisImpl);

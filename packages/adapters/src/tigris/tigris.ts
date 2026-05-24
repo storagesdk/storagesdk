@@ -1,6 +1,8 @@
 import {
   type Adapter,
   type BodyInput,
+  bridgeSignalToController,
+  checkSignal,
   defineAdapter,
   type ForkInfo,
   type ListOptions,
@@ -106,39 +108,49 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
     raw: makeRaw(config),
 
     async upload(key, body, opts?: UploadOptions): Promise<StorageItemMeta> {
-      const res = await put(key, toTigrisBody(body), {
-        config,
-        ...(opts?.contentType !== undefined
-          ? { contentType: opts.contentType }
-          : {}),
-        ...(opts?.multipart !== undefined ? { multipart: opts.multipart } : {}),
-        ...(opts?.partSize !== undefined ? { partSize: opts.partSize } : {}),
-        ...(opts?.concurrency !== undefined
-          ? { queueSize: opts.concurrency }
-          : {}),
-        ...(opts?.onProgress !== undefined
-          ? {
-              onUploadProgress: (e) =>
-                opts.onProgress?.({ loaded: e.loaded, total: e.total }),
-            }
-          : {}),
-      });
-      const data = unwrap(res);
-      return {
-        path: data.path,
-        size: data.size,
-        contentType:
-          data.contentType ?? opts?.contentType ?? 'application/octet-stream',
-        // Tigris's put/head/list responses don't surface an etag. Empty
-        // string keeps the contract type satisfied; consumers that depend on
-        // etag should compute one client-side or use a different adapter.
-        etag: '',
-        lastModified: data.modified,
-        ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
-      };
+      checkSignal(opts?.signal);
+      // Tigris's `put` takes an `abortController` (not `abortSignal`); bridge
+      // the caller's signal into a fresh controller so an abort propagates.
+      const bridge = bridgeSignalToController(opts?.signal);
+      try {
+        const res = await put(key, toTigrisBody(body), {
+          config,
+          ...(opts?.contentType !== undefined
+            ? { contentType: opts.contentType }
+            : {}),
+          ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
+          ...(opts?.multipart !== undefined
+            ? { multipart: opts.multipart }
+            : {}),
+          ...(opts?.partSize !== undefined ? { partSize: opts.partSize } : {}),
+          ...(opts?.concurrency !== undefined
+            ? { queueSize: opts.concurrency }
+            : {}),
+          ...(bridge.controller ? { abortController: bridge.controller } : {}),
+          ...(opts?.onProgress !== undefined
+            ? {
+                onUploadProgress: (e) =>
+                  opts.onProgress?.({ loaded: e.loaded, total: e.total }),
+              }
+            : {}),
+        });
+        const data = unwrap(res);
+        return {
+          path: data.path,
+          size: data.size,
+          contentType:
+            data.contentType ?? opts?.contentType ?? 'application/octet-stream',
+          etag: data.etag,
+          lastModified: data.modified,
+          ...(opts?.metadata !== undefined ? { metadata: opts.metadata } : {}),
+        };
+      } finally {
+        bridge.dispose();
+      }
     },
 
-    async download(key): Promise<StorageItem> {
+    async download(key, opts): Promise<StorageItem> {
+      checkSignal(opts?.signal);
       // Use `'file'` format so body + metadata come from a single request —
       // avoids the body/metadata mismatch that an interleaved write between
       // `get` and a separate `head` would cause.
@@ -148,15 +160,22 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         path: key,
         size: file.size,
         contentType: file.type || 'application/octet-stream',
+        // Tigris's `get` returns a bare File / ReadableStream — no etag in
+        // the SDK response. Put/Head/List expose it; download doesn't yet.
         etag: '',
         lastModified: new Date(file.lastModified),
         body: new Uint8Array(await file.arrayBuffer()),
       };
     },
 
-    async head(key): Promise<StorageItemMeta> {
+    async head(key, opts): Promise<StorageItemMeta> {
+      checkSignal(opts?.signal);
       const res = await tigrisHead(key, { config });
-      const data = unwrap(res);
+      // Tigris signals "missing key" by returning `{ data: undefined,
+      // error: undefined }` (no SDK error, no data). Don't run that through
+      // `unwrap` — it would map to 'Provider'.
+      if (res?.error !== undefined) throw asStorageError(res.error);
+      const data = res?.data;
       if (!data) {
         throw new StorageError({
           code: 'NotFound',
@@ -167,12 +186,16 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         path: data.path,
         size: data.size,
         contentType: data.contentType,
-        etag: '',
+        etag: data.etag,
         lastModified: data.modified,
+        ...(data.metadata && Object.keys(data.metadata).length > 0
+          ? { metadata: data.metadata }
+          : {}),
       };
     },
 
     async list(opts?: ListOptions): Promise<ListResult> {
+      checkSignal(opts?.signal);
       const res = await tigrisList({
         config,
         ...(opts?.prefix !== undefined ? { prefix: opts.prefix } : {}),
@@ -184,10 +207,10 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
       const items: StorageItemMeta[] = data.items.map((it) => ({
         path: it.name,
         size: it.size,
-        // Tigris's list response carries name/size/lastModified but no
-        // content-type or user metadata. Call head() per key for full meta.
+        // Tigris's list response carries name/size/lastModified/etag but
+        // no content-type or user metadata. Call head() per key for full meta.
         contentType: 'application/octet-stream',
-        etag: '',
+        etag: it.etag,
         lastModified: it.lastModified,
       }));
       return data.paginationToken !== undefined
@@ -195,22 +218,26 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         : { items };
     },
 
-    async delete(key): Promise<void> {
+    async delete(key, opts): Promise<void> {
+      checkSignal(opts?.signal);
       const res = await remove(key, { config });
       if (res?.error !== undefined) throw asStorageError(res.error);
     },
 
-    async copy(from, to): Promise<void> {
+    async copy(from, to, opts): Promise<void> {
+      checkSignal(opts?.signal);
       const res = await tigrisCopy(from, to, { config });
       if (res?.error !== undefined) throw asStorageError(res.error);
     },
 
-    async move(from, to): Promise<void> {
+    async move(from, to, opts): Promise<void> {
+      checkSignal(opts?.signal);
       const res = await tigrisMove(from, to, { config });
       if (res?.error !== undefined) throw asStorageError(res.error);
     },
 
     async url(key, opts?: UrlOptions): Promise<string> {
+      checkSignal(opts?.signal);
       const res = await getPresignedUrl(key, {
         operation: 'get',
         config,
@@ -220,6 +247,7 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
     },
 
     async uploadUrl(key, opts?: UploadUrlOptions): Promise<UploadUrlResult> {
+      checkSignal(opts?.signal);
       const res = await getPresignedUrl(key, {
         operation: 'put',
         config,
@@ -231,6 +259,7 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
 
     snapshots: {
       async create(opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
         // `createBucketSnapshot` and `listBucketSnapshots` take the bucket
         // as a positional arg — their `config` option is explicitly typed
         // `Omit<TigrisStorageConfig, 'bucket'>`, so `config.bucket` is
@@ -259,7 +288,8 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
           }));
       },
 
-      async head(id): Promise<SnapshotInfo> {
+      async head(id, opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
         const all = await this.list();
         const found = all.find((s) => s.id === id);
         if (!found) {
@@ -271,7 +301,8 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         return found;
       },
 
-      async delete(id): Promise<void> {
+      async delete(id, opts): Promise<void> {
+        checkSignal(opts?.signal);
         const res = await deleteBucketSnapshot(bucket, id, { config });
         if (res?.error !== undefined) throw asStorageError(res.error);
       },
@@ -283,6 +314,21 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
 
     forks: {
       async create(opts): Promise<ForkInfo> {
+        checkSignal(opts.signal);
+        // Tigris's createBucket returns a generic provider error for a
+        // duplicate bucket name that doesn't match our Conflict patterns
+        // in `asStorageError`. Pre-check via listForks so duplicate fork
+        // names surface as `Conflict` to match the cross-adapter contract.
+        // Race window is narrow and bounded — if a fork sneaks in between
+        // the check and create, Tigris still errors and we fall through
+        // to Provider, which is acceptable.
+        const existing = unwrap(await listForks(bucket, { config }));
+        if (existing.forks.some((f) => f.name === opts.name)) {
+          throw new StorageError({
+            code: 'Conflict',
+            message: `fork ${opts.name} already exists`,
+          });
+        }
         const res = await createBucket(opts.name, {
           sourceBucketName: bucket,
           config,
@@ -314,7 +360,8 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         }));
       },
 
-      async head(name): Promise<ForkInfo> {
+      async head(name, opts): Promise<ForkInfo> {
+        checkSignal(opts?.signal);
         const all = await this.list();
         const found = all.find((f) => f.name === name);
         if (!found) {
@@ -326,7 +373,8 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         return found;
       },
 
-      async delete(name): Promise<void> {
+      async delete(name, opts): Promise<void> {
+        checkSignal(opts?.signal);
         const res = await removeBucket(name, { force: true, config });
         if (res?.error !== undefined) throw asStorageError(res.error);
       },
@@ -346,22 +394,26 @@ function snapshotReader(
   config: TigrisConfig
 ): ReadOnlyAdapter {
   return {
-    async download(key): Promise<StorageItem> {
+    async download(key, opts): Promise<StorageItem> {
+      checkSignal(opts?.signal);
       const res = await get(key, 'file', { config, snapshotVersion });
       const file = unwrap(res);
       return {
         path: key,
         size: file.size,
         contentType: file.type || 'application/octet-stream',
+        // See parent download — Tigris `get` doesn't surface etag yet.
         etag: '',
         lastModified: new Date(file.lastModified),
         body: new Uint8Array(await file.arrayBuffer()),
       };
     },
 
-    async head(key): Promise<StorageItemMeta> {
+    async head(key, opts): Promise<StorageItemMeta> {
+      checkSignal(opts?.signal);
       const res = await tigrisHead(key, { config, snapshotVersion });
-      const data = unwrap(res);
+      if (res?.error !== undefined) throw asStorageError(res.error);
+      const data = res?.data;
       if (!data) {
         throw new StorageError({
           code: 'NotFound',
@@ -372,12 +424,16 @@ function snapshotReader(
         path: data.path,
         size: data.size,
         contentType: data.contentType,
-        etag: '',
+        etag: data.etag,
         lastModified: data.modified,
+        ...(data.metadata && Object.keys(data.metadata).length > 0
+          ? { metadata: data.metadata }
+          : {}),
       };
     },
 
     async list(opts?: ListOptions): Promise<ListResult> {
+      checkSignal(opts?.signal);
       const res = await tigrisList({
         config,
         snapshotVersion,
@@ -391,7 +447,7 @@ function snapshotReader(
         path: it.name,
         size: it.size,
         contentType: 'application/octet-stream',
-        etag: '',
+        etag: it.etag,
         lastModified: it.lastModified,
       }));
       return data.paginationToken !== undefined
@@ -400,6 +456,7 @@ function snapshotReader(
     },
 
     async url(key, opts?: UrlOptions): Promise<string> {
+      checkSignal(opts?.signal);
       const res = await getPresignedUrl(key, {
         operation: 'get',
         snapshotVersion,

@@ -4,6 +4,7 @@ export type StorageErrorCode =
   | 'Conflict'
   | 'Unauthorized'
   | 'InvalidArgument'
+  | 'Aborted'
   | 'Provider';
 
 export interface StorageErrorInit {

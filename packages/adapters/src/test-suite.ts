@@ -1,0 +1,578 @@
+import { Storage } from '@storagesdk/core';
+import type { Adapter, ReadOnlyAdapter } from '@storagesdk/core/adapter';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
+export interface StorageAdapterTestSuiteOptions<Raw = unknown> {
+  /** Describe-block name shown in vitest output. */
+  name: string;
+  /**
+   * The adapter under test. Pass an instance, or a factory if construction
+   * depends on env vars that might be missing when `skip` is true.
+   */
+  adapter: Adapter<Raw> | (() => Adapter<Raw>);
+  /**
+   * Skip the whole suite — used by live-credentials adapters when env vars
+   * aren't set so contributors without credentials can still run the rest
+   * of the project's tests.
+   */
+  skip?: boolean;
+  /**
+   * Whether to clean up keys, snapshots, and forks created by each test.
+   * Defaults to true. Set false to leave state behind for inspection.
+   */
+  cleanup?: boolean;
+}
+
+export interface SetupTestStorageOptions {
+  /**
+   * Whether to clean up keys, snapshots, and forks created by each test.
+   * Defaults to true. Set false to leave state behind for inspection.
+   */
+  cleanup?: boolean;
+}
+
+/**
+ * Test-storage handle returned by `setupTestStorage`. Behaves like a
+ * `Storage<Raw>` — every key-taking method auto-prefixes the key, and
+ * every key-returning field (`download`/`head`/`list` results) has the
+ * prefix stripped — plus two helpers:
+ *
+ *  - `prefix` — the raw per-test marker (use for `path.join` assertions
+ *    or anywhere you need the literal prefix string).
+ *  - `forkName(suffix)` — produces a unique fork name scoped to this test.
+ */
+export type TestStorage<Raw = unknown> = Storage<Raw> & {
+  readonly prefix: string;
+  forkName(suffix: string): string;
+};
+
+interface Baseline {
+  snapshotIds: Set<string>;
+  forkNames: Set<string>;
+}
+
+const bodyText = (item: { body: Uint8Array }): string =>
+  new TextDecoder().decode(item.body);
+
+/**
+ * Wrap a `ReadOnlyAdapter` so reads auto-prefix the path and returned
+ * `path` fields are stripped back to the unprefixed form.
+ */
+function prefixedReadOnly(
+  base: ReadOnlyAdapter,
+  getPrefix: () => string
+): ReadOnlyAdapter {
+  const k = (p: string): string => `${getPrefix()}/${p}`;
+  const strip = (p: string): string => {
+    const pfx = `${getPrefix()}/`;
+    return p.startsWith(pfx) ? p.slice(pfx.length) : p;
+  };
+  return {
+    download: async (path, opts) => {
+      const item = await base.download(k(path), opts);
+      return { ...item, path: strip(item.path) };
+    },
+    head: async (path, opts) => {
+      const meta = await base.head(k(path), opts);
+      return { ...meta, path: strip(meta.path) };
+    },
+    list: async (opts) => {
+      const fullPrefix =
+        opts?.prefix !== undefined ? k(opts.prefix) : `${getPrefix()}/`;
+      const result = await base.list({ ...opts, prefix: fullPrefix });
+      return {
+        ...result,
+        items: result.items.map((it) => ({ ...it, path: strip(it.path) })),
+      };
+    },
+    url: (path, opts) => base.url(k(path), opts),
+  };
+}
+
+/**
+ * Wrap an `Adapter` so all key-taking methods auto-prefix and key-returning
+ * fields are stripped. Snapshots' read-only adapters and forks' full
+ * adapters are recursively wrapped with the same prefix.
+ */
+function prefixedAdapter<Raw>(
+  base: Adapter<Raw>,
+  getPrefix: () => string
+): Adapter<Raw> {
+  const k = (p: string): string => `${getPrefix()}/${p}`;
+  const strip = (p: string): string => {
+    const pfx = `${getPrefix()}/`;
+    return p.startsWith(pfx) ? p.slice(pfx.length) : p;
+  };
+  const ro = prefixedReadOnly(base, getPrefix);
+  return {
+    name: base.name,
+    raw: base.raw,
+    download: ro.download,
+    head: ro.head,
+    list: ro.list,
+    url: ro.url,
+    upload: async (path, body, opts) => {
+      const meta = await base.upload(k(path), body, opts);
+      return { ...meta, path: strip(meta.path) };
+    },
+    delete: (path, opts) => base.delete(k(path), opts),
+    copy: (from, to, opts) => base.copy(k(from), k(to), opts),
+    move: (from, to, opts) => base.move(k(from), k(to), opts),
+    uploadUrl: (path, opts) => base.uploadUrl(k(path), opts),
+    snapshots: {
+      create: (opts) => base.snapshots.create(opts),
+      list: () => base.snapshots.list(),
+      head: (id, opts) => base.snapshots.head(id, opts),
+      delete: (id, opts) => base.snapshots.delete(id, opts),
+      get: (id) => prefixedReadOnly(base.snapshots.get(id), getPrefix),
+    },
+    forks: {
+      create: (opts) => base.forks.create(opts),
+      list: () => base.forks.list(),
+      head: (name, opts) => base.forks.head(name, opts),
+      delete: (name, opts) => base.forks.delete(name, opts),
+      get: (name) => prefixedAdapter(base.forks.get(name), getPrefix),
+    },
+  };
+}
+
+/**
+ * Wire per-test isolation onto a Storage built from `adapter`. Returns a
+ * `TestStorage` — a Storage that auto-prefixes keys with a fresh per-test
+ * marker, plus `prefix` and `forkName(suffix)` helpers. Registers the
+ * required vitest hooks (`beforeAll`/`beforeEach`/`afterEach`) so it must
+ * be called inside a `describe` block.
+ *
+ * Cleanup is diff-based: capture the snapshot/fork state at setup, delete
+ * anything new at teardown. Keys are scoped via the prefix so they're
+ * deleted by listing under it.
+ *
+ *     describe('my-adapter', () => {
+ *       const ctx = setupTestStorage(myAdapter);
+ *
+ *       it('works', async () => {
+ *         await ctx.upload('photo.jpg', 'x');     // writes <prefix>/photo.jpg
+ *         await ctx.list();                       // scoped to <prefix>/
+ *         await ctx.forks.create({ name: ctx.forkName('exp') });
+ *       });
+ *     });
+ */
+export function setupTestStorage<Raw = unknown>(
+  adapter: Adapter<Raw> | (() => Adapter<Raw>),
+  opts?: SetupTestStorageOptions
+): TestStorage<Raw> {
+  const shouldCleanup = opts?.cleanup ?? true;
+  let storage: Storage<Raw>;
+  let currentPrefix = '';
+  let forkCounter = 0;
+  let baseline: Baseline = { snapshotIds: new Set(), forkNames: new Set() };
+
+  beforeAll(() => {
+    const base = typeof adapter === 'function' ? adapter() : adapter;
+    const wrapped = prefixedAdapter(base, () => currentPrefix);
+    storage = new Storage<Raw>({ adapter: wrapped });
+  });
+
+  beforeEach(async () => {
+    currentPrefix = `t${Math.random().toString(36).slice(2, 8)}`;
+    forkCounter = 0;
+    const [snapshots, forks] = await Promise.all([
+      storage.snapshots.list(),
+      storage.forks.list(),
+    ]);
+    baseline = {
+      snapshotIds: new Set(snapshots.map((s) => s.id)),
+      forkNames: new Set(forks.map((f) => f.name)),
+    };
+  });
+
+  afterEach(async () => {
+    if (!shouldCleanup) return;
+    // Keys with our prefix. The wrapped storage auto-strips the prefix
+    // from list results; storage.delete re-prefixes, so the round-trip
+    // through `it.path` works without manual prefix handling.
+    try {
+      let cursor: string | undefined;
+      do {
+        const page = await storage.list({
+          ...(cursor !== undefined ? { cursor } : {}),
+        });
+        for (const it of page.items) {
+          await storage.delete(it.path).catch(() => {});
+        }
+        cursor = page.cursor;
+      } while (cursor);
+    } catch {
+      /* swallow */
+    }
+    // Forks this test created. Walk each new fork's snapshots and delete
+    // them first — on copy-based adapters those are sibling buckets/folders
+    // of the fork itself, so deleting only the fork would orphan them.
+    try {
+      const forks = await storage.forks.list();
+      for (const f of forks) {
+        if (!baseline.forkNames.has(f.name)) {
+          try {
+            const fork = storage.forks.get(f.name);
+            const forkSnaps = await fork.snapshots.list();
+            for (const s of forkSnaps) {
+              await fork.snapshots.delete(s.id).catch(() => {});
+            }
+          } catch {
+            /* swallow */
+          }
+          await storage.forks.delete(f.name).catch(() => {});
+        }
+      }
+    } catch {
+      /* swallow */
+    }
+    // Snapshots this test created.
+    try {
+      const snapshots = await storage.snapshots.list();
+      for (const s of snapshots) {
+        if (!baseline.snapshotIds.has(s.id)) {
+          await storage.snapshots.delete(s.id).catch(() => {});
+        }
+      }
+    } catch {
+      /* swallow */
+    }
+  });
+
+  // Proxy: delegates to `storage` (built in beforeAll), with `prefix` and
+  // `forkName` injected. Methods are bound to the storage so class methods
+  // using `this.#adapter` (private field) still work correctly.
+  return new Proxy({} as TestStorage<Raw>, {
+    get(_target, prop) {
+      if (prop === 'prefix') return currentPrefix;
+      if (prop === 'forkName') {
+        return (suffix: string): string =>
+          `f${++forkCounter}-${currentPrefix}-${suffix}`;
+      }
+      const value = Reflect.get(storage, prop, storage);
+      return typeof value === 'function' ? value.bind(storage) : value;
+    },
+  });
+}
+
+/**
+ * Cross-adapter behavioral test suite. Wire it up from an adapter's tests:
+ *
+ *     storageAdapterTestSuite({
+ *       name: 'my-adapter',
+ *       adapter: myAdapter({ ...config }),
+ *     });
+ *
+ * Tests describe behavior visible to consumers (uploads round-trip, forks
+ * see seeded content, AbortSignal short-circuits ops). How an adapter
+ * achieves that — sidecar files, sibling buckets, native snapshot API —
+ * is implementation, and belongs in the adapter's own test file.
+ *
+ * No capability gating: if an adapter can't honor a test, the test fails
+ * and the gap is visible.
+ */
+export function storageAdapterTestSuite<Raw = unknown>(
+  opts: StorageAdapterTestSuiteOptions<Raw>
+): void {
+  const d = opts.skip ? describe.skip : describe;
+
+  d(opts.name, () => {
+    const ctx = setupTestStorage(opts.adapter, {
+      ...(opts.cleanup !== undefined ? { cleanup: opts.cleanup } : {}),
+    });
+
+    describe('upload, download, head', () => {
+      it('round-trips a string body', async () => {
+        await ctx.upload('hello.txt', 'hello, world');
+        const item = await ctx.download('hello.txt');
+        expect(bodyText(item)).toBe('hello, world');
+        expect(item.size).toBe(12);
+      });
+
+      it('preserves contentType and metadata', async () => {
+        await ctx.upload('photo.jpg', 'bytes', {
+          contentType: 'image/jpeg',
+          metadata: { author: 'alice' },
+        });
+        const meta = await ctx.head('photo.jpg');
+        expect(meta.contentType).toBe('image/jpeg');
+        expect(meta.metadata?.author).toBe('alice');
+      });
+
+      it('throws NotFound for missing keys', async () => {
+        await expect(ctx.download('missing.jpg')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+        await expect(ctx.head('missing.jpg')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+      });
+    });
+
+    describe('list, delete, copy, move', () => {
+      it('deletes a key', async () => {
+        await ctx.upload('photo.jpg', 'bytes');
+        await ctx.delete('photo.jpg');
+        await expect(ctx.head('photo.jpg')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+      });
+
+      it('filters by prefix and paginates with a cursor', async () => {
+        for (let i = 0; i < 5; i++) {
+          await ctx.upload(`photos/${i}.jpg`, String(i));
+        }
+        await ctx.upload('videos/v.mp4', 'v');
+
+        const filtered = await ctx.list({ prefix: 'photos/' });
+        expect(filtered.items.length).toBe(5);
+
+        const page1 = await ctx.list({ prefix: 'photos/', limit: 2 });
+        expect(page1.items.length).toBe(2);
+        expect(page1.cursor).toBeDefined();
+
+        const cursor = page1.cursor;
+        if (cursor === undefined) throw new Error('cursor not set');
+        const page2 = await ctx.list({
+          prefix: 'photos/',
+          limit: 2,
+          cursor,
+        });
+        expect(page2.items.length).toBe(2);
+        expect(page2.items[0]?.path).not.toBe(page1.items[0]?.path);
+      });
+
+      it('copies and moves keys, preserving contentType', async () => {
+        await ctx.upload('src.jpg', 'data', { contentType: 'image/jpeg' });
+        await ctx.copy('src.jpg', 'dst.jpg');
+        expect((await ctx.head('dst.jpg')).contentType).toBe('image/jpeg');
+
+        await ctx.move('dst.jpg', 'final.jpg');
+        await expect(ctx.head('dst.jpg')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+        expect((await ctx.head('final.jpg')).contentType).toBe('image/jpeg');
+      });
+
+      it('handles path separators in keys', async () => {
+        await ctx.upload('photos/2024/a.jpg', 'a');
+        await ctx.copy('photos/2024/a.jpg', 'archive/2024/a.jpg');
+        expect(bodyText(await ctx.download('archive/2024/a.jpg'))).toBe('a');
+
+        await ctx.move('archive/2024/a.jpg', 'archive/2024/b.jpg');
+        await expect(ctx.head('archive/2024/a.jpg')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+      });
+
+      it('handles keys with special characters', async () => {
+        await ctx.upload('photos/holiday (2024) ☀️.jpg', 'sun');
+        await ctx.copy(
+          'photos/holiday (2024) ☀️.jpg',
+          'archive/holiday (2024) ☀️.jpg'
+        );
+        expect(
+          bodyText(await ctx.download('archive/holiday (2024) ☀️.jpg'))
+        ).toBe('sun');
+      });
+    });
+
+    describe('url and uploadUrl', () => {
+      it('url returns a string for an existing key', async () => {
+        await ctx.upload('photo.jpg', 'x');
+        const url = await ctx.url('photo.jpg');
+        expect(typeof url).toBe('string');
+        expect(url.length).toBeGreaterThan(0);
+      });
+
+      it('uploadUrl returns a PUT URL', async () => {
+        const signed = await ctx.uploadUrl('new.jpg', { expiresIn: 300 });
+        expect(signed.method).toBe('PUT');
+        expect(typeof signed.url).toBe('string');
+        expect(signed.url.length).toBeGreaterThan(0);
+      });
+    });
+
+    describe('snapshots', () => {
+      it('snapshot reads stay frozen after live writes', async () => {
+        await ctx.upload('s.txt', 'before');
+        const info = await ctx.snapshots.create({ name: 'baseline' });
+        expect(info.id).toBeTruthy();
+
+        await ctx.upload('s.txt', 'after');
+
+        const reader = ctx.snapshots.get(info.id);
+        expect(bodyText(await reader.download('s.txt'))).toBe('before');
+        expect(bodyText(await ctx.download('s.txt'))).toBe('after');
+      });
+
+      it('snapshots can be listed, inspected, and deleted', async () => {
+        await ctx.upload('a.txt', 'a');
+        const info = await ctx.snapshots.create({ name: 'one' });
+
+        const after = await ctx.snapshots.list();
+        expect(after.find((s) => s.id === info.id)).toBeDefined();
+        expect((await ctx.snapshots.head(info.id)).id).toBe(info.id);
+
+        await ctx.snapshots.delete(info.id);
+        const final = await ctx.snapshots.list();
+        expect(final.find((s) => s.id === info.id)).toBeUndefined();
+      });
+
+      it('snapshot reader url() points at the snapshot, not the live bucket', async () => {
+        await ctx.upload('snapurl.txt', 'snapshot-bytes');
+        const info = await ctx.snapshots.create();
+
+        // Mutate live so we can prove the URL points at the snapshot bytes.
+        await ctx.upload('snapurl.txt', 'live-bytes');
+
+        const reader = ctx.snapshots.get(info.id);
+        const url = await reader.url('snapurl.txt', { expiresIn: 300 });
+        expect(typeof url).toBe('string');
+
+        // For HTTP-based adapters the URL is independently fetchable and we
+        // can verify it returns snapshot bytes. For `file://` URLs Node's
+        // fetch refuses ("not implemented... yet..."); skip the byte check
+        // there — `'snapshot reads stay frozen after live writes'` already
+        // proves the SDK reads snapshot bytes via the reader.
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          const res = await fetch(url);
+          expect(res.status).toBe(200);
+          expect(await res.text()).toBe('snapshot-bytes');
+        }
+      });
+    });
+
+    describe('forks', () => {
+      it('a fork seeded from a snapshot starts at the snapshot state', async () => {
+        await ctx.upload('photo.jpg', 'original');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('exp');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const fork = ctx.forks.get(name);
+        expect(bodyText(await fork.download('photo.jpg'))).toBe('original');
+
+        await fork.upload('photo.jpg', 'modified');
+        expect(bodyText(await fork.download('photo.jpg'))).toBe('modified');
+        // Parent unchanged.
+        expect(bodyText(await ctx.download('photo.jpg'))).toBe('original');
+      });
+
+      it('a fork without fromSnapshot starts at live parent state', async () => {
+        await ctx.upload('a.jpg', 'live');
+        const name = ctx.forkName('live');
+        await ctx.forks.create({ name });
+
+        const fork = ctx.forks.get(name);
+        expect(bodyText(await fork.download('a.jpg'))).toBe('live');
+
+        // Adapters that auto-snapshot under the hood (Tigris) surface the
+        // internal snapshot id on `fromSnapshot` even when the caller
+        // didn't pass one. Verify the fork is registered, not the shape
+        // of `fromSnapshot`.
+        const info = await ctx.forks.head(name);
+        expect(info.name).toBe(name);
+      });
+
+      it('forks.create with an existing name throws Conflict', async () => {
+        await ctx.upload('a.jpg', 'a');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('twin');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+        await expect(
+          ctx.forks.create({ name, fromSnapshot: snap.id })
+        ).rejects.toMatchObject({ code: 'Conflict' });
+      });
+
+      it('forks can be listed, inspected, and deleted', async () => {
+        await ctx.upload('a.jpg', 'a');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('ls');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const all = await ctx.forks.list();
+        expect(all.find((f) => f.name === name)).toBeDefined();
+        expect((await ctx.forks.head(name)).fromSnapshot).toBe(snap.id);
+
+        await ctx.forks.delete(name);
+        const after = await ctx.forks.list();
+        expect(after.find((f) => f.name === name)).toBeUndefined();
+      });
+
+      it('forks.head throws NotFound for an unknown name', async () => {
+        await expect(
+          ctx.forks.head('definitely-not-a-fork')
+        ).rejects.toMatchObject({ code: 'NotFound' });
+      });
+
+      // Several bucket creates + cross-bucket copies in copy-based adapters.
+      // The default 5s vitest timeout is too tight for this chain.
+      it('a fork can be snapshotted independently of its parent', {
+        timeout: 30_000,
+      }, async () => {
+        await ctx.upload('a.jpg', 'a');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('child');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const fork = ctx.forks.get(name);
+        await fork.upload('b.jpg', 'b');
+        const childSnap = await fork.snapshots.create({ name: 'child-snap' });
+
+        const childSnaps = await fork.snapshots.list();
+        expect(childSnaps.find((s) => s.id === childSnap.id)).toBeDefined();
+
+        // Clean nested snapshot up so dispose can remove the fork.
+        await fork.snapshots.delete(childSnap.id);
+      });
+    });
+
+    describe('AbortSignal', () => {
+      it('upload throws Aborted with an already-aborted signal', async () => {
+        const ctrl = new AbortController();
+        ctrl.abort();
+        await expect(
+          ctx.upload('x.txt', 'data', { signal: ctrl.signal })
+        ).rejects.toMatchObject({ code: 'Aborted' });
+      });
+
+      it('download throws Aborted with an already-aborted signal', async () => {
+        await ctx.upload('y.txt', 'data');
+        const ctrl = new AbortController();
+        ctrl.abort();
+        await expect(
+          ctx.download('y.txt', { signal: ctrl.signal })
+        ).rejects.toMatchObject({ code: 'Aborted' });
+      });
+
+      it('list throws Aborted with an already-aborted signal', async () => {
+        const ctrl = new AbortController();
+        ctrl.abort();
+        await expect(ctx.list({ signal: ctrl.signal })).rejects.toMatchObject({
+          code: 'Aborted',
+        });
+      });
+
+      it('snapshots.create throws Aborted with an already-aborted signal', async () => {
+        const ctrl = new AbortController();
+        ctrl.abort();
+        await expect(
+          ctx.snapshots.create({ signal: ctrl.signal })
+        ).rejects.toMatchObject({ code: 'Aborted' });
+      });
+
+      it('forks.create throws Aborted with an already-aborted signal', async () => {
+        const ctrl = new AbortController();
+        ctrl.abort();
+        await expect(
+          ctx.forks.create({
+            name: ctx.forkName('doomed'),
+            signal: ctrl.signal,
+          })
+        ).rejects.toMatchObject({ code: 'Aborted' });
+      });
+    });
+  });
+}

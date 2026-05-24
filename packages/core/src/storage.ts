@@ -40,7 +40,7 @@ export class ReadOnlyStorage {
     this.#adapter = opts.adapter;
   }
 
-  download(path: string): Promise<StorageItem>;
+  download(path: string, opts?: { signal?: AbortSignal }): Promise<StorageItem>;
   download(
     path: string,
     opts: { as: 'stream'; signal?: AbortSignal }

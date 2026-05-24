@@ -24,6 +24,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   type Adapter,
   type BodyInput,
+  bridgeSignalToController,
+  checkSignal,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -116,6 +118,7 @@ function impl(
     raw: client,
 
     async upload(key, body, opts?: UploadOptions): Promise<StorageItemMeta> {
+      checkSignal(opts?.signal);
       const payload = body instanceof ArrayBuffer ? new Uint8Array(body) : body;
       // The SDK's Storage class auto-decides multipart based on body size and
       // its multipartThreshold; by the time we get here, `opts.multipart` is
@@ -125,32 +128,41 @@ function impl(
 
       try {
         if (useMultipart) {
-          const upload = new Upload({
-            client,
-            params: buildPutParams(bucket, key, payload, opts),
-            ...(opts?.partSize !== undefined
-              ? { partSize: opts.partSize }
-              : {}),
-            ...(opts?.concurrency !== undefined
-              ? { queueSize: opts.concurrency }
-              : {}),
-          });
-          if (opts?.onProgress) {
-            const cb = opts.onProgress;
-            upload.on('httpUploadProgress', (e) => {
-              if (e.loaded !== undefined && e.total !== undefined) {
-                cb({ loaded: e.loaded, total: e.total });
-              }
+          const bridge = bridgeSignalToController(opts?.signal);
+          try {
+            const upload = new Upload({
+              client,
+              params: buildPutParams(bucket, key, payload, opts),
+              ...(opts?.partSize !== undefined
+                ? { partSize: opts.partSize }
+                : {}),
+              ...(opts?.concurrency !== undefined
+                ? { queueSize: opts.concurrency }
+                : {}),
+              ...(bridge.controller
+                ? { abortController: bridge.controller }
+                : {}),
             });
+            if (opts?.onProgress) {
+              const cb = opts.onProgress;
+              upload.on('httpUploadProgress', (e) => {
+                if (e.loaded !== undefined && e.total !== undefined) {
+                  cb({ loaded: e.loaded, total: e.total });
+                }
+              });
+            }
+            await upload.done();
+            // Multipart bodies may be streams (size unknown upfront), so the
+            // authoritative metadata is what S3 has now. One HEAD round-trip.
+            return await headObject(client, bucket, key, opts?.signal);
+          } finally {
+            bridge.dispose();
           }
-          await upload.done();
-          // Multipart bodies may be streams (size unknown upfront), so the
-          // authoritative metadata is what S3 has now. One HEAD round-trip.
-          return await headObject(client, bucket, key);
         }
 
         const out = await client.send(
-          new PutObjectCommand(buildPutParams(bucket, key, payload, opts))
+          new PutObjectCommand(buildPutParams(bucket, key, payload, opts)),
+          opts?.signal ? { abortSignal: opts.signal } : undefined
         );
         return {
           path: key,
@@ -165,10 +177,12 @@ function impl(
       }
     },
 
-    async download(key): Promise<StorageItem> {
+    async download(key, opts): Promise<StorageItem> {
+      checkSignal(opts?.signal);
       try {
         const out = await client.send(
-          new GetObjectCommand({ Bucket: bucket, Key: key })
+          new GetObjectCommand({ Bucket: bucket, Key: key }),
+          opts?.signal ? { abortSignal: opts.signal } : undefined
         );
         if (!out.Body) {
           throw new StorageError({
@@ -193,11 +207,13 @@ function impl(
       }
     },
 
-    head(key): Promise<StorageItemMeta> {
-      return headObject(client, bucket, key);
+    head(key, opts): Promise<StorageItemMeta> {
+      checkSignal(opts?.signal);
+      return headObject(client, bucket, key, opts?.signal);
     },
 
     async list(opts?: ListOptions): Promise<ListResult> {
+      checkSignal(opts?.signal);
       try {
         const out = await client.send(
           new ListObjectsV2Command({
@@ -210,7 +226,8 @@ function impl(
             ...(opts?.delimiter !== undefined
               ? { Delimiter: opts.delimiter }
               : {}),
-          })
+          }),
+          opts?.signal ? { abortSignal: opts.signal } : undefined
         );
         const items: StorageItemMeta[] = (out.Contents ?? [])
           // Manifest only appears in bucket-tag-unsupported fallback mode
@@ -235,39 +252,49 @@ function impl(
       }
     },
 
-    async delete(key): Promise<void> {
+    async delete(key, opts): Promise<void> {
+      checkSignal(opts?.signal);
       try {
         await client.send(
-          new DeleteObjectCommand({ Bucket: bucket, Key: key })
+          new DeleteObjectCommand({ Bucket: bucket, Key: key }),
+          opts?.signal ? { abortSignal: opts.signal } : undefined
         );
       } catch (err) {
         throw asStorageError(err);
       }
     },
 
-    async copy(from, to): Promise<void> {
+    async copy(from, to, opts): Promise<void> {
+      checkSignal(opts?.signal);
       try {
         await client.send(
           new CopyObjectCommand({
             Bucket: bucket,
             Key: to,
             CopySource: copySource(bucket, from),
-          })
+          }),
+          opts?.signal ? { abortSignal: opts.signal } : undefined
         );
       } catch (err) {
         throw asStorageError(err);
       }
     },
 
-    async move(from, to): Promise<void> {
+    async move(from, to, opts): Promise<void> {
+      checkSignal(opts?.signal);
       try {
         await client.send(
           new CopyObjectCommand({
             Bucket: bucket,
             Key: to,
             CopySource: copySource(bucket, from),
-          })
+          }),
+          opts?.signal ? { abortSignal: opts.signal } : undefined
         );
+        // Copy succeeded — commit the move. Don't pass the caller's signal
+        // to the delete: if the user aborts here we'd leave both src and
+        // dst, violating move semantics. Once copy is done we see it
+        // through.
         await client.send(
           new DeleteObjectCommand({ Bucket: bucket, Key: from })
         );
@@ -277,6 +304,7 @@ function impl(
     },
 
     async url(key, opts?: UrlOptions): Promise<string> {
+      checkSignal(opts?.signal);
       try {
         const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
         return await getSignedUrl(client, cmd, {
@@ -288,6 +316,7 @@ function impl(
     },
 
     async uploadUrl(key, opts?: UploadUrlOptions): Promise<UploadUrlResult> {
+      checkSignal(opts?.signal);
       try {
         const cmd = new PutObjectCommand({
           Bucket: bucket,
@@ -310,6 +339,7 @@ function impl(
     // SDK-generated snapshot id makes them effectively impossible in practice).
     snapshots: {
       async create(opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
         const id = nextSnapshotId(bucket);
         await createSibling(client, id);
         try {
@@ -317,6 +347,7 @@ function impl(
             onProgress: (e) => {
               opts?.onProgress?.({ scanned: e.copied, total: e.total });
             },
+            ...(opts?.signal ? { signal: opts.signal } : {}),
           });
 
           await manifest.write(
@@ -344,7 +375,8 @@ function impl(
         return (await manifest.read(client, bucket)).snapshots;
       },
 
-      async head(id): Promise<SnapshotInfo> {
+      async head(id, opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
         const meta = await manifest.read(client, bucket);
         const found = meta.snapshots.find((s) => s.id === id);
         if (!found) {
@@ -356,7 +388,8 @@ function impl(
         return found;
       },
 
-      async delete(id): Promise<void> {
+      async delete(id, opts): Promise<void> {
+        checkSignal(opts?.signal);
         const meta = await manifest.read(client, bucket);
         meta.snapshots = meta.snapshots.filter((s) => s.id !== id);
         await deleteBucketIfPresent(client, id);
@@ -379,6 +412,7 @@ function impl(
 
     forks: {
       async create(opts): Promise<ForkInfo> {
+        checkSignal(opts.signal);
         // Seed the fork from either a named snapshot bucket or the parent
         // bucket's live state. Both are server-side `CopyObject` per entry
         // via `copyAllObjects`.
@@ -389,6 +423,7 @@ function impl(
             onProgress: (e) => {
               opts.onProgress?.({ copied: e.copied, total: e.total });
             },
+            ...(opts.signal ? { signal: opts.signal } : {}),
           });
 
           await manifest.write(
@@ -421,7 +456,8 @@ function impl(
         return (await manifest.read(client, bucket)).forks;
       },
 
-      async head(name): Promise<ForkInfo> {
+      async head(name, opts): Promise<ForkInfo> {
+        checkSignal(opts?.signal);
         const meta = await manifest.read(client, bucket);
         const found = meta.forks.find((f) => f.name === name);
         if (!found) {
@@ -433,7 +469,8 @@ function impl(
         return found;
       },
 
-      async delete(name): Promise<void> {
+      async delete(name, opts): Promise<void> {
+        checkSignal(opts?.signal);
         const meta = await manifest.read(client, bucket);
         meta.forks = meta.forks.filter((f) => f.name !== name);
         await deleteBucketIfPresent(client, name);
@@ -453,11 +490,13 @@ function impl(
 async function headObject(
   client: S3Client,
   bucket: string,
-  key: string
+  key: string,
+  signal?: AbortSignal
 ): Promise<StorageItemMeta> {
   try {
     const out = await client.send(
-      new HeadObjectCommand({ Bucket: bucket, Key: key })
+      new HeadObjectCommand({ Bucket: bucket, Key: key }),
+      signal ? { abortSignal: signal } : undefined
     );
     return {
       path: key,
@@ -717,6 +756,7 @@ function isNotImplementedError(err: unknown): boolean {
 interface CopyAllObjectsOptions {
   onProgress?: (e: { copied: number; total: number }) => void;
   concurrency?: number;
+  signal?: AbortSignal;
 }
 
 /**
@@ -741,7 +781,8 @@ async function copyAllObjects(
         new ListObjectsV2Command({
           Bucket: fromBucket,
           ...(token !== undefined ? { ContinuationToken: token } : {}),
-        })
+        }),
+        opts.signal ? { abortSignal: opts.signal } : undefined
       );
       for (const obj of res.Contents ?? []) {
         if (obj.Key !== undefined && obj.Size !== undefined) {
@@ -767,8 +808,13 @@ async function copyAllObjects(
   // calls on sibling workers terminate immediately rather than running to
   // completion — without that, the caller's cleanup (`destroySibling`) could
   // race against copies still landing objects in the destination bucket.
+  // If the caller passed an external signal, combine it with the internal
+  // one so either path aborts in-flight requests.
   let firstError: unknown;
   const abort = new AbortController();
+  const effectiveSignal: AbortSignal = opts.signal
+    ? AbortSignal.any([opts.signal, abort.signal])
+    : abort.signal;
 
   async function worker(): Promise<void> {
     while (queue.length > 0 && firstError === undefined) {
@@ -782,7 +828,7 @@ async function copyAllObjects(
             toBucket,
             obj.key,
             obj.size,
-            abort.signal
+            effectiveSignal
           );
         } else {
           await client.send(
@@ -791,7 +837,7 @@ async function copyAllObjects(
               Key: obj.key,
               CopySource: copySource(fromBucket, obj.key),
             }),
-            { abortSignal: abort.signal }
+            { abortSignal: effectiveSignal }
           );
         }
       } catch (err) {
