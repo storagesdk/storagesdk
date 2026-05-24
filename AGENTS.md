@@ -4,7 +4,7 @@ Guidance for AI agents and contributors working in this repo. Read this before m
 
 ## What this is
 
-storagesdk is a vendor-neutral SDK for object storage. One API across providers (S3, R2, GCS, Azure, Tigris, filesystem), with **snapshot** and **fork** as core operations alongside upload, download, delete, list, copy, move, and signed URLs.
+storagesdk is a vendor-neutral SDK for object storage. One API across providers (S3, Tigris, filesystem today; more adapters in the pipeline), with **snapshot** and **fork** as core operations alongside upload, download, delete, list, copy, move, and signed URLs.
 
 The design lives in [`docs/RFC.md`](docs/RFC.md). The implementation plan lives in [`docs/PLAN.md`](docs/PLAN.md). Read those before proposing API or architecture changes.
 

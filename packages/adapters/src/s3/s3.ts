@@ -335,8 +335,9 @@ function impl(
     },
 
     // Snapshots and forks both materialize as sibling buckets following the
-    // Phase 2 convention. Bucket creation collisions surface as Conflict (the
-    // SDK-generated snapshot id makes them effectively impossible in practice).
+    // SDK's sibling-location convention. Bucket creation collisions surface
+    // as Conflict (the SDK-generated snapshot id makes them effectively
+    // impossible in practice).
     snapshots: {
       async create(opts): Promise<SnapshotInfo> {
         checkSignal(opts?.signal);

@@ -156,8 +156,7 @@ storage.raw.send(new SomeRawCommand({ /* ... */ }));
 
 ## What's not yet implemented
 
-- **POST policies on `uploadUrl`.** Only PUT presigning. POST-with-`maxSize`/Conditions is a Phase 7 follow-up.
-- **AbortSignal honoring.** Passed `signal` arguments aren't yet plumbed through to AWS SDK requests.
+- **POST policies on `uploadUrl`.** Only PUT presigning today. POST-with-`maxSize`/Conditions support is planned.
 - **Part-level parallelism in multipart copy.** Object-level parallelism is wired (4 concurrent objects); parts within a single multipart copy upload serially. Will add part-level parallelism if real-world testing shows the network underutilized.
 
 ## Errors

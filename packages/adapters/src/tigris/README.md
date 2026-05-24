@@ -71,6 +71,6 @@ await storage.raw.list({ config: { bucket: 'another-bucket' } });
 
 ## What's not implemented
 
-- **`etag` on responses.** Tigris's `put`/`head`/`list` don't surface ETag in their public response types. The adapter returns `etag: ''` in `StorageItemMeta`. Consumers that depend on ETag should compute one client-side or use a different adapter.
-- **`AbortSignal` plumbing.** Accepted in option types but not threaded through Tigris calls yet.
-- **POST policies on `uploadUrl`.** Only PUT presigning.
+- **`etag` on `download()`.** Tigris's `get` returns a bare `File` / `ReadableStream` — no etag is exposed in that path. `upload()`, `head()`, and `list()` all return real etags from Tigris's SDK responses; only download is empty.
+- **Snapshot-scoped presigned URLs.** `snapshots.get(id).url(key)` currently returns a presigned URL for the live bucket, not the snapshot version. Tracking upstream support in `@tigrisdata/storage`.
+- **POST policies on `uploadUrl`.** Only PUT presigning today.

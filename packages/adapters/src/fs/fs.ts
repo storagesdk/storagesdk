@@ -51,8 +51,8 @@ export interface FsConfig {
 
 /**
  * Filesystem adapter. Primarily for local development and tests. Uses
- * `node:fs/promises` for I/O, follows the Phase 2 snapshot/fork convention
- * (each snapshot/fork is a sibling folder under `root`).
+ * `node:fs/promises` for I/O; each snapshot/fork is a sibling folder under
+ * `root`.
  *
  * `opts.metadata` and non-default `contentType` are preserved via a sidecar
  * file `<key>.storagesdk.meta.json`. `url()` and `uploadUrl()` return
