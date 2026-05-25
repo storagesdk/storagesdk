@@ -1,5 +1,9 @@
 # storagesdk
 
+[![npm version](https://img.shields.io/npm/v/@storagesdk/core?label=%40storagesdk%2Fcore)](https://www.npmjs.com/package/@storagesdk/core)
+[![CI](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml/badge.svg)](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/@storagesdk/core)](./LICENSE)
+
 A vendor-neutral SDK for object storage. One API across S3, Cloudflare R2, MinIO, Tigris, and the local filesystem — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
 
 ```sh
