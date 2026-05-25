@@ -198,4 +198,4 @@ See [`AGENTS.md`](./AGENTS.md) for development setup, gates (lint / typecheck / 
 
 ## License
 
-MIT.
+[Apache 2.0](./LICENSE).
