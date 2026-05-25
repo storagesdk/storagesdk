@@ -12,6 +12,14 @@
       "types": "./dist/s3/index.d.ts",
       "default": "./dist/s3/index.js"
     },
+    "./r2": {
+      "types": "./dist/r2/index.d.ts",
+      "default": "./dist/r2/index.js"
+    },
+    "./minio": {
+      "types": "./dist/minio/index.d.ts",
+      "default": "./dist/minio/index.js"
+    },
     "./tigris": {
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
@@ -46,6 +54,8 @@
     "adapter",
     "filesystem",
     "s3",
+    "r2",
+    "minio",
     "tigris"
   ],
   "author": "",

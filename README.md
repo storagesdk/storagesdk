@@ -1,6 +1,6 @@
 # storagesdk
 
-A vendor-neutral SDK for object storage. One API across S3, Tigris, and the local filesystem — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
+A vendor-neutral SDK for object storage. One API across S3, Cloudflare R2, MinIO, Tigris, and the local filesystem — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
@@ -45,7 +45,9 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | Adapter | Subpath | Backend |
 | --- | --- | --- |
 | Filesystem | `@storagesdk/adapters/fs` | Local `node:fs/promises`. For development and tests. |
-| S3 | `@storagesdk/adapters/s3` | Amazon S3 and any S3-compatible backend (MinIO, R2, DigitalOcean Spaces, Backblaze B2, etc.). |
+| S3 | `@storagesdk/adapters/s3` | Amazon S3 and any S3-compatible backend (DigitalOcean Spaces, Backblaze B2, etc.). |
+| R2 | `@storagesdk/adapters/r2` | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
+| MinIO | `@storagesdk/adapters/minio` | [MinIO](https://min.io/). |
 | Tigris | `@storagesdk/adapters/tigris` | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
 
 Each adapter has its own README with config details, escape-hatch examples, and any backend-specific notes. See `packages/adapters/src/<adapter>/README.md`.

@@ -33,7 +33,7 @@ pnpm --filter @storagesdk/examples quickstart
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 
-# S3 (AWS, MinIO, R2, Spaces, etc.) — bucket must already exist.
+# S3 (AWS, DigitalOcean Spaces, Backblaze B2, etc.) — bucket must already exist.
 EXAMPLE_ADAPTER=s3 \
 EXAMPLE_BUCKET=my-bucket \
 EXAMPLE_REGION=us-east-1 \
@@ -41,14 +41,21 @@ EXAMPLE_ACCESS_KEY_ID=... \
 EXAMPLE_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
-# MinIO locally: add EXAMPLE_ENDPOINT and EXAMPLE_FORCE_PATH_STYLE.
+# Cloudflare R2 — bucket must already exist.
+EXAMPLE_ADAPTER=r2 \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_ACCOUNT_ID=... \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
+# MinIO locally — bucket must already exist.
 docker compose up -d minio
-EXAMPLE_ADAPTER=s3 \
+EXAMPLE_ADAPTER=minio \
 EXAMPLE_BUCKET=my-bucket \
 EXAMPLE_ENDPOINT=http://localhost:9000 \
 EXAMPLE_ACCESS_KEY_ID=minioadmin \
 EXAMPLE_SECRET_ACCESS_KEY=minioadmin \
-EXAMPLE_FORCE_PATH_STYLE=true \
 pnpm --filter @storagesdk/examples quickstart
 
 # Tigris — bucket must already exist. EXAMPLE_ENDPOINT is optional; the
@@ -62,15 +69,16 @@ pnpm --filter @storagesdk/examples quickstart
 
 ### Env vars
 
-| Var | `fs` | `s3` | `tigris` | Notes |
-| --- | --- | --- | --- | --- |
-| `EXAMPLE_ADAPTER` | (default) | ✓ | ✓ | One of `fs`, `s3`, `tigris`. |
-| `EXAMPLE_BUCKET` | — | required | required | Bucket / location name; must already exist for cloud adapters. |
-| `EXAMPLE_ENDPOINT` | — | optional | optional | S3-compatible endpoint URL. Tigris defaults to its production endpoint when unset. |
-| `EXAMPLE_REGION` | — | optional | — | AWS region. |
-| `EXAMPLE_ACCESS_KEY_ID` | — | required | required | |
-| `EXAMPLE_SECRET_ACCESS_KEY` | — | required | required | |
-| `EXAMPLE_FORCE_PATH_STYLE` | — | optional | optional | Set to `'true'` for MinIO and most non-AWS S3-compatibles. |
+| Var | `fs` | `s3` | `r2` | `minio` | `tigris` | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| `EXAMPLE_ADAPTER` | (default) | ✓ | ✓ | ✓ | ✓ | One of `fs`, `s3`, `r2`, `minio`, `tigris`. |
+| `EXAMPLE_BUCKET` | — | required | required | required | required | Bucket / location name; must already exist for cloud adapters. |
+| `EXAMPLE_ENDPOINT` | — | optional | optional | **required** | optional | S3-compatible endpoint URL. Tigris defaults to its production endpoint; R2 builds it from `EXAMPLE_ACCOUNT_ID`. |
+| `EXAMPLE_REGION` | — | optional | — | optional | — | AWS region. |
+| `EXAMPLE_ACCESS_KEY_ID` | — | required | required | required | required | |
+| `EXAMPLE_SECRET_ACCESS_KEY` | — | required | required | required | required | |
+| `EXAMPLE_FORCE_PATH_STYLE` | — | optional | — | (on by default) | optional | Set to `'true'` for path-style addressing. |
+| `EXAMPLE_ACCOUNT_ID` | — | — | required | — | — | Cloudflare account ID; used to build the R2 endpoint. |
 
 ## Copying an example out
 
