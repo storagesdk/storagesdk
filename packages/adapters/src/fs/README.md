@@ -80,11 +80,10 @@ Keys containing `..` segments that resolve outside the adapter's folder are reje
 
 - **Multipart uploads.** `upload(path, body, { multipart: true })` accepts the option silently but writes the body in one `fs.writeFile` call. The filesystem doesn't have a separate multipart API.
 - **Streaming download at the adapter level.** `download()` reads the file fully into a `Uint8Array`. The `storage.download(path, { as: 'stream' })` overload still works — it wraps the buffered body in a `ReadableStream`.
-- **AbortSignal honoring.** Passed `signal` arguments aren't yet plumbed through to the underlying `fsp` calls.
 
 ## Snapshots and forks
 
-Both follow the SDK's [Phase 2 convention](../../../../docs/RFC.md#snapshot-and-fork-convention) — each snapshot/fork is a **sibling folder** under `<root>` with its own `.storagesdk.metadata.json`. `snapshots.list()` and `forks.list()` read the parent's manifest.
+Both follow the SDK's [sibling-location convention](../../../../docs/RFC.md#snapshot-and-fork-convention) — each snapshot/fork is a **sibling folder** under `<root>` with its own `.storagesdk.metadata.json`. `snapshots.list()` and `forks.list()` read the parent's manifest.
 
 ### How creation works
 

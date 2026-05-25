@@ -1,55 +1,194 @@
 # storagesdk
 
-A vendor-neutral SDK for object storage with one API across providers (S3, R2, GCS, Azure, Tigris, filesystem). Snapshots and forks are core operations alongside upload, download, list, copy, move, delete, and signed URLs.
+A vendor-neutral SDK for object storage. One API across S3, Tigris, and the local filesystem — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
 
-The design lives in [`docs/RFC.md`](docs/RFC.md). The implementation plan lives in [`docs/PLAN.md`](docs/PLAN.md). Contributor guidance lives in [`AGENTS.md`](AGENTS.md).
+```sh
+npm install @storagesdk/core @storagesdk/adapters
+```
 
-## Packages
+```ts
+import { Storage } from '@storagesdk/core';
+import { s3 } from '@storagesdk/adapters/s3';
 
-- **`@storagesdk/core`** — the consumer entry. `Storage`, `StorageError`, plus the types end-user code handles.
-- **`@storagesdk/core/adapter`** — the adapter-authoring entry. Adds `defineAdapter`, contract types, and `Manifest` helpers.
-- **`@storagesdk/adapters`** — backend adapters. Import the one you need via a subpath:
-  - `@storagesdk/adapters/fs`
-  - `@storagesdk/adapters/s3`
-  - `@storagesdk/adapters/tigris`
-  - `@storagesdk/adapters/test-suite` — the cross-adapter conformance suite, for third-party adapter authors.
+const storage = new Storage({
+  adapter: s3({
+    bucket: 'photos',
+    region: 'us-east-1',
+    credentials: { accessKeyId, secretAccessKey },
+  }),
+});
 
-## Development
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
 
-Requirements: Node 22+ and pnpm 10+.
+const text = await storage.download('hello.txt', { as: 'text' });
+const url = await storage.url('hello.txt', { expiresIn: 300 });
+
+const snap = await storage.snapshots.create({ name: 'pre-migration' });
+await storage.forks.create({ name: 'photos-exp', fromSnapshot: snap.id });
+const fork = storage.forks.get('photos-exp');
+await fork.upload('hello.txt', 'mutated in fork only');
+```
+
+## What you get
+
+- **One verb set, everywhere.** `upload`, `download`, `head`, `list`, `delete`, `copy`, `move`, `url`, `uploadUrl` — same signatures across all adapters.
+- **Snapshots and forks as primitives.** Take a snapshot of a bucket (`storage.snapshots.create()`), get a read-only handle to it, fork from it as a writable branch. Implementation varies (native APIs where available, sibling buckets/folders otherwise); the API does not.
+- **One error type.** Every operation throws `StorageError` with a typed `code: 'NotFound' | 'NotSupported' | 'Conflict' | 'Unauthorized' | 'InvalidArgument' | 'Aborted' | 'Provider'`.
+- **AbortSignal support** on every public op.
+- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (`S3Client` on the S3 adapter, the Tigris module on Tigris) for backend-specific operations the SDK doesn't surface.
+- **ESM-only, Node 20+.** Plain `tsc` build, no bundler.
+
+## Adapters
+
+| Adapter | Subpath | Backend |
+| --- | --- | --- |
+| Filesystem | `@storagesdk/adapters/fs` | Local `node:fs/promises`. For development and tests. |
+| S3 | `@storagesdk/adapters/s3` | Amazon S3 and any S3-compatible backend (MinIO, R2, DigitalOcean Spaces, Backblaze B2, etc.). |
+| Tigris | `@storagesdk/adapters/tigris` | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
+
+Each adapter has its own README with config details, escape-hatch examples, and any backend-specific notes. See `packages/adapters/src/<adapter>/README.md`.
+
+## Common patterns
+
+### Snapshots — read frozen state after live writes
+
+```ts
+await storage.upload('photo.jpg', 'before');
+const snap = await storage.snapshots.create({ name: 'baseline' });
+await storage.upload('photo.jpg', 'after');
+
+const reader = storage.snapshots.get(snap.id);
+await reader.download('photo.jpg', { as: 'text' });   // 'before'
+await storage.download('photo.jpg', { as: 'text' });  // 'after'
+```
+
+### Forks — branch and mutate
+
+```ts
+const snap = await storage.snapshots.create();
+await storage.forks.create({ name: 'experiment', fromSnapshot: snap.id });
+
+const fork = storage.forks.get('experiment');
+await fork.upload('config.json', JSON.stringify({ flag: true }));
+// parent unchanged; fork has its own writable view
+```
+
+`forks.create` also accepts no `fromSnapshot` — the fork starts at the parent's live state at creation time.
+
+### Signed URLs
+
+```ts
+await storage.url('photo.jpg', { expiresIn: 300 });          // 5-min GET URL
+await storage.uploadUrl('new.jpg', { expiresIn: 300 });      // PUT URL + method
+```
+
+### Streaming download
+
+```ts
+const stream = await storage.download('large.mp4', { as: 'stream' });
+// Web ReadableStream<Uint8Array>
+```
+
+### AbortSignal
+
+```ts
+const ctrl = new AbortController();
+setTimeout(() => ctrl.abort(), 5000);
+
+await storage.upload('big.bin', body, { signal: ctrl.signal });
+// throws StorageError({ code: 'Aborted' }) if signal fires
+```
+
+### Escape hatch
+
+```ts
+import type { S3Client } from '@aws-sdk/client-s3';
+
+const storage = new Storage({ adapter: s3({ bucket: 'photos' }) });
+//    ↑ Storage<S3Client>, no cast needed
+
+storage.raw.send(new SomePowerUserCommand({ /* ... */ }));
+```
+
+## Examples
+
+Runnable examples live under [`examples/`](./examples). Each picks the adapter at runtime via `EXAMPLE_ADAPTER`; out of the box they run against a local filesystem so you can try them without any setup:
 
 ```sh
 pnpm install
-pnpm check       # biome
-pnpm typecheck
-pnpm build
-pnpm test
+pnpm --filter @storagesdk/examples quickstart
+pnpm --filter @storagesdk/examples snapshots
+pnpm --filter @storagesdk/examples forks
 ```
 
-### Running the adapter tests
+## Authoring adapters
 
-Tests treat the SDK like a user would: the bucket/root the adapter is pointed at must exist before the test starts, and the credentials must already have sufficient rights.
+`@storagesdk/adapters` is *one* set of backends; the SDK is designed for third-party adapters too.
 
-- **FS**: works out of the box (defaults to `os.tmpdir()`).
-- **S3 (MinIO)**: requires a pre-existing bucket.
+```sh
+npm install @storagesdk/core
+```
 
-    ```sh
-    docker compose up -d minio
-    aws --endpoint-url http://localhost:9000 --no-sign-request s3 mb s3://storagesdk-test
+```ts
+import {
+  defineAdapter,
+  type Adapter,
+  StorageError,
+} from '@storagesdk/core/adapter';
 
-    S3_TEST_BUCKET=storagesdk-test pnpm --filter @storagesdk/adapters test
-    ```
+export function myAdapter(config: MyConfig): Adapter {
+  return defineAdapter({
+    name: 'my-backend',
+    raw: /* your client */,
+    async upload(path, body, opts) { /* ... */ },
+    async download(path, opts) { /* ... */ },
+    async head(path, opts) { /* ... */ },
+    async list(opts) { /* ... */ },
+    async delete(path, opts) { /* ... */ },
+    async copy(from, to, opts) { /* ... */ },
+    async move(from, to, opts) { /* ... */ },
+    async url(path, opts) { /* ... */ },
+    async uploadUrl(path, opts) { /* ... */ },
+    snapshots: { /* create, list, head, delete, get */ },
+    forks:     { /* create, list, head, delete, get */ },
+  });
+}
+```
 
-- **Tigris**: requires a live bucket and credentials.
+`@storagesdk/core/adapter` is the adapter-authoring entry. It exposes:
 
-    ```sh
-    TIGRIS_BUCKET=<your-bucket> \
-    TIGRIS_ACCESS_KEY_ID=<...> \
-    TIGRIS_SECRET_ACCESS_KEY=<...> \
-    pnpm --filter @storagesdk/adapters test
-    ```
+- `defineAdapter` — wraps your implementation with path normalization (leading slashes stripped, empty paths throw) and recursive wrapping for `snapshots.get` / `forks.get` returns.
+- `Adapter`, `ReadOnlyAdapter`, `AdapterSnapshots`, `AdapterForks` — the contract types.
+- `Manifest` helpers (`emptyManifest`, `readManifest`, `writeManifest`, `nextSnapshotId`, `isInternalKey`, `MANIFEST_PATH`) for copy-based adapters that store snapshot/fork lineage as a sibling location.
+- `checkSignal`, `isAbortError`, `bridgeSignalToController` — abort-handling helpers (Web `AbortSignal` → SDK `AbortController` bridge with listener cleanup).
+- `toWebStream`, `readStreamToBytes` — stream utilities.
 
-See [`AGENTS.md`](AGENTS.md) for the full environment-variable matrix and the conformance-suite details.
+### Verifying your adapter
+
+Drop in the conformance test suite:
+
+```sh
+npm install --save-dev vitest @storagesdk/adapters
+```
+
+```ts
+// my-adapter.test.ts
+import { storageAdapterTestSuite } from '@storagesdk/adapters/test-suite';
+import { myAdapter } from './my-adapter.js';
+
+storageAdapterTestSuite({
+  name: 'my-adapter',
+  adapter: () => myAdapter({ /* config */ }),
+});
+```
+
+The suite runs the cross-adapter behavioral tests (upload round-trip, NotFound on missing keys, snapshots/forks contract, AbortSignal short-circuit, etc.) against your adapter. Tests it fails are gaps you need to close.
+
+## Contributing
+
+See [`AGENTS.md`](./AGENTS.md) for development setup, gates (lint / typecheck / build / test), and the design decisions that aren't up for re-litigation. Design intent lives in [`docs/RFC.md`](./docs/RFC.md); implementation plan in [`docs/PLAN.md`](./docs/PLAN.md).
 
 ## License
 
