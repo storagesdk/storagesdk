@@ -35,8 +35,12 @@ jobs:
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
-          version: pnpm version
-          publish: pnpm release
+          # `pnpm version` is a built-in pnpm command (prints/bumps the
+          # version table); the action invokes pnpm directly, so we have
+          # to use `pnpm run` to force script execution. Same for
+          # `release` to stay consistent.
+          version: pnpm run version
+          publish: pnpm run release
           commit: "chore: release"
           title: "chore: release"
         env:
