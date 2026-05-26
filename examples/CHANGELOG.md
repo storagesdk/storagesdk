@@ -1,5 +1,13 @@
 # @storagesdk/examples
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies [ac02e27]
+  - @storagesdk/core@0.2.0
+  - @storagesdk/adapters@0.2.0
+
 ## 0.0.2
 
 ### Patch Changes
