@@ -307,6 +307,16 @@ function createImpl(config: FsConfig): Adapter {
 
     async uploadUrl(key, opts?: UploadUrlOptions): Promise<UploadUrlResult> {
       checkSignal(opts?.signal);
+      if (opts?.maxSize !== undefined || opts?.minSize !== undefined) {
+        // `file://` URLs aren't enforceable upload policies — there's no
+        // server to validate `content-length-range` against. Throw rather
+        // than silently return a PUT URL the caller assumed was bounded.
+        throw new StorageError({
+          code: 'NotSupported',
+          message:
+            'fs adapter does not support upload size policies (maxSize/minSize) — no HTTP server to enforce them',
+        });
+      }
       const fullPath = resolveSafe(folderPath, key);
       return { method: 'PUT', url: fileUrl(fullPath, opts?.expiresIn) };
     },

@@ -20,6 +20,7 @@ import {
   UploadPartCopyCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   type Adapter,
@@ -317,6 +318,36 @@ function impl(
 
     async uploadUrl(key, opts?: UploadUrlOptions): Promise<UploadUrlResult> {
       checkSignal(opts?.signal);
+      const wantsPost =
+        opts?.minSize !== undefined || opts?.maxSize !== undefined;
+
+      if (wantsPost) {
+        // S3 POST policy's `content-length-range` condition requires both
+        // a min and a max value. Default min to 0 and max to S3's single-
+        // POST limit (5 GB) when the caller specified only one side.
+        const min = opts?.minSize ?? 0;
+        const max = opts?.maxSize ?? 5 * 1024 * 1024 * 1024;
+        try {
+          const { url, fields } = await createPresignedPost(client, {
+            Bucket: bucket,
+            Key: key,
+            Conditions: [
+              ['content-length-range', min, max],
+              ...(opts?.contentType !== undefined
+                ? [{ 'Content-Type': opts.contentType }]
+                : []),
+            ],
+            Expires: opts?.expiresIn ?? 3600,
+            ...(opts?.contentType !== undefined
+              ? { Fields: { 'Content-Type': opts.contentType } }
+              : {}),
+          });
+          return { method: 'POST', url, fields };
+        } catch (err) {
+          throw asStorageError(err);
+        }
+      }
+
       try {
         const cmd = new PutObjectCommand({
           Bucket: bucket,
