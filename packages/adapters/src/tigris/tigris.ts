@@ -24,6 +24,7 @@ import {
   deleteBucketSnapshot,
   get,
   getPresignedUrl,
+  getSignedUploadUrl,
   listBucketSnapshots,
   listForks,
   put,
@@ -248,13 +249,22 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
 
     async uploadUrl(key, opts?: UploadUrlOptions): Promise<UploadUrlResult> {
       checkSignal(opts?.signal);
-      const res = await getPresignedUrl(key, {
-        operation: 'put',
+      // `getSignedUploadUrl` returns a discriminated PUT/POST union that
+      // matches our `UploadUrlResult` shape one-to-one: presence of
+      // `maxSize`/`minSize` switches it to POST under the hood.
+      const res = await getSignedUploadUrl(key, {
         config,
         ...(opts?.expiresIn !== undefined ? { expiresIn: opts.expiresIn } : {}),
+        ...(opts?.contentType !== undefined
+          ? { contentType: opts.contentType }
+          : {}),
+        ...(opts?.maxSize !== undefined ? { maxSize: opts.maxSize } : {}),
+        ...(opts?.minSize !== undefined ? { minSize: opts.minSize } : {}),
       });
       const data = unwrap(res);
-      return { method: 'PUT', url: data.url };
+      return data.method === 'POST'
+        ? { method: 'POST', url: data.url, fields: data.fields }
+        : { method: 'PUT', url: data.url };
     },
 
     snapshots: {

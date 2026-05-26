@@ -74,8 +74,9 @@
   "peerDependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-storage": "^3.0.0",
+    "@aws-sdk/s3-presigned-post": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "@tigrisdata/storage": "^3.8.1",
+    "@tigrisdata/storage": "^3.9.0",
     "vitest": "^4.0.0"
   },
   "peerDependenciesMeta": {
@@ -83,6 +84,9 @@
       "optional": true
     },
     "@aws-sdk/lib-storage": {
+      "optional": true
+    },
+    "@aws-sdk/s3-presigned-post": {
       "optional": true
     },
     "@aws-sdk/s3-request-presigner": {
@@ -96,9 +100,10 @@
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.0.0",
-    "@aws-sdk/lib-storage": "^3.0.0",
-    "@aws-sdk/s3-request-presigner": "^3.0.0",
-    "@tigrisdata/storage": "^3.8.1"
+    "@aws-sdk/client-s3": "^3.1053.0",
+    "@aws-sdk/lib-storage": "^3.1053.0",
+    "@aws-sdk/s3-presigned-post": "^3.1053.0",
+    "@aws-sdk/s3-request-presigner": "^3.1053.0",
+    "@tigrisdata/storage": "^3.9.0"
   }
 }

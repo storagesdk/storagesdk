@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>storagesdk — browser upload demo</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+             max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+      h1 { font-size: 1.25rem; margin-bottom: 0.25rem; }
+      p  { color: #555; margin-top: 0.25rem; }
+      label, input, button { display: block; margin: 0.5rem 0; }
+      input[type="file"] { padding: 0.25rem 0; }
+      button { padding: 0.5rem 1rem; cursor: pointer; }
+      pre { background: #f4f4f4; padding: 0.75rem; border-radius: 4px;
+            white-space: pre-wrap; word-break: break-all; }
+      .status { margin-top: 1rem; }
+      .ok { color: #0a7d2c; }
+      .err { color: #b00020; }
+    </style>
+  </head>
+  <body>
+    <h1>storagesdk — browser upload</h1>
+    <p>Pick a file (max 5 MB). The browser asks this server for a POST
+       URL, then submits the file directly to the storage backend.</p>
+
+    <input id="file" type="file" />
+    <button id="go" type="button">Upload</button>
+
+    <div class="status" id="status"></div>
+    <pre id="log" hidden></pre>
+
+    <script type="module">
+      const file = document.getElementById('file');
+      const go = document.getElementById('go');
+      const status = document.getElementById('status');
+      const log = document.getElementById('log');
+
+      const show = (msg, cls = '') => {
+        status.className = `status ${cls}`;
+        status.textContent = msg;
+      };
+      const dump = (label, value) => {
+        log.hidden = false;
+        log.textContent += `\n${label}:\n${
+          typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+        }\n`;
+      };
+
+      go.addEventListener('click', async () => {
+        log.textContent = '';
+        log.hidden = true;
+        const chosen = file.files?.[0];
+        if (!chosen) {
+          show('Pick a file first.', 'err');
+          return;
+        }
+
+        show('Requesting upload URL…');
+        let signed;
+        try {
+          const res = await fetch(
+            `/upload-url?key=${encodeURIComponent(chosen.name)}` +
+              `&contentType=${encodeURIComponent(chosen.type || 'application/octet-stream')}`
+          );
+          signed = await res.json();
+          if (!res.ok) throw new Error(signed.error || 'Failed');
+        } catch (err) {
+          show(`Failed to get upload URL: ${err.message}`, 'err');
+          return;
+        }
+
+        dump('signed (from server)', signed);
+
+        if (signed.method !== 'POST') {
+          show(
+            `Expected POST, got ${signed.method}. Set EXAMPLE_ADAPTER to s3, r2, minio, or tigris.`,
+            'err'
+          );
+          return;
+        }
+
+        show('Uploading…');
+        const form = new FormData();
+        for (const [name, value] of Object.entries(signed.fields)) {
+          form.append(name, value);
+        }
+        form.append('file', chosen);
+
+        try {
+          const res = await fetch(signed.url, { method: 'POST', body: form });
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+          }
+        } catch (err) {
+          show(`Upload failed: ${err.message}`, 'err');
+          return;
+        }
+
+        show('Uploaded. Verifying…');
+        try {
+          const res = await fetch(
+            `/verify?key=${encodeURIComponent(chosen.name)}`
+          );
+          const meta = await res.json();
+          if (!res.ok) throw new Error(meta.error || 'verify failed');
+          dump('verified', meta);
+          show(`Done: ${meta.path} (${meta.size} bytes)`, 'ok');
+        } catch (err) {
+          show(`Uploaded but couldn't verify: ${err.message}`, 'err');
+        }
+      });
+    </script>
+  </body>
+</html>

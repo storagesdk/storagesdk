@@ -24,6 +24,7 @@ pnpm --filter @storagesdk/examples quickstart
 | [`quickstart`](./quickstart) | Construct a `Storage`, upload, list, download, get a URL, delete. |
 | [`snapshots`](./snapshots) | Capture multiple snapshots, list them, and print a git-log-style graph showing the keys at each point in time. |
 | [`forks`](./forks) | Spin up multiple forks of the live parent in parallel, mutate them independently, list them, show the divergence side-by-side. |
+| [`browser-upload`](./browser-upload) | End-to-end POST-policy flow — Node server mints a presigned POST URL via storagesdk, browser submits the file directly to the storage backend. Requires a non-fs adapter and bucket CORS. |
 
 ## Picking an adapter
 

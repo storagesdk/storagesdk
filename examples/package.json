@@ -7,7 +7,8 @@
     "typecheck": "tsc --noEmit",
     "quickstart": "tsx quickstart/index.ts",
     "snapshots": "tsx snapshots/index.ts",
-    "forks": "tsx forks/index.ts"
+    "forks": "tsx forks/index.ts",
+    "browser-upload": "tsx browser-upload/index.ts"
   },
   "dependencies": {
     "@storagesdk/adapters": "workspace:*",

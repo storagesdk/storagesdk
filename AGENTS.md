@@ -78,6 +78,18 @@ Tests treat the SDK like a user would: the bucket/root the adapter is pointed at
 
     Override any other connection setting via `S3_TEST_ENDPOINT`, `S3_TEST_REGION`, `S3_TEST_ACCESS_KEY_ID`, `S3_TEST_SECRET_ACCESS_KEY`, `S3_TEST_FORCE_PATH_STYLE`. Defaults match the MinIO `docker compose` stack.
 
+- **R2**: requires a live bucket and Cloudflare R2 API token.
+
+    ```sh
+    R2_BUCKET=<your-bucket> \
+    R2_ACCOUNT_ID=<...> \
+    R2_ACCESS_KEY_ID=<...> \
+    R2_SECRET_ACCESS_KEY=<...> \
+    pnpm --filter @storagesdk/adapters test
+    ```
+
+    Optional `R2_ENDPOINT` for jurisdiction-specific endpoints. The R2 suite skips entirely when any required env var is missing or empty.
+
 - **Tigris**: requires a live bucket and credentials.
 
     ```sh
@@ -89,7 +101,7 @@ Tests treat the SDK like a user would: the bucket/root the adapter is pointed at
 
     The Tigris suite skips entirely when any of those env vars is missing or empty.
 
-The S3 and Tigris suites use diff-based cleanup: on setup they snapshot what already exists in the bucket; on teardown they delete only what this test created. Multiple concurrent runs against the same backend don't collide on cleanup, but they will share the bucket's namespace — use distinct buckets for parallel CI shards.
+The S3, R2, and Tigris suites use diff-based cleanup: on setup they snapshot what already exists in the bucket; on teardown they delete only what this test created. Multiple concurrent runs against the same backend don't collide on cleanup, but they will share the bucket's namespace — use distinct buckets for parallel CI shards.
 
 ### Conformance suite
 
