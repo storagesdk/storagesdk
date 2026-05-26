@@ -37,11 +37,8 @@ await fork.upload('hello.txt', 'mutated in fork only');
 
 ## What you get
 
-- **One verb set, everywhere.** `upload`, `download`, `head`, `list`, `delete`, `copy`, `move`, `url`, `uploadUrl` — same signatures across all adapters.
-- **Snapshots and forks as primitives.** Take a snapshot of a bucket (`storage.snapshots.create()`), get a read-only handle to it, fork from it as a writable branch. Implementation varies (native APIs where available, sibling buckets/folders otherwise); the API does not.
-- **One error type.** Every operation throws `StorageError` with a typed `code: 'NotFound' | 'NotSupported' | 'Conflict' | 'Unauthorized' | 'InvalidArgument' | 'Aborted' | 'Provider'`.
-- **AbortSignal support** on every public op.
-- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (`S3Client` on the S3 adapter, the Tigris module on Tigris) for backend-specific operations the SDK doesn't surface.
+- **Snapshots and forks as primitives.** Take a snapshot of a bucket, get a read-only handle, fork from it as a writable branch. Native APIs where available (Tigris); sibling buckets/folders otherwise.
+- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for backend-specific operations storagesdk doesn't surface.
 - **ESM-only, Node 20+.** Plain `tsc` build, no bundler.
 
 ## Adapters
@@ -55,6 +52,81 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | Tigris | `@storagesdk/adapters/tigris` | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
 
 Each adapter has its own README with config details, escape-hatch examples, and any backend-specific notes. See `packages/adapters/src/<adapter>/README.md`.
+
+## API
+
+```ts
+class Storage<Raw = unknown> {
+  constructor(opts: { adapter: Adapter<Raw> });
+
+  readonly raw: Raw;
+  readonly snapshots: { create, list, head, delete, get };
+  readonly forks:     { create, list, head, delete, get };
+
+  upload(path: string, body: BodyInput, opts?: UploadOptions): Promise<StorageItemMeta>;
+
+  // download — single signature returns full StorageItem; overloads return typed bodies
+  download(path: string, opts?: { signal? }):                            Promise<StorageItem>;
+  download(path: string, opts: { as: 'stream', signal? }):               Promise<ReadableStream<Uint8Array>>;
+  download(path: string, opts: { as: 'text',   signal? }):               Promise<string>;
+  download(path: string, opts: { as: 'bytes',  signal? }):               Promise<Uint8Array>;
+  download(path: string, opts: { as: 'blob',   signal? }):               Promise<Blob>;
+  download(path: string, opts: { as: 'json',   signal? }):               Promise<unknown>;
+
+  head(path: string, opts?: { signal? }):                                Promise<StorageItemMeta>;
+  list(opts?: ListOptions):                                              Promise<ListResult>;
+  delete(path: string, opts?: { signal? }):                              Promise<void>;
+  copy(from: string, to: string, opts?: { signal? }):                    Promise<void>;
+  move(from: string, to: string, opts?: { signal? }):                    Promise<void>;
+  url(path: string, opts?: UrlOptions):                                  Promise<string>;
+  uploadUrl(path: string, opts?: UploadUrlOptions):                      Promise<UploadUrlResult>;
+}
+```
+
+### `snapshots` and `forks`
+
+```ts
+storage.snapshots.create(opts?: { name?, signal? }):         Promise<SnapshotInfo>;
+storage.snapshots.list():                                    Promise<SnapshotInfo[]>;
+storage.snapshots.head(id: string, opts?: { signal? }):      Promise<SnapshotInfo>;
+storage.snapshots.delete(id: string, opts?: { signal? }):    Promise<void>;
+storage.snapshots.get(id: string):                           ReadOnlyStorage; // .download, .head, .list, .url
+
+storage.forks.create(opts: { name, fromSnapshot?, signal? }): Promise<ForkInfo>;
+storage.forks.list():                                         Promise<ForkInfo[]>;
+storage.forks.head(name: string, opts?: { signal? }):         Promise<ForkInfo>;
+storage.forks.delete(name: string, opts?: { signal? }):       Promise<void>;
+storage.forks.get(name: string):                              Storage<Raw>;    // full read/write
+```
+
+### `uploadUrl` — PUT vs POST
+
+```ts
+// PUT: default. Returns a signed URL the client uploads to with PUT.
+storage.uploadUrl('photo.jpg', { expiresIn: 300, contentType: 'image/jpeg' });
+// → { method: 'PUT', url, headers? }
+
+// POST: triggered by `maxSize` or `minSize`. Returns a presigned POST URL +
+// form fields the browser submits as multipart/form-data. Enforces size and
+// content-type bounds server-side.
+storage.uploadUrl('photo.jpg', { expiresIn: 300, maxSize: 5_000_000, contentType: 'image/jpeg' });
+// → { method: 'POST', url, fields }
+```
+
+### Errors
+
+Every operation throws `StorageError`. The `code` is a typed union:
+
+```ts
+type StorageErrorCode =
+  | 'NotFound'         // missing key, missing snapshot/fork
+  | 'NotSupported'     // adapter doesn't implement this op
+  | 'Conflict'         // duplicate fork name, etc.
+  | 'Unauthorized'     // 401/403 from the backend
+  | 'InvalidArgument'  // bad path, sidecar-suffix collision, etc.
+  | 'Aborted'          // caller's AbortSignal fired
+  | 'Provider';        // unmapped backend error (cause attached)
+```
 
 ## Common patterns
 
@@ -194,7 +266,7 @@ The suite runs the cross-adapter behavioral tests (upload round-trip, NotFound o
 
 ## Contributing
 
-See [`AGENTS.md`](./AGENTS.md) for development setup, gates (lint / typecheck / build / test), and the design decisions that aren't up for re-litigation. Design intent lives in [`docs/RFC.md`](./docs/RFC.md); implementation plan in [`docs/PLAN.md`](./docs/PLAN.md).
+See [`AGENTS.md`](./AGENTS.md) for development setup, gates (lint / typecheck / build / test), and the design decisions that aren't up for re-litigation.
 
 ## License
 
