@@ -386,11 +386,34 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(url.length).toBeGreaterThan(0);
       });
 
-      it('uploadUrl returns a PUT URL', async () => {
+      it('uploadUrl returns a PUT URL by default', async () => {
         const signed = await ctx.uploadUrl('new.jpg', { expiresIn: 300 });
         expect(signed.method).toBe('PUT');
         expect(typeof signed.url).toBe('string');
         expect(signed.url.length).toBeGreaterThan(0);
+      });
+
+      it('uploadUrl returns a POST policy when maxSize is set', async () => {
+        // Adapters without an HTTP server (fs) can't enforce upload-size
+        // policies and throw NotSupported. For adapters that can, the
+        // result must be a POST with non-empty fields.
+        let signed: Awaited<ReturnType<typeof ctx.uploadUrl>>;
+        try {
+          signed = await ctx.uploadUrl('new.jpg', {
+            expiresIn: 300,
+            maxSize: 5 * 1024 * 1024,
+            contentType: 'image/jpeg',
+          });
+        } catch (err) {
+          expect((err as { code?: string }).code).toBe('NotSupported');
+          return;
+        }
+        expect(signed.method).toBe('POST');
+        if (signed.method !== 'POST') return; // narrow for TS
+        expect(typeof signed.url).toBe('string');
+        expect(signed.url.length).toBeGreaterThan(0);
+        expect(Object.keys(signed.fields).length).toBeGreaterThan(0);
+        expect(signed.fields.key).toBeDefined();
       });
     });
 
