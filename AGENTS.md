@@ -6,7 +6,7 @@ Guidance for AI agents and contributors working in this repo. Read this before m
 
 storagesdk is a multi-provider SDK for object storage. One API across providers (S3, R2, MinIO, Azure Blob, Google Cloud Storage, Tigris, filesystem), with **snapshot** and **fork** as core operations alongside upload, download, delete, list, copy, move, and signed URLs.
 
-The design lives in [`docs/RFC.md`](docs/RFC.md). The implementation plan lives in [`docs/PLAN.md`](docs/PLAN.md). Read those before proposing API or architecture changes.
+The user-facing spec lives in [the top-level README](README.md), and the shipped code is the source of truth for the contract. Read both before proposing API or architecture changes.
 
 ## Locked design decisions
 

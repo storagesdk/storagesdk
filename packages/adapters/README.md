@@ -29,5 +29,3 @@ See each adapter's README for the specifics — naming convention, what the mani
 ## Conformance suite
 
 `@storagesdk/adapters/test-suite` exports the cross-adapter behavioral suite (upload round-trip, NotFound semantics, snapshot/fork contract, AbortSignal short-circuit, etc.). Drop it into your own adapter's test file to verify you're spec-compliant. See the top-level README's "Authoring adapters" section for details.
-
-> Status: pre-release. See `docs/RFC.md` and `docs/PLAN.md` at the repo root.
