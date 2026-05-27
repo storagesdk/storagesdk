@@ -16,10 +16,12 @@ import {
   nextSnapshotId,
   type ReadOnlyAdapter,
   readManifest,
+  readStreamToBytes,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
   type StorageItemMeta,
+  toWebStream,
   type UploadOptions,
   type UploadUrlOptions,
   type UploadUrlResult,
@@ -116,20 +118,49 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
       checkSignal(opts?.signal);
       const file = bucket.file(key);
       try {
-        const [body] = await file.download();
-        const [meta] = await file.getMetadata();
-        const u8 = new Uint8Array(new ArrayBuffer(body.byteLength));
-        u8.set(body);
+        // Single HTTP GET: body streams from the same response whose
+        // headers carry the metadata, so they can't drift apart (no
+        // TOCTOU between a download and a getMetadata).
+        const stream = file.createReadStream();
+        const headersPromise = new Promise<
+          Record<string, string | string[] | undefined>
+        >((resolve, reject) => {
+          stream.once('response', (res) => resolve(res.headers));
+          stream.once('error', reject);
+        });
+        const bodyPromise = readStreamToBytes(toWebStream(stream));
+        const [headers, body] = await Promise.all([
+          headersPromise,
+          bodyPromise,
+        ]);
+
+        const meta: Record<string, string> = {};
+        for (const [k, v] of Object.entries(headers)) {
+          if (k.startsWith('x-goog-meta-') && typeof v === 'string') {
+            meta[k.slice('x-goog-meta-'.length)] = v;
+          }
+        }
+        const contentLength = headers['content-length'];
+        const etag = headers.etag;
+        const lastModified = headers['last-modified'];
+        const contentType = headers['content-type'];
         return {
           path: key,
-          size: typeof meta.size === 'number' ? meta.size : body.byteLength,
-          contentType: meta.contentType ?? 'application/octet-stream',
-          etag: meta.etag ?? '',
-          lastModified: meta.updated ? new Date(meta.updated) : new Date(),
-          body: u8,
-          ...(meta.metadata && Object.keys(meta.metadata).length > 0
-            ? { metadata: meta.metadata as Record<string, string> }
-            : {}),
+          size:
+            typeof contentLength === 'string'
+              ? Number(contentLength)
+              : body.byteLength,
+          contentType:
+            typeof contentType === 'string'
+              ? contentType
+              : 'application/octet-stream',
+          etag: typeof etag === 'string' ? etag.replace(/^"|"$/g, '') : '',
+          lastModified:
+            typeof lastModified === 'string'
+              ? new Date(lastModified)
+              : new Date(),
+          body,
+          ...(Object.keys(meta).length > 0 ? { metadata: meta } : {}),
         };
       } catch (err) {
         throw asStorageError(err);
