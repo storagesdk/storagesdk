@@ -28,4 +28,4 @@ export {
   writeManifest,
 } from './manifest.js';
 
-export { readStreamToBytes, toWebStream } from './streams.js';
+export { bodyToBytes, readStreamToBytes, toWebStream } from './streams.js';

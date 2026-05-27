@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   type Adapter,
-  type BodyInput,
+  bodyToBytes,
   checkSignal,
   defineAdapter,
   emptyManifest,
@@ -15,7 +15,6 @@ import {
   nextSnapshotId,
   type ReadOnlyAdapter,
   readManifest,
-  readStreamToBytes,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
@@ -61,18 +60,6 @@ export interface FsConfig {
  */
 export function fs(config: FsConfig): Adapter {
   return defineAdapter(createImpl(config));
-}
-
-async function bodyToBytes(body: BodyInput): Promise<Uint8Array> {
-  if (body instanceof Uint8Array) return new Uint8Array(body);
-  if (body instanceof ArrayBuffer) return new Uint8Array(body);
-  if (typeof body === 'string') return new TextEncoder().encode(body);
-  if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
-  if (body instanceof ReadableStream) return readStreamToBytes(body);
-  throw new StorageError({
-    code: 'InvalidArgument',
-    message: 'unsupported body type',
-  });
 }
 
 /** stat → StorageItemMeta. For `head()` and `download()` (full info). */

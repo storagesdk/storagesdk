@@ -8,7 +8,7 @@ import {
 } from '@azure/storage-blob';
 import {
   type Adapter,
-  type BodyInput,
+  bodyToBytes,
   bridgeSignalToController,
   checkSignal,
   defineAdapter,
@@ -25,6 +25,7 @@ import {
   StorageError,
   type StorageItem,
   type StorageItemMeta,
+  toWebStream,
   type UploadOptions,
   type UploadUrlOptions,
   type UploadUrlResult,
@@ -89,7 +90,7 @@ function impl(
       const blob = container.getBlockBlobClient(key);
       const bridge = bridgeSignalToController(opts?.signal);
       try {
-        const payload = await bodyToBuffer(body);
+        const payload = await bodyToBytes(body);
         await blob.uploadData(payload, {
           ...(opts?.contentType !== undefined
             ? { blobHTTPHeaders: { blobContentType: opts.contentType } }
@@ -137,7 +138,7 @@ function impl(
             message: `${key} has no body`,
           });
         }
-        const body = await nodeStreamToBytes(stream);
+        const body = await readStreamToBytes(toWebStream(stream));
         return {
           path: key,
           size: res.contentLength ?? body.byteLength,
@@ -539,40 +540,6 @@ function sasSourceUrl(
     credential
   );
   return `${blobUrl}?${sas.toString()}`;
-}
-
-async function bodyToBuffer(body: BodyInput): Promise<Uint8Array> {
-  if (body instanceof Uint8Array) return body;
-  if (body instanceof ArrayBuffer) return new Uint8Array(body);
-  if (typeof body === 'string') return new TextEncoder().encode(body);
-  if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
-  if (body instanceof ReadableStream) return readStreamToBytes(body);
-  throw new StorageError({
-    code: 'InvalidArgument',
-    message: 'unsupported body type',
-  });
-}
-
-async function nodeStreamToBytes(
-  stream: NodeJS.ReadableStream
-): Promise<Uint8Array<ArrayBuffer>> {
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for await (const chunk of stream) {
-    const u8 =
-      typeof chunk === 'string'
-        ? new TextEncoder().encode(chunk)
-        : new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
-    chunks.push(u8);
-    total += u8.byteLength;
-  }
-  const out = new Uint8Array(new ArrayBuffer(total));
-  let offset = 0;
-  for (const c of chunks) {
-    out.set(c, offset);
-    offset += c.byteLength;
-  }
-  return out;
 }
 
 function stripQuotes(s: string): string {

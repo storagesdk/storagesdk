@@ -5,7 +5,7 @@ import {
 } from '@google-cloud/storage';
 import {
   type Adapter,
-  type BodyInput,
+  bodyToBytes,
   checkSignal,
   defineAdapter,
   emptyManifest,
@@ -16,7 +16,6 @@ import {
   nextSnapshotId,
   type ReadOnlyAdapter,
   readManifest,
-  readStreamToBytes,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
@@ -448,16 +447,4 @@ async function copyAllFiles(
     if (isInternalKey(file.name)) continue;
     await file.copy(dst.file(file.name));
   }
-}
-
-async function bodyToBytes(body: BodyInput): Promise<Uint8Array> {
-  if (body instanceof Uint8Array) return body;
-  if (body instanceof ArrayBuffer) return new Uint8Array(body);
-  if (typeof body === 'string') return new TextEncoder().encode(body);
-  if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
-  if (body instanceof ReadableStream) return readStreamToBytes(body);
-  throw new StorageError({
-    code: 'InvalidArgument',
-    message: 'unsupported body type',
-  });
 }
