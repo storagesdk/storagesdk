@@ -310,7 +310,14 @@ function impl(
           },
           credential
         );
-        return { method: 'PUT', url: `${blob.url}?${sas.toString()}` };
+        return {
+          method: 'PUT',
+          url: `${blob.url}?${sas.toString()}`,
+          // Azure REST requires this header on every block-blob PUT —
+          // the SAS doesn't carry it, so the client has to send it.
+          // Surface it here so callers don't need Azure-specific knowledge.
+          headers: { 'x-ms-blob-type': 'BlockBlob' },
+        };
       } catch (err) {
         throw asStorageError(err);
       }

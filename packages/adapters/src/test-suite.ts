@@ -21,6 +21,13 @@ export interface StorageAdapterTestSuiteOptions<Raw = unknown> {
    * Defaults to true. Set false to leave state behind for inspection.
    */
   cleanup?: boolean;
+  /**
+   * Whether the adapter returns signed URLs that are fetchable via HTTP
+   * (the conformance suite will fetch them to verify the signature
+   * actually works end-to-end). Defaults to true. The fs adapter sets
+   * this to false — its `url()` returns `file://` URLs.
+   */
+  httpSignedUrls?: boolean;
 }
 
 export interface SetupTestStorageOptions {
@@ -412,6 +419,41 @@ export function storageAdapterTestSuite<Raw = unknown>(
           expect(signed.fields.key).toBeDefined();
         }
       });
+
+      // Adapters that return HTTP-fetchable signed URLs (every cloud
+      // backend) are exercised end-to-end here. fs opts out via
+      // `httpSignedUrls: false` because `url()` returns `file://`.
+      if (opts.httpSignedUrls !== false) {
+        it('signed GET URL returns the object content', async () => {
+          await ctx.upload('signed.txt', 'signed-content');
+          const url = await ctx.url('signed.txt', { expiresIn: 300 });
+          expect(url).toMatch(/^https?:\/\//);
+          const res = await fetch(url);
+          expect(res.status).toBe(200);
+          expect(await res.text()).toBe('signed-content');
+        });
+
+        it('signed PUT URL works for upload', async () => {
+          const signed = await ctx.uploadUrl('uploaded.bin', {
+            expiresIn: 300,
+          });
+          expect(signed.method).toBe('PUT');
+          expect(signed.url).toMatch(/^https?:\/\//);
+          const res = await fetch(signed.url, {
+            method: 'PUT',
+            body: 'uploaded-content',
+            // `headers` is the adapter's contract for "the client must
+            // send these on the PUT" — e.g. Azure's `x-ms-blob-type`.
+            // Most adapters omit it.
+            ...(signed.method === 'PUT' && signed.headers
+              ? { headers: signed.headers }
+              : {}),
+          });
+          expect(res.ok).toBe(true);
+          const item = await ctx.download('uploaded.bin');
+          expect(bodyText(item)).toBe('uploaded-content');
+        });
+      }
     });
 
     // Snapshot/fork creation involves new bucket/container creation on
