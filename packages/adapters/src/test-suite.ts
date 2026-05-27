@@ -336,7 +336,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(filtered.items.length).toBe(5);
 
         const page1 = await ctx.list({ prefix: 'photos/', limit: 2 });
-        expect(page1.items.length).toBe(2);
+        expect(page1.items.length).toBeLessThanOrEqual(2);
         expect(page1.cursor).toBeDefined();
 
         const cursor = page1.cursor;
@@ -346,8 +346,39 @@ export function storageAdapterTestSuite<Raw = unknown>(
           limit: 2,
           cursor,
         });
-        expect(page2.items.length).toBe(2);
+        expect(page2.items.length).toBeLessThanOrEqual(2);
         expect(page2.items[0]?.path).not.toBe(page1.items[0]?.path);
+      });
+
+      it('walks the full prefix across pages without skipping items', async () => {
+        // Regression for adapters that over-fetch by one to mask the
+        // internal-manifest filter: when the manifest isn't on the
+        // page, the over-fetched item gets dropped but the cursor
+        // advances past it. Walk a full prefix with a small page size
+        // and assert the union matches the uploaded set exactly.
+        const expected = new Set<string>();
+        for (let i = 0; i < 6; i++) {
+          const key = `walk/${i}.txt`;
+          await ctx.upload(key, String(i));
+          expected.add(key);
+        }
+
+        const seen = new Set<string>();
+        let cursor: string | undefined;
+        do {
+          const page = await ctx.list({
+            prefix: 'walk/',
+            limit: 2,
+            ...(cursor !== undefined ? { cursor } : {}),
+          });
+          for (const item of page.items) {
+            expect(seen.has(item.path)).toBe(false);
+            seen.add(item.path);
+          }
+          cursor = page.cursor;
+        } while (cursor !== undefined);
+
+        expect(seen).toEqual(expected);
       });
 
       it('copies and moves keys, preserving contentType', async () => {

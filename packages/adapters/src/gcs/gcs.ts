@@ -192,10 +192,14 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
       checkSignal(opts?.signal);
       const limit = opts?.limit ?? 1000;
       try {
-        // Over-fetch by 1 so filtering the manifest still yields `limit`
-        // user items on pages where it shows up.
+        // Page size matches the caller's `limit` exactly. Filtering the
+        // internal manifest may yield `limit - 1` items on the page
+        // that contains it; that's the contract callers should expect
+        // from `list({ limit })` ("up to N", not "exactly N"). The S3
+        // adapter does the same. Over-fetching by 1 here would advance
+        // the page token past an item we silently discarded.
         const [files, nextQuery] = await bucket.getFiles({
-          maxResults: limit + 1,
+          maxResults: limit,
           autoPaginate: false,
           ...(opts?.prefix !== undefined ? { prefix: opts.prefix } : {}),
           ...(opts?.cursor !== undefined ? { pageToken: opts.cursor } : {}),
@@ -203,7 +207,6 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
         const items: StorageItemMeta[] = [];
         for (const f of files as File[]) {
           if (isInternalKey(f.name)) continue;
-          if (items.length >= limit) break;
           const meta = f.metadata;
           items.push({
             path: f.name,

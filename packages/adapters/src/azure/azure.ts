@@ -182,17 +182,19 @@ function impl(
       const limit = opts?.limit ?? 1000;
       const items: StorageItemMeta[] = [];
       try {
-        // `listBlobsFlat` returns an async iterator with `.byPage()` for
-        // cursor pagination. We over-fetch by a small margin and filter
-        // out the internal manifest blob, so `limit` still returns
-        // `limit` user items even when the manifest sits on the page.
+        // Page size matches the caller's `limit` exactly. Filtering the
+        // internal manifest may yield `limit - 1` items on the page
+        // that contains it; that's the contract callers should expect
+        // from `list({ limit })` ("up to N", not "exactly N"). The S3
+        // adapter does the same. Over-fetching by 1 here would advance
+        // the continuation token past an item we silently discarded.
         const iter = container
           .listBlobsFlat({
             ...(opts?.prefix !== undefined ? { prefix: opts.prefix } : {}),
             ...(opts?.signal ? { abortSignal: opts.signal } : {}),
           })
           .byPage({
-            maxPageSize: limit + 1,
+            maxPageSize: limit,
             ...(opts?.cursor !== undefined
               ? { continuationToken: opts.cursor }
               : {}),
@@ -203,7 +205,6 @@ function impl(
         if (value) {
           for (const blob of value.segment.blobItems as BlobItem[]) {
             if (isInternalKey(blob.name)) continue;
-            if (items.length >= limit) break;
             items.push({
               path: blob.name,
               size: blob.properties.contentLength ?? 0,
