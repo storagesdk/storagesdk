@@ -4,7 +4,7 @@ Guidance for AI agents and contributors working in this repo. Read this before m
 
 ## What this is
 
-storagesdk is a vendor-neutral SDK for object storage. One API across providers (S3, Tigris, filesystem today; more adapters in the pipeline), with **snapshot** and **fork** as core operations alongside upload, download, delete, list, copy, move, and signed URLs.
+storagesdk is a multi-provider SDK for object storage. One API across providers (S3, R2, MinIO, Azure Blob, Google Cloud Storage, Tigris, filesystem), with **snapshot** and **fork** as core operations alongside upload, download, delete, list, copy, move, and signed URLs.
 
 The design lives in [`docs/RFC.md`](docs/RFC.md). The implementation plan lives in [`docs/PLAN.md`](docs/PLAN.md). Read those before proposing API or architecture changes.
 
@@ -90,6 +90,34 @@ Tests treat the SDK like a user would: the bucket/root the adapter is pointed at
 
     Optional `R2_ENDPOINT` for jurisdiction-specific endpoints. The R2 suite skips entirely when any required env var is missing or empty.
 
+- **Azure Blob**: requires a container and storage account credentials. Defaults to the local [Azurite](https://github.com/Azure/Azurite) emulator (`docker compose up -d azurite`) when only `AZURE_BUCKET` is set.
+
+    ```sh
+    # Against real Azure:
+    AZURE_BUCKET=<your-container> \
+    AZURE_ACCOUNT_NAME=<your-account> \
+    AZURE_ACCOUNT_KEY=<key1 from "Access keys"> \
+    AZURE_ENDPOINT=https://<your-account>.blob.core.windows.net \
+    pnpm --filter @storagesdk/adapters test
+
+    # Against Azurite:
+    docker compose up -d azurite
+    AZURE_BUCKET=storagesdk-test pnpm --filter @storagesdk/adapters test
+    ```
+
+    The Azure suite skips entirely when `AZURE_BUCKET` is missing.
+
+- **GCS**: requires a live bucket and a service-account key.
+
+    ```sh
+    GCS_BUCKET=<your-bucket> \
+    GCS_PROJECT_ID=<your-project-id> \
+    GCS_KEY_FILENAME=/path/to/key.json \
+    pnpm --filter @storagesdk/adapters test
+    ```
+
+    Or pass inline credentials with `GCS_CREDENTIALS_JSON='{"client_email":"…","private_key":"…"}'`. Application Default Credentials work too — just leave both unset. The GCS suite skips entirely when `GCS_BUCKET` and `GCS_PROJECT_ID` aren't both set.
+
 - **Tigris**: requires a live bucket and credentials.
 
     ```sh
@@ -101,7 +129,7 @@ Tests treat the SDK like a user would: the bucket/root the adapter is pointed at
 
     The Tigris suite skips entirely when any of those env vars is missing or empty.
 
-The S3, R2, and Tigris suites use diff-based cleanup: on setup they snapshot what already exists in the bucket; on teardown they delete only what this test created. Multiple concurrent runs against the same backend don't collide on cleanup, but they will share the bucket's namespace — use distinct buckets for parallel CI shards.
+All cloud suites use diff-based cleanup: on setup they snapshot what already exists in the bucket; on teardown they delete only what this test created. Multiple concurrent runs against the same backend don't collide on cleanup, but they will share the bucket's namespace — use distinct buckets for parallel CI shards.
 
 ### Conformance suite
 

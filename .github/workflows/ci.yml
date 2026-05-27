@@ -32,6 +32,9 @@ jobs:
       - name: Lint
         run: pnpm check
 
+      - name: README sync (root ↔ @storagesdk/core)
+        run: diff README.md packages/core/README.md
+
       - name: Build
         run: pnpm build
 

@@ -33,9 +33,6 @@ const buildAdapter = () =>
     forcePathStyle: FORCE_PATH_STYLE,
   });
 
-const bodyText = (item: { body: Uint8Array }): string =>
-  new TextDecoder().decode(item.body);
-
 storageAdapterTestSuite({
   name: 's3 adapter',
   skip: !configured,
@@ -65,34 +62,6 @@ if (configured) {
         expect(events.length).toBeGreaterThan(0);
         expect(events.at(-1)?.loaded).toBe(6 * 1024 * 1024);
       }, 15_000);
-    });
-
-    describe('presigned URLs (HTTP)', () => {
-      it('signed GET URL works for download', async () => {
-        await ctx.upload('photo.jpg', 'signed-content');
-        const url = await ctx.url('photo.jpg', { expiresIn: 300 });
-        expect(url).toMatch(/^https?:\/\//);
-        expect(url).toContain('X-Amz-Signature=');
-
-        const res = await fetch(url);
-        expect(res.status).toBe(200);
-        expect(await res.text()).toBe('signed-content');
-      });
-
-      it('signed PUT URL works for upload', async () => {
-        const signed = await ctx.uploadUrl('uploaded.jpg', { expiresIn: 300 });
-        expect(signed.method).toBe('PUT');
-        expect(signed.url).toContain('X-Amz-Signature=');
-
-        const res = await fetch(signed.url, {
-          method: 'PUT',
-          body: 'uploaded-content',
-        });
-        expect(res.ok).toBe(true);
-
-        const item = await ctx.download('uploaded.jpg');
-        expect(bodyText(item)).toBe('uploaded-content');
-      });
     });
 
     describe('snapshot id and manifest storage', () => {

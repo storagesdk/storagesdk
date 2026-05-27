@@ -31,7 +31,8 @@
     "typecheck": "tsc --noEmit",
     "publint": "publint",
     "test": "vitest run",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepack": "cp ../../README.md ./README.md"
   },
   "keywords": [
     "storage",

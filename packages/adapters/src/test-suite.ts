@@ -21,6 +21,13 @@ export interface StorageAdapterTestSuiteOptions<Raw = unknown> {
    * Defaults to true. Set false to leave state behind for inspection.
    */
   cleanup?: boolean;
+  /**
+   * Whether the adapter returns signed URLs that are fetchable via HTTP
+   * (the conformance suite will fetch them to verify the signature
+   * actually works end-to-end). Defaults to true. The fs adapter sets
+   * this to false — its `url()` returns `file://` URLs.
+   */
+  httpSignedUrls?: boolean;
 }
 
 export interface SetupTestStorageOptions {
@@ -329,7 +336,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(filtered.items.length).toBe(5);
 
         const page1 = await ctx.list({ prefix: 'photos/', limit: 2 });
-        expect(page1.items.length).toBe(2);
+        expect(page1.items.length).toBeLessThanOrEqual(2);
         expect(page1.cursor).toBeDefined();
 
         const cursor = page1.cursor;
@@ -339,8 +346,39 @@ export function storageAdapterTestSuite<Raw = unknown>(
           limit: 2,
           cursor,
         });
-        expect(page2.items.length).toBe(2);
+        expect(page2.items.length).toBeLessThanOrEqual(2);
         expect(page2.items[0]?.path).not.toBe(page1.items[0]?.path);
+      });
+
+      it('walks the full prefix across pages without skipping items', async () => {
+        // Regression for adapters that over-fetch by one to mask the
+        // internal-manifest filter: when the manifest isn't on the
+        // page, the over-fetched item gets dropped but the cursor
+        // advances past it. Walk a full prefix with a small page size
+        // and assert the union matches the uploaded set exactly.
+        const expected = new Set<string>();
+        for (let i = 0; i < 6; i++) {
+          const key = `walk/${i}.txt`;
+          await ctx.upload(key, String(i));
+          expected.add(key);
+        }
+
+        const seen = new Set<string>();
+        let cursor: string | undefined;
+        do {
+          const page = await ctx.list({
+            prefix: 'walk/',
+            limit: 2,
+            ...(cursor !== undefined ? { cursor } : {}),
+          });
+          for (const item of page.items) {
+            expect(seen.has(item.path)).toBe(false);
+            seen.add(item.path);
+          }
+          cursor = page.cursor;
+        } while (cursor !== undefined);
+
+        expect(seen).toEqual(expected);
       });
 
       it('copies and moves keys, preserving contentType', async () => {
@@ -393,31 +431,67 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(signed.url.length).toBeGreaterThan(0);
       });
 
-      it('uploadUrl returns a POST policy when maxSize is set', async () => {
-        // Adapters without an HTTP server (fs) can't enforce upload-size
-        // policies and throw NotSupported. For adapters that can, the
-        // result must be a POST with non-empty fields.
-        let signed: Awaited<ReturnType<typeof ctx.uploadUrl>>;
-        try {
-          signed = await ctx.uploadUrl('new.jpg', {
-            expiresIn: 300,
-            maxSize: 5 * 1024 * 1024,
-            contentType: 'image/jpeg',
-          });
-        } catch (err) {
-          expect((err as { code?: string }).code).toBe('NotSupported');
-          return;
-        }
-        expect(signed.method).toBe('POST');
-        if (signed.method !== 'POST') return; // narrow for TS
+      it('uploadUrl accepts maxSize and returns either POST or PUT', async () => {
+        // Backends with POST-policy support (s3/r2/minio, tigris) return
+        // `method: 'POST'` with form `fields`. Backends without (Azure
+        // SAS, file://) silently degrade to a `method: 'PUT'` URL — the
+        // size cap can't be enforced at the URL level on those. The
+        // compat matrix documents which adapters actually enforce.
+        const signed = await ctx.uploadUrl('new.jpg', {
+          expiresIn: 300,
+          maxSize: 5 * 1024 * 1024,
+          contentType: 'image/jpeg',
+        });
+        expect(['PUT', 'POST']).toContain(signed.method);
         expect(typeof signed.url).toBe('string');
         expect(signed.url.length).toBeGreaterThan(0);
-        expect(Object.keys(signed.fields).length).toBeGreaterThan(0);
-        expect(signed.fields.key).toBeDefined();
+        if (signed.method === 'POST') {
+          expect(Object.keys(signed.fields).length).toBeGreaterThan(0);
+          expect(signed.fields.key).toBeDefined();
+        }
       });
+
+      // Adapters that return HTTP-fetchable signed URLs (every cloud
+      // backend) are exercised end-to-end here. fs opts out via
+      // `httpSignedUrls: false` because `url()` returns `file://`.
+      if (opts.httpSignedUrls !== false) {
+        it('signed GET URL returns the object content', async () => {
+          await ctx.upload('signed.txt', 'signed-content');
+          const url = await ctx.url('signed.txt', { expiresIn: 300 });
+          expect(url).toMatch(/^https?:\/\//);
+          const res = await fetch(url);
+          expect(res.status).toBe(200);
+          expect(await res.text()).toBe('signed-content');
+        });
+
+        it('signed PUT URL works for upload', async () => {
+          const signed = await ctx.uploadUrl('uploaded.bin', {
+            expiresIn: 300,
+          });
+          expect(signed.method).toBe('PUT');
+          expect(signed.url).toMatch(/^https?:\/\//);
+          const res = await fetch(signed.url, {
+            method: 'PUT',
+            body: 'uploaded-content',
+            // `headers` is the adapter's contract for "the client must
+            // send these on the PUT" — e.g. Azure's `x-ms-blob-type`.
+            // Most adapters omit it.
+            ...(signed.method === 'PUT' && signed.headers
+              ? { headers: signed.headers }
+              : {}),
+          });
+          expect(res.ok).toBe(true);
+          const item = await ctx.download('uploaded.bin');
+          expect(bodyText(item)).toBe('uploaded-content');
+        });
+      }
     });
 
-    describe('snapshots', () => {
+    // Snapshot/fork creation involves new bucket/container creation on
+    // copy-based cloud adapters (s3, r2, azure, gcs). GCS in particular
+    // takes 5-15s per bucket plus propagation delay. Bump the per-test
+    // timeout for the whole block so cloud runs don't flake.
+    describe('snapshots', { timeout: 30_000 }, () => {
       it('snapshot reads stay frozen after live writes', async () => {
         await ctx.upload('s.txt', 'before');
         const info = await ctx.snapshots.create({ name: 'baseline' });
@@ -467,7 +541,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
       });
     });
 
-    describe('forks', () => {
+    describe('forks', { timeout: 30_000 }, () => {
       it('a fork seeded from a snapshot starts at the snapshot state', async () => {
         await ctx.upload('photo.jpg', 'original');
         const snap = await ctx.snapshots.create();
@@ -530,11 +604,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
         ).rejects.toMatchObject({ code: 'NotFound' });
       });
 
-      // Several bucket creates + cross-bucket copies in copy-based adapters.
-      // The default 5s vitest timeout is too tight for this chain.
-      it('a fork can be snapshotted independently of its parent', {
-        timeout: 30_000,
-      }, async () => {
+      it('a fork can be snapshotted independently of its parent', async () => {
         await ctx.upload('a.jpg', 'a');
         const snap = await ctx.snapshots.create();
         const name = ctx.forkName('child');

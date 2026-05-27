@@ -1,4 +1,5 @@
 import { StorageError } from './errors.js';
+import type { BodyInput } from './types.js';
 
 interface NodeReadableLike {
   on(event: 'data', listener: (chunk: Uint8Array) => void): unknown;
@@ -100,4 +101,26 @@ export async function readStreamToBytes(
     offset += c.byteLength;
   }
   return out;
+}
+
+/**
+ * Reduce a `BodyInput` (the union accepted by `upload`) to a single
+ * contiguous `Uint8Array`. Adapter helper for backends whose SDK takes
+ * bytes rather than a stream — e.g. the FS adapter writes the buffer
+ * directly to disk; the Azure and GCS SDKs accept it via `uploadData` /
+ * `save`. Streams are drained via `readStreamToBytes`.
+ *
+ * No defensive copy when the input is already a `Uint8Array`. Callers
+ * that need to retain ownership of the input should copy first.
+ */
+export async function bodyToBytes(body: BodyInput): Promise<Uint8Array> {
+  if (body instanceof Uint8Array) return body;
+  if (body instanceof ArrayBuffer) return new Uint8Array(body);
+  if (typeof body === 'string') return new TextEncoder().encode(body);
+  if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
+  if (body instanceof ReadableStream) return readStreamToBytes(body);
+  throw new StorageError({
+    code: 'InvalidArgument',
+    message: 'unsupported body type',
+  });
 }

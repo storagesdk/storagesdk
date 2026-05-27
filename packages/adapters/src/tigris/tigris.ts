@@ -19,10 +19,12 @@ import {
 } from '@storagesdk/core/adapter';
 import * as tigrisSdk from '@tigrisdata/storage';
 import {
+  type BucketLocations,
   createBucket,
   createBucketSnapshot,
   deleteBucketSnapshot,
   get,
+  getBucketInfo,
   getPresignedUrl,
   getSignedUploadUrl,
   listBucketSnapshots,
@@ -98,10 +100,37 @@ export function tigris(config: TigrisConfig): Adapter<TigrisRaw> {
   if (config.forcePathStyle !== undefined) {
     resolved.forcePathStyle = config.forcePathStyle;
   }
-  return defineAdapter<TigrisRaw>(impl(resolved));
+
+  // Lazy, once-per-adapter cache of the source bucket's locations.
+  // Used by `forks.create` so the new fork lands in the same locations
+  // as the parent. Built here (one user-facing adapter = one call) and
+  // passed to every `impl()`; sub-impls receive the same shared promise.
+  let locationsPromise: Promise<BucketLocations | undefined> | undefined;
+  const getSourceLocations = (): Promise<BucketLocations | undefined> => {
+    if (locationsPromise === undefined) {
+      locationsPromise = (async () => {
+        try {
+          const res = await getBucketInfo(resolved.bucket, {
+            config: resolved,
+          });
+          return unwrap(res).locations;
+        } catch {
+          // If we can't read source bucket info, fall back to Tigris
+          // defaults — better to attempt fork creation than fail upfront.
+          return undefined;
+        }
+      })();
+    }
+    return locationsPromise;
+  };
+
+  return defineAdapter<TigrisRaw>(impl(resolved, getSourceLocations));
 }
 
-function impl(config: TigrisConfig): Adapter<TigrisRaw> {
+function impl(
+  config: TigrisConfig,
+  getSourceLocations: () => Promise<BucketLocations | undefined>
+): Adapter<TigrisRaw> {
   const bucket = config.bucket;
 
   return {
@@ -339,12 +368,14 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
             message: `fork ${opts.name} already exists`,
           });
         }
+        const locations = await getSourceLocations();
         const res = await createBucket(opts.name, {
           sourceBucketName: bucket,
           config,
           ...(opts.fromSnapshot !== undefined
             ? { sourceBucketSnapshot: opts.fromSnapshot }
             : {}),
+          ...(locations !== undefined ? { locations } : {}),
         });
         unwrap(res);
         return {
@@ -393,7 +424,7 @@ function impl(config: TigrisConfig): Adapter<TigrisRaw> {
         // Re-construct the impl scoped to the fork bucket. The outer
         // `defineAdapter` (in `tigris()`) wraps this via its recursive
         // `forks.get`, so the result is a single-wrapped adapter.
-        return impl({ ...config, bucket: name });
+        return impl({ ...config, bucket: name }, getSourceLocations);
       },
     },
   };

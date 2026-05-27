@@ -1,6 +1,8 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { azure } from '@storagesdk/adapters/azure';
 import { fs } from '@storagesdk/adapters/fs';
+import { gcs } from '@storagesdk/adapters/gcs';
 import { minio } from '@storagesdk/adapters/minio';
 import { r2 } from '@storagesdk/adapters/r2';
 import { s3 } from '@storagesdk/adapters/s3';
@@ -14,14 +16,18 @@ import type { Adapter } from '@storagesdk/core/adapter';
  * vars only.
  *
  * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris (default: fs)
- *   EXAMPLE_BUCKET           required for s3, r2, minio, tigris
- *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris
+ *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs (default: fs)
+ *   EXAMPLE_BUCKET           required for every non-fs adapter
+ *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
  *   EXAMPLE_REGION           optional for s3, minio
  *   EXAMPLE_ACCESS_KEY_ID    required for s3, r2, minio, tigris
  *   EXAMPLE_SECRET_ACCESS_KEY required for s3, r2, minio, tigris
  *   EXAMPLE_FORCE_PATH_STYLE 'true' to force path-style addressing (s3, tigris)
  *   EXAMPLE_ACCOUNT_ID       required for r2 (Cloudflare account id)
+ *   EXAMPLE_ACCOUNT_NAME     required for azure (Azure storage account name)
+ *   EXAMPLE_ACCOUNT_KEY      required for azure (account access key)
+ *   EXAMPLE_PROJECT_ID       required for gcs (GCP project id)
+ *   EXAMPLE_KEY_FILENAME     path to GCP service-account JSON key (gcs)
  */
 export function getAdapter(): Adapter {
   const choice = (process.env.EXAMPLE_ADAPTER ?? 'fs').toLowerCase();
@@ -103,7 +109,40 @@ export function getAdapter(): Adapter {
       forcePathStyle: process.env.EXAMPLE_FORCE_PATH_STYLE === 'true',
     });
   }
+  if (choice === 'azure') {
+    const bucket = process.env.EXAMPLE_BUCKET;
+    const accountName = process.env.EXAMPLE_ACCOUNT_NAME;
+    const accountKey = process.env.EXAMPLE_ACCOUNT_KEY;
+    if (!bucket || !accountName || !accountKey) {
+      throw new Error(
+        'EXAMPLE_BUCKET, EXAMPLE_ACCOUNT_NAME, and EXAMPLE_ACCOUNT_KEY are required for EXAMPLE_ADAPTER=azure'
+      );
+    }
+    return azure({
+      bucket,
+      accountName,
+      accountKey,
+      ...(process.env.EXAMPLE_ENDPOINT !== undefined
+        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
+        : {}),
+    });
+  }
+  if (choice === 'gcs') {
+    const bucket = process.env.EXAMPLE_BUCKET;
+    const projectId = process.env.EXAMPLE_PROJECT_ID;
+    const keyFilename = process.env.EXAMPLE_KEY_FILENAME;
+    if (!bucket || !projectId) {
+      throw new Error(
+        'EXAMPLE_BUCKET and EXAMPLE_PROJECT_ID are required for EXAMPLE_ADAPTER=gcs'
+      );
+    }
+    return gcs({
+      bucket,
+      projectId,
+      ...(keyFilename !== undefined ? { keyFilename } : {}),
+    });
+  }
   throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris.`
+    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs.`
   );
 }

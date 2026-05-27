@@ -1,6 +1,7 @@
 import {
   type _Error,
   AbortMultipartUploadCommand,
+  type BucketLocationConstraint,
   CompleteMultipartUploadCommand,
   CopyObjectCommand,
   CreateBucketCommand,
@@ -8,6 +9,7 @@ import {
   DeleteBucketCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
+  GetBucketLocationCommand,
   GetBucketTaggingCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -105,14 +107,43 @@ export function s3(config: S3Config): Adapter<S3Client> {
       : {}),
   });
 
+  // Lazy, once-per-adapter cache of the source bucket's region.
+  // Snapshot/fork creation needs this so siblings land in the same region
+  // as the parent. We build the thunk here (one user-facing adapter =
+  // one call) and pass it to every `impl()` — snapshot and fork
+  // sub-adapters receive the same shared promise but never invoke it.
+  let locationPromise: Promise<string | undefined> | undefined;
+  const getSourceLocation = (): Promise<string | undefined> => {
+    if (locationPromise === undefined) {
+      locationPromise = (async () => {
+        try {
+          const res = await client.send(
+            new GetBucketLocationCommand({ Bucket: config.bucket })
+          );
+          // AWS returns `LocationConstraint: undefined` for us-east-1.
+          // Some S3-compatible backends return empty string; normalize.
+          return res.LocationConstraint || undefined;
+        } catch {
+          // If we lack `GetBucketLocation` permission, fall back to no
+          // constraint — `CreateBucket` will use the client's region.
+          return undefined;
+        }
+      })();
+    }
+    return locationPromise;
+  };
+
   const manifestStore = createManifestStore();
-  return defineAdapter<S3Client>(impl(client, config.bucket, manifestStore));
+  return defineAdapter<S3Client>(
+    impl(client, config.bucket, manifestStore, getSourceLocation)
+  );
 }
 
 function impl(
   client: S3Client,
   bucket: string,
-  manifest: ManifestStore
+  manifest: ManifestStore,
+  getSourceLocation: () => Promise<string | undefined>
 ): Adapter<S3Client> {
   return {
     name: 's3',
@@ -373,7 +404,7 @@ function impl(
       async create(opts): Promise<SnapshotInfo> {
         checkSignal(opts?.signal);
         const id = nextSnapshotId(bucket);
-        await createSibling(client, id);
+        await createSibling(client, id, await getSourceLocation());
         try {
           await copyAllObjects(client, bucket, id, {
             onProgress: (e) => {
@@ -432,7 +463,7 @@ function impl(
         // Return a read-only view over the snapshot bucket. The contract
         // exposes only the four read methods to callers; nothing chmods the
         // bucket itself read-only.
-        const snapImpl = impl(client, id, manifest);
+        const snapImpl = impl(client, id, manifest, getSourceLocation);
         return {
           download: (p, opts) => snapImpl.download(p, opts),
           head: (p, opts) => snapImpl.head(p, opts),
@@ -449,7 +480,7 @@ function impl(
         // bucket's live state. Both are server-side `CopyObject` per entry
         // via `copyAllObjects`.
         const sourceBucket = opts.fromSnapshot ?? bucket;
-        await createSibling(client, opts.name);
+        await createSibling(client, opts.name, await getSourceLocation());
         try {
           await copyAllObjects(client, sourceBucket, opts.name, {
             onProgress: (e) => {
@@ -513,7 +544,7 @@ function impl(
         // Returns a full read/write adapter rooted at the fork bucket. The
         // outer `defineAdapter` (in `s3()`) wraps the raw impl exactly once
         // via its recursive `forks.get`, so this stays single-wrapped.
-        return impl(client, name, manifest);
+        return impl(client, name, manifest, getSourceLocation);
       },
     },
   };
@@ -587,10 +618,34 @@ function copySource(bucket: string, key: string): string {
   return `${bucket}/${encodedKey}`;
 }
 
-/** CreateBucket via the S3 API. Surfaces `BucketAlreadyExists` as Conflict. */
-async function createSibling(client: S3Client, name: string): Promise<void> {
+/**
+ * CreateBucket via the S3 API. Surfaces `BucketAlreadyExists` as Conflict.
+ * `location` is the source bucket's region (from `GetBucketLocation`).
+ * AWS requires `CreateBucketConfiguration.LocationConstraint` for any
+ * region other than us-east-1 — and rejects it when creating *in*
+ * us-east-1 — so we include the field only when location is set.
+ */
+async function createSibling(
+  client: S3Client,
+  name: string,
+  location: string | undefined
+): Promise<void> {
   try {
-    await client.send(new CreateBucketCommand({ Bucket: name }));
+    await client.send(
+      new CreateBucketCommand({
+        Bucket: name,
+        ...(location !== undefined
+          ? {
+              CreateBucketConfiguration: {
+                // Cast: `LocationConstraint` is typed as a closed union,
+                // but at runtime S3 accepts any region string — including
+                // future regions the SDK hasn't enumerated yet.
+                LocationConstraint: location as BucketLocationConstraint,
+              },
+            }
+          : {}),
+      })
+    );
   } catch (err) {
     throw asStorageError(err);
   }

@@ -2,6 +2,10 @@
 
 Tigris adapter for storagesdk. Snapshots and forks are first-class via Tigris's native APIs — no manifest convention, no copy-based bookkeeping.
 
+```sh
+npm install @storagesdk/core @storagesdk/adapters @tigrisdata/storage
+```
+
 ```ts
 import { Storage } from '@storagesdk/core';
 import { tigris } from '@storagesdk/adapters/tigris';
