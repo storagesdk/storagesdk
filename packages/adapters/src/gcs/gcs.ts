@@ -473,8 +473,10 @@ async function copyAllFiles(
 ): Promise<void> {
   const src = client.bucket(fromBucket);
   const dst = client.bucket(toBucket);
-  const [files] = await src.getFiles();
-  for (const file of files as File[]) {
+  // Stream pages one at a time. `getFiles()` without `autoPaginate:
+  // false` fetches every page into a single array before the copy
+  // loop starts — fine for tests, bad for buckets with many objects.
+  for await (const file of src.getFilesStream() as AsyncIterable<File>) {
     if (isInternalKey(file.name)) continue;
     await file.copy(dst.file(file.name));
   }
