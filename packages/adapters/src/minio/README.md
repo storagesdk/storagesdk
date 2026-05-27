@@ -3,7 +3,7 @@
 [MinIO](https://min.io/) adapter for storagesdk.
 
 ```sh
-npm install @storagesdk/core @storagesdk/adapters @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner
+npm install @storagesdk/core @storagesdk/adapters @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner @aws-sdk/s3-presigned-post
 ```
 
 ```ts

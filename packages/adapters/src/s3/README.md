@@ -3,7 +3,7 @@
 S3 adapter for [storagesdk](https://github.com/storagesdk/storagesdk). Works against Amazon S3 and any S3-compatible backend — MinIO, Cloudflare R2, DigitalOcean Spaces, Backblaze B2, etc.
 
 ```sh
-npm install @storagesdk/core @storagesdk/adapters @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner
+npm install @storagesdk/core @storagesdk/adapters @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner @aws-sdk/s3-presigned-post
 ```
 
 The AWS SDK packages are optional peer dependencies of `@storagesdk/adapters`. You only install them when you import from `/s3`.
