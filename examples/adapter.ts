@@ -7,6 +7,7 @@ import { minio } from '@storagesdk/adapters/minio';
 import { r2 } from '@storagesdk/adapters/r2';
 import { s3 } from '@storagesdk/adapters/s3';
 import { tigris } from '@storagesdk/adapters/tigris';
+import { vercel } from '@storagesdk/adapters/vercel';
 import type { Adapter } from '@storagesdk/core/adapter';
 
 /**
@@ -16,7 +17,7 @@ import type { Adapter } from '@storagesdk/core/adapter';
  * vars only.
  *
  * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs (default: fs)
+ *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel (default: fs)
  *   EXAMPLE_BUCKET           required for every non-fs adapter
  *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
  *   EXAMPLE_REGION           optional for s3, minio
@@ -28,6 +29,8 @@ import type { Adapter } from '@storagesdk/core/adapter';
  *   EXAMPLE_ACCOUNT_KEY      required for azure (account access key)
  *   EXAMPLE_PROJECT_ID       required for gcs (GCP project id)
  *   EXAMPLE_KEY_FILENAME     path to GCP service-account JSON key (gcs)
+ *   EXAMPLE_TOKEN            Vercel Blob read-write token (vercel; falls back
+ *                            to BLOB_READ_WRITE_TOKEN env var on Vercel runtimes)
  */
 export function getAdapter(): Adapter {
   const choice = (process.env.EXAMPLE_ADAPTER ?? 'fs').toLowerCase();
@@ -142,7 +145,18 @@ export function getAdapter(): Adapter {
       ...(keyFilename !== undefined ? { keyFilename } : {}),
     });
   }
+  if (choice === 'vercel') {
+    const bucket = process.env.EXAMPLE_BUCKET;
+    const token =
+      process.env.EXAMPLE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN;
+    if (!bucket || !token) {
+      throw new Error(
+        'EXAMPLE_BUCKET and EXAMPLE_TOKEN (or BLOB_READ_WRITE_TOKEN) are required for EXAMPLE_ADAPTER=vercel'
+      );
+    }
+    return vercel({ bucket, token });
+  }
   throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs.`
+    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel.`
   );
 }

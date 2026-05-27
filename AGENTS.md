@@ -4,7 +4,7 @@ Guidance for AI agents and contributors working in this repo. Read this before m
 
 ## What this is
 
-storagesdk is a multi-provider SDK for object storage. One API across providers (S3, R2, MinIO, Azure Blob, Google Cloud Storage, Tigris, filesystem), with **snapshot** and **fork** as core operations alongside upload, download, delete, list, copy, move, and signed URLs.
+storagesdk is a multi-provider SDK for object storage. One API across providers (S3, R2, MinIO, Azure Blob, Google Cloud Storage, Vercel Blob, Tigris, filesystem), with **snapshot** and **fork** as core operations alongside upload, download, delete, list, copy, move, and signed URLs.
 
 The user-facing spec lives in [the top-level README](README.md), and the shipped code is the source of truth for the contract. Read both before proposing API or architecture changes.
 
@@ -117,6 +117,20 @@ Tests treat the SDK like a user would: the bucket/root the adapter is pointed at
     ```
 
     Or pass inline credentials with `GCS_CREDENTIALS_JSON='{"client_email":"…","private_key":"…"}'`. Application Default Credentials work too — just leave both unset. The GCS suite skips entirely when `GCS_BUCKET` and `GCS_PROJECT_ID` aren't both set.
+
+- **Vercel Blob**: requires a Vercel Blob store and read-write token.
+
+    ```sh
+    VERCEL_BLOB_BUCKET=<your-prefix> \
+    BLOB_READ_WRITE_TOKEN=<your-token> \
+    pnpm --filter @storagesdk/adapters test
+    ```
+
+    `VERCEL_BLOB_BUCKET` is the pathname prefix the adapter writes under (Vercel Blob has no native buckets — the adapter maps each storagesdk `bucket` to a prefix). Pick anything that won't collide with your other data in the store.
+
+    If your store was created as **private**, set `VERCEL_BLOB_ACCESS=private` — the adapter defaults to `public` and Vercel rejects every write whose access mode doesn't match the store's setting.
+
+    The Vercel suite skips entirely when `VERCEL_BLOB_BUCKET` or `BLOB_READ_WRITE_TOKEN` is missing.
 
 - **Tigris**: requires a live bucket and credentials.
 

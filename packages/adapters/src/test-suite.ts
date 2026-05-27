@@ -28,6 +28,13 @@ export interface StorageAdapterTestSuiteOptions<Raw = unknown> {
    * this to false — its `url()` returns `file://` URLs.
    */
   httpSignedUrls?: boolean;
+  /**
+   * Whether the backend preserves user metadata on upload (`metadata`
+   * option round-trips through `head` and `download`). Defaults to
+   * true. The Vercel Blob adapter sets this to false — Vercel Blob
+   * has no user-metadata concept and silently drops the field.
+   */
+  metadata?: boolean;
 }
 
 export interface SetupTestStorageOptions {
@@ -297,15 +304,32 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(item.size).toBe(12);
       });
 
-      it('preserves contentType and metadata', async () => {
+      it('preserves contentType', async () => {
         await ctx.upload('photo.jpg', 'bytes', {
           contentType: 'image/jpeg',
-          metadata: { author: 'alice' },
         });
         const meta = await ctx.head('photo.jpg');
         expect(meta.contentType).toBe('image/jpeg');
-        expect(meta.metadata?.author).toBe('alice');
       });
+
+      // Adapters whose backend has a user-metadata field round-trip it
+      // through `head`. Vercel Blob has no such field — opts out via
+      // `metadata: false`. We still register a skipped test so the
+      // skip is visible in test output rather than silently absent.
+      const metadataIt = opts.metadata === false ? it.skip : it;
+      metadataIt(
+        opts.metadata === false
+          ? 'preserves user metadata (skipped: backend has no metadata field)'
+          : 'preserves user metadata',
+        async () => {
+          await ctx.upload('photo.jpg', 'bytes', {
+            contentType: 'image/jpeg',
+            metadata: { author: 'alice' },
+          });
+          const meta = await ctx.head('photo.jpg');
+          expect(meta.metadata?.author).toBe('alice');
+        }
+      );
 
       it('throws NotFound for missing keys', async () => {
         await expect(ctx.download('missing.jpg')).rejects.toMatchObject({
