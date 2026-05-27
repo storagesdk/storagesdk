@@ -1,141 +1,275 @@
-# @storagesdk/core
+# storagesdk
 
-One API across object storage providers, with fork and snapshot built in.
+[![npm version](https://img.shields.io/npm/v/@storagesdk/core?label=%40storagesdk%2Fcore)](https://www.npmjs.com/package/@storagesdk/core)
+[![CI](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml/badge.svg)](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/@storagesdk/core)](./LICENSE)
+
+A multi-provider SDK for object storage. One API across S3, Cloudflare R2, MinIO, Azure Blob, Google Cloud Storage, Tigris, and local filesystems — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
 ```
 
-`@storagesdk/core` is the consumer API. Pair it with an adapter from [`@storagesdk/adapters`](../adapters/README.md).
-
-## Quickstart
-
-```ts
-import { Storage } from '@storagesdk/core';
-import { fs } from '@storagesdk/adapters/fs';
-
-const storage = new Storage({
-  adapter: fs({ root: '/var/data', folder: 'photos' }),
-});
-
-await storage.upload('beach.jpg', blob, { contentType: 'image/jpeg' });
-const item = await storage.download('beach.jpg');
-```
-
-## Object operations
-
-```ts
-await storage.upload(path, body, opts?);         // returns StorageItemMeta
-await storage.download(path);                     // returns StorageItem (metadata + body)
-await storage.head(path);                         // returns StorageItemMeta
-await storage.list({ prefix?, limit?, cursor? }); // returns { items: StorageItemMeta[], cursor? }
-await storage.delete(path);
-await storage.copy(from, to);
-await storage.move(from, to);
-await storage.url(path, { expiresIn? });          // returns string
-await storage.uploadUrl(path, opts?);             // returns { method: 'PUT' | 'POST', url, ... }
-```
-
-`body` accepts `Uint8Array`, `ArrayBuffer`, `string`, `Blob`, or `ReadableStream`.
-
-### Multipart uploads
-
-The SDK auto-selects multipart vs single PUT based on the body's size. Bodies larger than `multipartThreshold` (default 5 MB) and `ReadableStream`s (size unknown upfront) go multipart; smaller size-known bodies go single PUT.
-
-```ts
-// Defaults: 5 MB threshold, ReadableStream always multipart.
-await storage.upload('photo.jpg', smallBlob);    // single PUT
-await storage.upload('video.mp4', largeStream);  // multipart
-
-// Override the threshold per upload:
-await storage.upload('config.json', body, { multipartThreshold: 10 * 1024 * 1024 });
-
-// Or force the decision either way:
-await storage.upload(path, body, { multipart: true });
-await storage.upload(path, body, { multipart: false });
-```
-
-Adapters that don't natively support multipart (e.g. the filesystem adapter) ignore the resolved value and always do a single write.
-
-### Typed downloads with `as`
-
-`download()` is overloaded. The default returns the full `StorageItem`. Pass `as` to get a typed body:
-
-```ts
-await storage.download(path);                     // StorageItem
-await storage.download(path, { as: 'stream' });   // ReadableStream<Uint8Array>
-await storage.download(path, { as: 'text' });     // string
-await storage.download(path, { as: 'bytes' });    // Uint8Array
-await storage.download(path, { as: 'blob' });     // Blob
-await storage.download(path, { as: 'json' });     // unknown — cast at the callsite
-```
-
-Streams are always Web `ReadableStream` regardless of runtime (browser, Node 20+, Workers, Deno, Bun). If you need a Node `Readable`, convert at the callsite with `Readable.fromWeb()`.
-
-## Snapshots
-
-Read-only views of the storage at a point in time.
-
-```ts
-const info = await storage.snapshots.create({ name: 'pre-migration' });
-await storage.snapshots.list();          // SnapshotInfo[]
-await storage.snapshots.head(info.id);   // SnapshotInfo
-await storage.snapshots.delete(info.id);
-
-const reader = storage.snapshots.get(info.id); // ReadOnlyStorage
-await reader.download('beach.jpg', { as: 'text' });
-```
-
-## Forks
-
-Writable storage seeded from a snapshot.
-
-```ts
-const fork = await storage.forks.create({ name: 'photos-exp', fromSnapshot: info.id });
-await storage.forks.list();            // ForkInfo[]
-await storage.forks.head('photos-exp');// ForkInfo
-await storage.forks.delete('photos-exp');
-
-const exp = storage.forks.get('photos-exp'); // Storage — full read/write
-await exp.upload('new.jpg', blob);
-```
-
-## Errors
-
-Every method throws `StorageError` with a normalized `code` and the original error attached as `cause`.
-
-```ts
-import { StorageError } from '@storagesdk/core';
-
-try {
-  await storage.download('missing.jpg');
-} catch (e) {
-  if (e instanceof StorageError && e.code === 'NotFound') {
-    /* handle */
-  }
-  throw e;
-}
-```
-
-Codes: `NotFound`, `NotSupported`, `Conflict`, `Unauthorized`, `InvalidArgument`, `Provider`.
-
-## Escape hatch
-
-Every adapter exposes its underlying native client (or whatever state it wants to surface) through `storage.raw`. The type of `raw` is carried through from the adapter — adapters that declare `Adapter<S3Client>` give you `storage.raw` typed as `S3Client` with no cast.
-
 ```ts
 import { Storage } from '@storagesdk/core';
 import { s3 } from '@storagesdk/adapters/s3';
 
-const storage = new Storage({ adapter: s3({ bucket: 'photos', /* ... */ }) });
-//    ↑ inferred as Storage<S3Client>
+const storage = new Storage({
+  adapter: s3({
+    bucket: 'photos',
+    region: 'us-east-1',
+    credentials: { accessKeyId, secretAccessKey },
+  }),
+});
 
-storage.raw.send(new SomeRawCommand({/* ... */}));
-//      ↑ typed as S3Client
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });
+const url = await storage.url('hello.txt', { expiresIn: 300 });
+
+const snap = await storage.snapshots.create({ name: 'pre-migration' });
+await storage.forks.create({ name: 'photos-exp', fromSnapshot: snap.id });
+const fork = storage.forks.get('photos-exp');
+await fork.upload('hello.txt', 'mutated in fork only');
 ```
 
-For adapters that don't narrow `raw`, the type defaults to `unknown` — you cast at the callsite if you want to use it.
+## What you get
 
-`storage.forks.get(name)` carries the same `raw` type, so escape-hatch access works the same on forks.
+- **Snapshots and forks as primitives.** Take a snapshot of a bucket, get a read-only handle, fork from it as a writable branch. Native APIs where available (Tigris); sibling buckets/folders otherwise.
+- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for backend-specific operations storagesdk doesn't surface.
+- **ESM-only, Node 20+.** Plain `tsc` build, no bundler.
 
-> Status: pre-release. See [`docs/RFC.md`](../../docs/RFC.md) and [`docs/PLAN.md`](../../docs/PLAN.md) at the repo root.
+## Adapters
+
+| Adapter | Subpath | Backend |
+| --- | --- | --- |
+| Filesystem | `@storagesdk/adapters/fs` | Local `node:fs/promises`. For development and tests. |
+| S3 | `@storagesdk/adapters/s3` | Amazon S3 and any S3-compatible backend (DigitalOcean Spaces, Backblaze B2, etc.). |
+| R2 | `@storagesdk/adapters/r2` | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
+| MinIO | `@storagesdk/adapters/minio` | [MinIO](https://min.io/). |
+| Azure Blob | `@storagesdk/adapters/azure` | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
+| GCS | `@storagesdk/adapters/gcs` | [Google Cloud Storage](https://cloud.google.com/storage). |
+| Tigris | `@storagesdk/adapters/tigris` | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
+
+Each adapter has its own README with config details, escape-hatch examples, and any backend-specific notes. See `packages/adapters/src/<adapter>/README.md`.
+
+## API
+
+```ts
+class Storage<Raw = unknown> {
+  constructor(opts: { adapter: Adapter<Raw> });
+
+  readonly raw: Raw;
+  readonly snapshots: { create, list, head, delete, get };
+  readonly forks:     { create, list, head, delete, get };
+
+  upload(path: string, body: BodyInput, opts?: UploadOptions): Promise<StorageItemMeta>;
+
+  // download — single signature returns full StorageItem; overloads return typed bodies
+  download(path: string, opts?: { signal? }):                            Promise<StorageItem>;
+  download(path: string, opts: { as: 'stream', signal? }):               Promise<ReadableStream<Uint8Array>>;
+  download(path: string, opts: { as: 'text',   signal? }):               Promise<string>;
+  download(path: string, opts: { as: 'bytes',  signal? }):               Promise<Uint8Array>;
+  download(path: string, opts: { as: 'blob',   signal? }):               Promise<Blob>;
+  download(path: string, opts: { as: 'json',   signal? }):               Promise<unknown>;
+
+  head(path: string, opts?: { signal? }):                                Promise<StorageItemMeta>;
+  list(opts?: ListOptions):                                              Promise<ListResult>;
+  delete(path: string, opts?: { signal? }):                              Promise<void>;
+  copy(from: string, to: string, opts?: { signal? }):                    Promise<void>;
+  move(from: string, to: string, opts?: { signal? }):                    Promise<void>;
+  url(path: string, opts?: UrlOptions):                                  Promise<string>;
+  uploadUrl(path: string, opts?: UploadUrlOptions):                      Promise<UploadUrlResult>;
+}
+```
+
+### `snapshots` and `forks`
+
+```ts
+storage.snapshots.create(opts?: { name?, signal? }):         Promise<SnapshotInfo>;
+storage.snapshots.list():                                    Promise<SnapshotInfo[]>;
+storage.snapshots.head(id: string, opts?: { signal? }):      Promise<SnapshotInfo>;
+storage.snapshots.delete(id: string, opts?: { signal? }):    Promise<void>;
+storage.snapshots.get(id: string):                           ReadOnlyStorage; // .download, .head, .list, .url
+
+storage.forks.create(opts: { name, fromSnapshot?, signal? }): Promise<ForkInfo>;
+storage.forks.list():                                         Promise<ForkInfo[]>;
+storage.forks.head(name: string, opts?: { signal? }):         Promise<ForkInfo>;
+storage.forks.delete(name: string, opts?: { signal? }):       Promise<void>;
+storage.forks.get(name: string):                              Storage<Raw>;    // full read/write
+```
+
+### `uploadUrl` — PUT vs POST
+
+```ts
+// PUT: default. Returns a signed URL the client uploads to with PUT.
+storage.uploadUrl('photo.jpg', { expiresIn: 300, contentType: 'image/jpeg' });
+// → { method: 'PUT', url, headers? }
+
+// POST: triggered by `maxSize` or `minSize`. Returns a presigned POST URL +
+// form fields the browser submits as multipart/form-data. Enforces size and
+// content-type bounds server-side.
+storage.uploadUrl('photo.jpg', { expiresIn: 300, maxSize: 5_000_000, contentType: 'image/jpeg' });
+// → { method: 'POST', url, fields }
+```
+
+### Errors
+
+Every operation throws `StorageError`. The `code` is a typed union:
+
+```ts
+type StorageErrorCode =
+  | 'NotFound'         // missing key, missing snapshot/fork
+  | 'NotSupported'     // adapter doesn't implement this op
+  | 'Conflict'         // duplicate fork name, etc.
+  | 'Unauthorized'     // 401/403 from the backend
+  | 'InvalidArgument'  // bad path, sidecar-suffix collision, etc.
+  | 'Aborted'          // caller's AbortSignal fired
+  | 'Provider';        // unmapped backend error (cause attached)
+```
+
+## Common patterns
+
+### Snapshots — read frozen state after live writes
+
+```ts
+await storage.upload('photo.jpg', 'before');
+const snap = await storage.snapshots.create({ name: 'baseline' });
+await storage.upload('photo.jpg', 'after');
+
+const reader = storage.snapshots.get(snap.id);
+await reader.download('photo.jpg', { as: 'text' });   // 'before'
+await storage.download('photo.jpg', { as: 'text' });  // 'after'
+```
+
+### Forks — branch and mutate
+
+```ts
+const snap = await storage.snapshots.create();
+await storage.forks.create({ name: 'experiment', fromSnapshot: snap.id });
+
+const fork = storage.forks.get('experiment');
+await fork.upload('config.json', JSON.stringify({ flag: true }));
+// parent unchanged; fork has its own writable view
+```
+
+`forks.create` also accepts no `fromSnapshot` — the fork starts at the parent's live state at creation time.
+
+### Signed URLs
+
+```ts
+await storage.url('photo.jpg', { expiresIn: 300 });          // 5-min GET URL
+await storage.uploadUrl('new.jpg', { expiresIn: 300 });      // PUT URL + method
+```
+
+### Streaming download
+
+```ts
+const stream = await storage.download('large.mp4', { as: 'stream' });
+// Web ReadableStream<Uint8Array>
+```
+
+### AbortSignal
+
+```ts
+const ctrl = new AbortController();
+setTimeout(() => ctrl.abort(), 5000);
+
+await storage.upload('big.bin', body, { signal: ctrl.signal });
+// throws StorageError({ code: 'Aborted' }) if signal fires
+```
+
+### Escape hatch
+
+```ts
+import type { S3Client } from '@aws-sdk/client-s3';
+
+const storage = new Storage({ adapter: s3({ bucket: 'photos' }) });
+//    ↑ Storage<S3Client>, no cast needed
+
+storage.raw.send(new SomePowerUserCommand({ /* ... */ }));
+```
+
+## Examples
+
+Runnable examples live under [`examples/`](./examples). Each picks the adapter at runtime via `EXAMPLE_ADAPTER`; out of the box they run against a local filesystem so you can try them without any setup:
+
+```sh
+pnpm install
+pnpm --filter @storagesdk/examples quickstart
+pnpm --filter @storagesdk/examples snapshots
+pnpm --filter @storagesdk/examples forks
+```
+
+## Authoring adapters
+
+`@storagesdk/adapters` is *one* set of backends; the SDK is designed for third-party adapters too.
+
+```sh
+npm install @storagesdk/core
+```
+
+```ts
+import {
+  defineAdapter,
+  type Adapter,
+  StorageError,
+} from '@storagesdk/core/adapter';
+
+export function myAdapter(config: MyConfig): Adapter {
+  return defineAdapter({
+    name: 'my-backend',
+    raw: /* your client */,
+    async upload(path, body, opts) { /* ... */ },
+    async download(path, opts) { /* ... */ },
+    async head(path, opts) { /* ... */ },
+    async list(opts) { /* ... */ },
+    async delete(path, opts) { /* ... */ },
+    async copy(from, to, opts) { /* ... */ },
+    async move(from, to, opts) { /* ... */ },
+    async url(path, opts) { /* ... */ },
+    async uploadUrl(path, opts) { /* ... */ },
+    snapshots: { /* create, list, head, delete, get */ },
+    forks:     { /* create, list, head, delete, get */ },
+  });
+}
+```
+
+`@storagesdk/core/adapter` is the adapter-authoring entry. It exposes:
+
+- `defineAdapter` — wraps your implementation with path normalization (leading slashes stripped, empty paths throw) and recursive wrapping for `snapshots.get` / `forks.get` returns.
+- `Adapter`, `ReadOnlyAdapter`, `AdapterSnapshots`, `AdapterForks` — the contract types.
+- `Manifest` helpers (`emptyManifest`, `readManifest`, `writeManifest`, `nextSnapshotId`, `isInternalKey`, `MANIFEST_PATH`) for copy-based adapters that store snapshot/fork lineage as a sibling location.
+- `checkSignal`, `isAbortError`, `bridgeSignalToController` — abort-handling helpers (Web `AbortSignal` → SDK `AbortController` bridge with listener cleanup).
+- `toWebStream`, `readStreamToBytes` — stream utilities.
+
+### Verifying your adapter
+
+Drop in the conformance test suite:
+
+```sh
+npm install --save-dev vitest @storagesdk/adapters
+```
+
+```ts
+// my-adapter.test.ts
+import { storageAdapterTestSuite } from '@storagesdk/adapters/test-suite';
+import { myAdapter } from './my-adapter.js';
+
+storageAdapterTestSuite({
+  name: 'my-adapter',
+  adapter: () => myAdapter({ /* config */ }),
+});
+```
+
+The suite runs the cross-adapter behavioral tests (upload round-trip, NotFound on missing keys, snapshots/forks contract, AbortSignal short-circuit, etc.) against your adapter. Tests it fails are gaps you need to close.
+
+## Contributing
+
+See [`AGENTS.md`](./AGENTS.md) for development setup, gates (lint / typecheck / build / test), and the design decisions that aren't up for re-litigation.
+
+## License
+
+[Apache 2.0](./LICENSE).
