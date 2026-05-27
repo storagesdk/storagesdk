@@ -239,9 +239,12 @@ function impl(
       try {
         const src = container.getBlockBlobClient(from);
         const dst = container.getBlockBlobClient(to);
-        await dst.syncCopyFromURL(sasSourceUrl(src.url, bucket, from, credential), {
-          ...(opts?.signal ? { abortSignal: opts.signal } : {}),
-        });
+        await dst.syncCopyFromURL(
+          sasSourceUrl(src.url, bucket, from, credential),
+          {
+            ...(opts?.signal ? { abortSignal: opts.signal } : {}),
+          }
+        );
       } catch (err) {
         throw asStorageError(err);
       }
@@ -252,9 +255,12 @@ function impl(
       try {
         const src = container.getBlockBlobClient(from);
         const dst = container.getBlockBlobClient(to);
-        await dst.syncCopyFromURL(sasSourceUrl(src.url, bucket, from, credential), {
-          ...(opts?.signal ? { abortSignal: opts.signal } : {}),
-        });
+        await dst.syncCopyFromURL(
+          sasSourceUrl(src.url, bucket, from, credential),
+          {
+            ...(opts?.signal ? { abortSignal: opts.signal } : {}),
+          }
+        );
         // Copy succeeded — see the delete through unconditionally,
         // same pattern as the S3 adapter, so a mid-move abort doesn't
         // leave both src and dst.

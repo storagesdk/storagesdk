@@ -414,7 +414,11 @@ export function storageAdapterTestSuite<Raw = unknown>(
       });
     });
 
-    describe('snapshots', () => {
+    // Snapshot/fork creation involves new bucket/container creation on
+    // copy-based cloud adapters (s3, r2, azure, gcs). GCS in particular
+    // takes 5-15s per bucket plus propagation delay. Bump the per-test
+    // timeout for the whole block so cloud runs don't flake.
+    describe('snapshots', { timeout: 30_000 }, () => {
       it('snapshot reads stay frozen after live writes', async () => {
         await ctx.upload('s.txt', 'before');
         const info = await ctx.snapshots.create({ name: 'baseline' });
@@ -464,7 +468,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
       });
     });
 
-    describe('forks', () => {
+    describe('forks', { timeout: 30_000 }, () => {
       it('a fork seeded from a snapshot starts at the snapshot state', async () => {
         await ctx.upload('photo.jpg', 'original');
         const snap = await ctx.snapshots.create();
@@ -527,11 +531,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
         ).rejects.toMatchObject({ code: 'NotFound' });
       });
 
-      // Several bucket creates + cross-bucket copies in copy-based adapters.
-      // The default 5s vitest timeout is too tight for this chain.
-      it('a fork can be snapshotted independently of its parent', {
-        timeout: 30_000,
-      }, async () => {
+      it('a fork can be snapshotted independently of its parent', async () => {
         await ctx.upload('a.jpg', 'a');
         const snap = await ctx.snapshots.create();
         const name = ctx.forkName('child');
