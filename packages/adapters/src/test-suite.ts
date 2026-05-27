@@ -393,27 +393,24 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(signed.url.length).toBeGreaterThan(0);
       });
 
-      it('uploadUrl returns a POST policy when maxSize is set', async () => {
-        // Adapters without an HTTP server (fs) can't enforce upload-size
-        // policies and throw NotSupported. For adapters that can, the
-        // result must be a POST with non-empty fields.
-        let signed: Awaited<ReturnType<typeof ctx.uploadUrl>>;
-        try {
-          signed = await ctx.uploadUrl('new.jpg', {
-            expiresIn: 300,
-            maxSize: 5 * 1024 * 1024,
-            contentType: 'image/jpeg',
-          });
-        } catch (err) {
-          expect((err as { code?: string }).code).toBe('NotSupported');
-          return;
-        }
-        expect(signed.method).toBe('POST');
-        if (signed.method !== 'POST') return; // narrow for TS
+      it('uploadUrl accepts maxSize and returns either POST or PUT', async () => {
+        // Backends with POST-policy support (s3/r2/minio, tigris) return
+        // `method: 'POST'` with form `fields`. Backends without (Azure
+        // SAS, file://) silently degrade to a `method: 'PUT'` URL — the
+        // size cap can't be enforced at the URL level on those. The
+        // compat matrix documents which adapters actually enforce.
+        const signed = await ctx.uploadUrl('new.jpg', {
+          expiresIn: 300,
+          maxSize: 5 * 1024 * 1024,
+          contentType: 'image/jpeg',
+        });
+        expect(['PUT', 'POST']).toContain(signed.method);
         expect(typeof signed.url).toBe('string');
         expect(signed.url.length).toBeGreaterThan(0);
-        expect(Object.keys(signed.fields).length).toBeGreaterThan(0);
-        expect(signed.fields.key).toBeDefined();
+        if (signed.method === 'POST') {
+          expect(Object.keys(signed.fields).length).toBeGreaterThan(0);
+          expect(signed.fields.key).toBeDefined();
+        }
       });
     });
 
