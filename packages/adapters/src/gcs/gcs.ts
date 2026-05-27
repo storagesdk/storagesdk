@@ -78,10 +78,41 @@ export function gcs(config: GcsConfig): Adapter<GcsStorage> {
       ? { apiEndpoint: config.apiEndpoint }
       : {}),
   });
-  return defineAdapter<GcsStorage>(impl(client, config.bucket));
+
+  // Lazy, once-per-adapter cache of the source bucket's location.
+  // Snapshot/fork creation needs this so siblings land in the same
+  // location as the parent (GCS defaults to `US` multi-region when
+  // `location` is unset). Built here so each user-facing adapter
+  // makes the call at most once; sub-impls (snapshot readers, fork
+  // adapters) receive the same shared promise.
+  const sourceBucket = client.bucket(config.bucket);
+  let locationPromise: Promise<string | undefined> | undefined;
+  const getSourceLocation = (): Promise<string | undefined> => {
+    if (locationPromise === undefined) {
+      locationPromise = (async () => {
+        try {
+          const [meta] = await sourceBucket.getMetadata();
+          return typeof meta.location === 'string' ? meta.location : undefined;
+        } catch {
+          // If we can't read the source bucket's metadata, fall back to
+          // GCS defaults — better to attempt creation than fail upfront.
+          return undefined;
+        }
+      })();
+    }
+    return locationPromise;
+  };
+
+  return defineAdapter<GcsStorage>(
+    impl(client, config.bucket, getSourceLocation)
+  );
 }
 
-function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
+function impl(
+  client: GcsStorage,
+  bucketName: string,
+  getSourceLocation: () => Promise<string | undefined>
+): Adapter<GcsStorage> {
   const bucket = client.bucket(bucketName);
 
   return {
@@ -314,16 +345,16 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
       async create(opts): Promise<SnapshotInfo> {
         checkSignal(opts?.signal);
         const id = nextSnapshotId(bucketName);
-        await createSibling(client, id);
+        await createSibling(client, id, await getSourceLocation());
         try {
           await copyAllFiles(client, bucketName, id);
-          const snapImpl = impl(client, id);
+          const snapImpl = impl(client, id, getSourceLocation);
           await writeManifest(
             snapImpl,
             emptyManifest({ location: bucketName, snapshotId: null })
           );
 
-          const thisImpl = impl(client, bucketName);
+          const thisImpl = impl(client, bucketName, getSourceLocation);
           const meta = await readManifest(thisImpl);
           const info: SnapshotInfo = {
             id,
@@ -340,13 +371,13 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
       },
 
       async list(): Promise<SnapshotInfo[]> {
-        const thisImpl = impl(client, bucketName);
+        const thisImpl = impl(client, bucketName, getSourceLocation);
         return (await readManifest(thisImpl)).snapshots;
       },
 
       async head(id, opts): Promise<SnapshotInfo> {
         checkSignal(opts?.signal);
-        const thisImpl = impl(client, bucketName);
+        const thisImpl = impl(client, bucketName, getSourceLocation);
         const meta = await readManifest(thisImpl);
         const found = meta.snapshots.find((s) => s.id === id);
         if (!found) {
@@ -360,7 +391,7 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
 
       async delete(id, opts): Promise<void> {
         checkSignal(opts?.signal);
-        const thisImpl = impl(client, bucketName);
+        const thisImpl = impl(client, bucketName, getSourceLocation);
         const meta = await readManifest(thisImpl);
         meta.snapshots = meta.snapshots.filter((s) => s.id !== id);
         await destroySibling(client, id);
@@ -368,7 +399,7 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
       },
 
       get(id): ReadOnlyAdapter {
-        const snapImpl = impl(client, id);
+        const snapImpl = impl(client, id, getSourceLocation);
         return {
           download: (p, opts) => snapImpl.download(p, opts),
           head: (p, opts) => snapImpl.head(p, opts),
@@ -381,11 +412,11 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
     forks: {
       async create(opts): Promise<ForkInfo> {
         checkSignal(opts.signal);
-        await createSibling(client, opts.name);
+        await createSibling(client, opts.name, await getSourceLocation());
         try {
           const source = opts.fromSnapshot ?? bucketName;
           await copyAllFiles(client, source, opts.name);
-          const forkImpl = impl(client, opts.name);
+          const forkImpl = impl(client, opts.name, getSourceLocation);
           await writeManifest(
             forkImpl,
             emptyManifest({
@@ -394,7 +425,7 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
             })
           );
 
-          const thisImpl = impl(client, bucketName);
+          const thisImpl = impl(client, bucketName, getSourceLocation);
           const meta = await readManifest(thisImpl);
           const info: ForkInfo = {
             name: opts.name,
@@ -413,13 +444,13 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
       },
 
       async list(): Promise<ForkInfo[]> {
-        const thisImpl = impl(client, bucketName);
+        const thisImpl = impl(client, bucketName, getSourceLocation);
         return (await readManifest(thisImpl)).forks;
       },
 
       async head(name, opts): Promise<ForkInfo> {
         checkSignal(opts?.signal);
-        const thisImpl = impl(client, bucketName);
+        const thisImpl = impl(client, bucketName, getSourceLocation);
         const meta = await readManifest(thisImpl);
         const found = meta.forks.find((f) => f.name === name);
         if (!found) {
@@ -433,7 +464,7 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
 
       async delete(name, opts): Promise<void> {
         checkSignal(opts?.signal);
-        const thisImpl = impl(client, bucketName);
+        const thisImpl = impl(client, bucketName, getSourceLocation);
         const meta = await readManifest(thisImpl);
         meta.forks = meta.forks.filter((f) => f.name !== name);
         await destroySibling(client, name);
@@ -441,7 +472,7 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
       },
 
       get(name): Adapter<GcsStorage> {
-        return impl(client, name);
+        return impl(client, name, getSourceLocation);
       },
     },
   };
@@ -449,10 +480,15 @@ function impl(client: GcsStorage, bucketName: string): Adapter<GcsStorage> {
 
 async function createSibling(
   client: GcsStorage,
-  name: string
+  name: string,
+  location: string | undefined
 ): Promise<Bucket> {
   try {
-    const [bucket] = await client.createBucket(name);
+    // GCS defaults to `US` multi-region when `location` is unset.
+    // Passing the source bucket's location keeps siblings co-located.
+    const [bucket] = await client.createBucket(name, {
+      ...(location !== undefined ? { location } : {}),
+    });
     return bucket;
   } catch (err) {
     throw asStorageError(err);
