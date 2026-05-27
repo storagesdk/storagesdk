@@ -9,3 +9,17 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+
+  azurite:
+    # Microsoft's Azure Blob Storage emulator. Listens on 10000 (blob).
+    # Uses the well-known dev account: `devstoreaccount1` / Eby8vdM02x…
+    # (see https://learn.microsoft.com/azure/storage/common/storage-use-azurite).
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: storagesdk-azurite
+    # `--skipApiVersionCheck` because the @azure/storage-blob SDK regularly
+    # ships ahead of the API version Azurite supports. Without this flag,
+    # every request fails with `InvalidHeaderValue` until the Azurite team
+    # cuts a release.
+    command: azurite-blob --blobHost 0.0.0.0 --loose --skipApiVersionCheck
+    ports:
+      - 10000:10000
