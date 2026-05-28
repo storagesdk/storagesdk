@@ -422,20 +422,6 @@ function impl(
     forks: {
       async create(opts): Promise<ForkInfo> {
         checkSignal(opts.signal);
-        // Validate `fromSnapshot` against the parent manifest before
-        // touching GCS. Bogus snapshot ids would otherwise surface as
-        // whatever the SDK throws when the source bucket is missing
-        // (typically `Provider`), violating the cross-adapter contract.
-        if (opts.fromSnapshot !== undefined) {
-          const parent = impl(client, bucketName, getSourceLocation);
-          const parentMeta = await readManifest(parent);
-          if (!parentMeta.snapshots.some((s) => s.id === opts.fromSnapshot)) {
-            throw new StorageError({
-              code: 'NotFound',
-              message: `snapshot ${opts.fromSnapshot} not found`,
-            });
-          }
-        }
         await createSibling(client, opts.name, await getSourceLocation());
         try {
           const source = opts.fromSnapshot ?? bucketName;
