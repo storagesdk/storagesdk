@@ -181,31 +181,38 @@ function impl(
 
     async download(key, opts): Promise<StorageItem> {
       checkSignal(opts?.signal);
-      // Use `'file'` format so body + metadata come from a single request —
-      // avoids the body/metadata mismatch that an interleaved write between
-      // `get` and a separate `head` would cause.
-      const res = await get(key, 'file', { config });
-      const file = unwrap(res);
-      const fullBody = new Uint8Array(await file.arrayBuffer());
-      // `@tigrisdata/storage` doesn't expose byte-range reads on `get`
-      // today; slice the full body when a range is requested. Burns
-      // the egress for a partial read, but preserves the cross-adapter
-      // contract until the SDK adds native range support.
-      const body = opts?.range
-        ? fullBody.slice(
-            opts.range.offset,
-            opts.range.offset + opts.range.length
-          )
-        : fullBody;
+      // `includeMetadata: true` returns `{ body, metadata }` so we get
+      // etag / modified / contentType / userMetadata from the same S3
+      // response (avoids the body/metadata mismatch a separate `head`
+      // would risk). Native `range: { start, end }` is inclusive on
+      // both ends; convert offset/length on the wire.
+      const res = await get(key, 'file', {
+        config,
+        includeMetadata: true,
+        ...(opts?.range !== undefined
+          ? {
+              range: {
+                start: opts.range.offset,
+                end: opts.range.offset + opts.range.length - 1,
+              },
+            }
+          : {}),
+      });
+      const { body: file, metadata } = unwrap(res);
+      const body = new Uint8Array(await file.arrayBuffer());
       return {
         path: key,
-        size: body.byteLength,
-        contentType: file.type || 'application/octet-stream',
-        // Tigris's `get` returns a bare File / ReadableStream — no etag in
-        // the SDK response. Put/Head/List expose it; download doesn't yet.
-        etag: '',
-        lastModified: new Date(file.lastModified),
+        // `metadata.size` is the response body size (matches the slice
+        // for range reads, equals the object size for full reads) —
+        // exactly the cross-adapter contract.
+        size: metadata.size,
+        contentType: metadata.contentType || 'application/octet-stream',
+        etag: metadata.etag,
+        lastModified: metadata.modified,
         body,
+        ...(Object.keys(metadata.userMetadata).length > 0
+          ? { metadata: metadata.userMetadata }
+          : {}),
       };
     },
 
@@ -379,6 +386,19 @@ function impl(
             message: `fork ${opts.name} already exists`,
           });
         }
+        // Validate `fromSnapshot` against `listBucketSnapshots`. Same
+        // reason as the cross-adapter contract: a bogus snapshot id
+        // would otherwise surface as `Provider` from Tigris's
+        // createBucket, breaking parity with fs/s3/gcs/azure/vercel.
+        if (opts.fromSnapshot !== undefined) {
+          const snaps = unwrap(await listBucketSnapshots(bucket, { config }));
+          if (!snaps.snapshots.some((s) => s.version === opts.fromSnapshot)) {
+            throw new StorageError({
+              code: 'NotFound',
+              message: `snapshot ${opts.fromSnapshot} not found`,
+            });
+          }
+        }
         const locations = await getSourceLocations();
         const res = await createBucket(opts.name, {
           sourceBucketName: bucket,
@@ -448,25 +468,33 @@ function snapshotReader(
   return {
     async download(key, opts): Promise<StorageItem> {
       checkSignal(opts?.signal);
-      const res = await get(key, 'file', { config, snapshotVersion });
-      const file = unwrap(res);
-      const fullBody = new Uint8Array(await file.arrayBuffer());
-      // Same slice-fallback as the writable adapter — Tigris SDK
-      // doesn't yet expose range on `get`.
-      const body = opts?.range
-        ? fullBody.slice(
-            opts.range.offset,
-            opts.range.offset + opts.range.length
-          )
-        : fullBody;
+      // Same pattern as the writable adapter — `includeMetadata: true`
+      // for etag/modified/contentType, native `range` for byte slices.
+      const res = await get(key, 'file', {
+        config,
+        snapshotVersion,
+        includeMetadata: true,
+        ...(opts?.range !== undefined
+          ? {
+              range: {
+                start: opts.range.offset,
+                end: opts.range.offset + opts.range.length - 1,
+              },
+            }
+          : {}),
+      });
+      const { body: file, metadata } = unwrap(res);
+      const body = new Uint8Array(await file.arrayBuffer());
       return {
         path: key,
-        size: body.byteLength,
-        contentType: file.type || 'application/octet-stream',
-        // See parent download — Tigris `get` doesn't surface etag yet.
-        etag: '',
-        lastModified: new Date(file.lastModified),
+        size: metadata.size,
+        contentType: metadata.contentType || 'application/octet-stream',
+        etag: metadata.etag,
+        lastModified: metadata.modified,
         body,
+        ...(Object.keys(metadata.userMetadata).length > 0
+          ? { metadata: metadata.userMetadata }
+          : {}),
       };
     },
 
