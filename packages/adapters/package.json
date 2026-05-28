@@ -24,6 +24,10 @@
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
     },
+    "./railway": {
+      "types": "./dist/railway/index.d.ts",
+      "default": "./dist/railway/index.js"
+    },
     "./azure": {
       "types": "./dist/azure/index.d.ts",
       "default": "./dist/azure/index.js"
@@ -69,6 +73,7 @@
     "r2",
     "minio",
     "tigris",
+    "railway",
     "azure",
     "gcs",
     "vercel-blob"
