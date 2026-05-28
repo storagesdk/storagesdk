@@ -9,10 +9,7 @@ interface Props {
 export default function DocsSidebar({ section }: Props) {
   // Stable reference so the scroll-spy effect doesn't tear down its
   // listener every time `setActive` re-renders the component.
-  const ids = useMemo(
-    () => section.sidebar.items.map((i) => i.id),
-    [section]
-  );
+  const ids = useMemo(() => section.sidebar.items.map((i) => i.id), [section]);
   const active = useScrollSpy(ids);
   return (
     <aside className="docs-sidebar">

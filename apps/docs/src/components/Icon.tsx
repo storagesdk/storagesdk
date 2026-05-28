@@ -74,4 +74,3 @@ export function ArrowIcon(p: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-
