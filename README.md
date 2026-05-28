@@ -4,7 +4,7 @@
 [![CI](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml/badge.svg)](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@storagesdk/core)](./LICENSE)
 
-A multi-provider SDK for object storage. One API across S3, Cloudflare R2, MinIO, Azure Blob, Google Cloud Storage, Tigris, and local filesystems — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
+A multi-provider SDK for object storage. One API across S3, Cloudflare R2, MinIO, Azure Blob, Google Cloud Storage, Vercel Blob, Tigris, and local filesystems — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
@@ -51,6 +51,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | MinIO | `@storagesdk/adapters/minio` | [MinIO](https://min.io/). |
 | Azure Blob | `@storagesdk/adapters/azure` | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
 | GCS | `@storagesdk/adapters/gcs` | [Google Cloud Storage](https://cloud.google.com/storage). |
+| Vercel Blob | `@storagesdk/adapters/vercel` | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
 | Tigris | `@storagesdk/adapters/tigris` | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
 
 Each adapter has its own README with config details, escape-hatch examples, and any backend-specific notes. See `packages/adapters/src/<adapter>/README.md`.
@@ -170,6 +171,24 @@ await storage.uploadUrl('new.jpg', { expiresIn: 300 });      // PUT URL + method
 const stream = await storage.download('large.mp4', { as: 'stream' });
 // Web ReadableStream<Uint8Array>
 ```
+
+### Byte-range reads
+
+```ts
+// Fetch a slice instead of the full object.
+const item = await storage.download('video.mp4', {
+  range: { offset: 0, length: 65_536 },
+});
+item.size; // 65536 — the slice length, not the full-object size
+
+// Combines with the `as` overloads.
+const bytes = await storage.download('big.bin', {
+  as: 'bytes',
+  range: { offset: 4096, length: 1024 },
+});
+```
+
+Maps to each backend's native range API (`Range: bytes=N-M` for S3-family, `download(offset, count)` for Azure, `createReadStream({ start, end })` for GCS, the `Range` header on Vercel). `range` past EOF returns the bytes that exist — matches HTTP `Range` semantics.
 
 ### AbortSignal
 

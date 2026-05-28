@@ -28,6 +28,10 @@
       "types": "./dist/fly/index.d.ts",
       "default": "./dist/fly/index.js"
     },
+    "./railway": {
+      "types": "./dist/railway/index.d.ts",
+      "default": "./dist/railway/index.js"
+    },
     "./azure": {
       "types": "./dist/azure/index.d.ts",
       "default": "./dist/azure/index.js"
@@ -35,6 +39,10 @@
     "./gcs": {
       "types": "./dist/gcs/index.d.ts",
       "default": "./dist/gcs/index.js"
+    },
+    "./vercel": {
+      "types": "./dist/vercel/index.d.ts",
+      "default": "./dist/vercel/index.js"
     },
     "./test-suite": {
       "types": "./dist/test-suite.d.ts",
@@ -70,8 +78,10 @@
     "minio",
     "tigris",
     "fly",
+    "railway",
     "azure",
-    "gcs"
+    "gcs",
+    "vercel-blob"
   ],
   "author": "",
   "license": "Apache-2.0",
@@ -93,7 +103,8 @@
     "@aws-sdk/s3-request-presigner": "^3.0.0",
     "@azure/storage-blob": "^12.0.0",
     "@google-cloud/storage": "^7.0.0",
-    "@tigrisdata/storage": "^3.10.0",
+    "@tigrisdata/storage": "^3.11.0",
+    "@vercel/blob": "^2.3.0",
     "vitest": "^4.0.0"
   },
   "peerDependenciesMeta": {
@@ -118,6 +129,9 @@
     "@tigrisdata/storage": {
       "optional": true
     },
+    "@vercel/blob": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     }
@@ -129,6 +143,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1053.0",
     "@azure/storage-blob": "^12.31.0",
     "@google-cloud/storage": "^7.19.0",
-    "@tigrisdata/storage": "^3.10.0"
+    "@tigrisdata/storage": "^3.11.0",
+    "@vercel/blob": "^2.4.0"
   }
 }

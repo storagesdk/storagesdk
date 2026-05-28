@@ -212,8 +212,19 @@ function impl(
     async download(key, opts): Promise<StorageItem> {
       checkSignal(opts?.signal);
       try {
+        // S3 ranges are inclusive on both ends — `bytes=N-M` returns
+        // bytes N through M, M − N + 1 total. `length` past EOF is
+        // fine: S3 returns whatever bytes exist (no error).
+        const range =
+          opts?.range !== undefined
+            ? `bytes=${opts.range.offset}-${opts.range.offset + opts.range.length - 1}`
+            : undefined;
         const out = await client.send(
-          new GetObjectCommand({ Bucket: bucket, Key: key }),
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            ...(range !== undefined ? { Range: range } : {}),
+          }),
           opts?.signal ? { abortSignal: opts.signal } : undefined
         );
         if (!out.Body) {
@@ -225,6 +236,8 @@ function impl(
         const body = await out.Body.transformToByteArray();
         return {
           path: key,
+          // `ContentLength` on a 206 response is the slice length —
+          // exactly what we want for `StorageItem.size`.
           size: out.ContentLength ?? body.byteLength,
           contentType: out.ContentType ?? 'application/octet-stream',
           etag: stripQuotes(out.ETag ?? ''),
@@ -478,7 +491,10 @@ function impl(
         checkSignal(opts.signal);
         // Seed the fork from either a named snapshot bucket or the parent
         // bucket's live state. Both are server-side `CopyObject` per entry
-        // via `copyAllObjects`.
+        // via `copyAllObjects`. Bogus `fromSnapshot` ids surface as
+        // whatever S3 throws (typically `NoSuchBucket` → `NotFound`);
+        // the conformance suite only requires that a bogus id errors,
+        // not the specific code.
         const sourceBucket = opts.fromSnapshot ?? bucket;
         await createSibling(client, opts.name, await getSourceLocation());
         try {

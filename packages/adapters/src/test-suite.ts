@@ -1,4 +1,4 @@
-import { Storage } from '@storagesdk/core';
+import { Storage, StorageError } from '@storagesdk/core';
 import type { Adapter, ReadOnlyAdapter } from '@storagesdk/core/adapter';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -28,6 +28,13 @@ export interface StorageAdapterTestSuiteOptions<Raw = unknown> {
    * this to false — its `url()` returns `file://` URLs.
    */
   httpSignedUrls?: boolean;
+  /**
+   * Whether the backend preserves user metadata on upload (`metadata`
+   * option round-trips through `head` and `download`). Defaults to
+   * true. The Vercel Blob adapter sets this to false — Vercel Blob
+   * has no user-metadata concept and silently drops the field.
+   */
+  metadata?: boolean;
 }
 
 export interface SetupTestStorageOptions {
@@ -297,15 +304,32 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(item.size).toBe(12);
       });
 
-      it('preserves contentType and metadata', async () => {
+      it('preserves contentType', async () => {
         await ctx.upload('photo.jpg', 'bytes', {
           contentType: 'image/jpeg',
-          metadata: { author: 'alice' },
         });
         const meta = await ctx.head('photo.jpg');
         expect(meta.contentType).toBe('image/jpeg');
-        expect(meta.metadata?.author).toBe('alice');
       });
+
+      // Adapters whose backend has a user-metadata field round-trip it
+      // through `head`. Vercel Blob has no such field — opts out via
+      // `metadata: false`. We still register a skipped test so the
+      // skip is visible in test output rather than silently absent.
+      const metadataIt = opts.metadata === false ? it.skip : it;
+      metadataIt(
+        opts.metadata === false
+          ? 'preserves user metadata (skipped: backend has no metadata field)'
+          : 'preserves user metadata',
+        async () => {
+          await ctx.upload('photo.jpg', 'bytes', {
+            contentType: 'image/jpeg',
+            metadata: { author: 'alice' },
+          });
+          const meta = await ctx.head('photo.jpg');
+          expect(meta.metadata?.author).toBe('alice');
+        }
+      );
 
       it('throws NotFound for missing keys', async () => {
         await expect(ctx.download('missing.jpg')).rejects.toMatchObject({
@@ -314,6 +338,63 @@ export function storageAdapterTestSuite<Raw = unknown>(
         await expect(ctx.head('missing.jpg')).rejects.toMatchObject({
           code: 'NotFound',
         });
+      });
+    });
+
+    describe('byte-range reads', () => {
+      // Use a 32-byte alphabet so slice boundaries are easy to eyeball
+      // in test output if any of these fail.
+      const ALPHABET = 'abcdefghijklmnopqrstuvwxyz012345';
+
+      it('reads a middle slice', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const item = await ctx.download('alphabet.txt', {
+          range: { offset: 5, length: 10 },
+        });
+        expect(bodyText(item)).toBe('fghijklmno');
+        expect(item.size).toBe(10);
+      });
+
+      it('reads from offset 0', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const item = await ctx.download('alphabet.txt', {
+          range: { offset: 0, length: 4 },
+        });
+        expect(bodyText(item)).toBe('abcd');
+        expect(item.size).toBe(4);
+      });
+
+      it('returns what exists when length runs past EOF', async () => {
+        // 32-byte body, request 100 starting at byte 28 → only 4 left.
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const item = await ctx.download('alphabet.txt', {
+          range: { offset: 28, length: 100 },
+        });
+        expect(bodyText(item)).toBe('2345');
+        expect(item.size).toBe(4);
+      });
+
+      it('range works with `as: bytes`', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const bytes = await ctx.download('alphabet.txt', {
+          as: 'bytes',
+          range: { offset: 10, length: 5 },
+        });
+        expect(new TextDecoder().decode(bytes)).toBe('klmno');
+      });
+
+      it('rejects negative offset with InvalidArgument', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        await expect(
+          ctx.download('alphabet.txt', { range: { offset: -1, length: 4 } })
+        ).rejects.toMatchObject({ code: 'InvalidArgument' });
+      });
+
+      it('rejects zero length with InvalidArgument', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        await expect(
+          ctx.download('alphabet.txt', { range: { offset: 0, length: 0 } })
+        ).rejects.toMatchObject({ code: 'InvalidArgument' });
       });
     });
 
@@ -581,6 +662,22 @@ export function storageAdapterTestSuite<Raw = unknown>(
         await expect(
           ctx.forks.create({ name, fromSnapshot: snap.id })
         ).rejects.toMatchObject({ code: 'Conflict' });
+      });
+
+      it('forks.create with an unknown fromSnapshot fails (no silent success)', async () => {
+        // The original failure mode this pins down was Vercel silently
+        // creating an empty fork when `fromSnapshot` didn't exist.
+        // Different adapters surface this as different codes — some
+        // explicit `NotFound`, some `Provider` from the underlying
+        // backend's NoSuchBucket / similar — so the contract is
+        // "throws *something*", not a specific code. Anything is
+        // better than the empty-fork-with-no-record case.
+        await expect(
+          ctx.forks.create({
+            name: ctx.forkName('orphan'),
+            fromSnapshot: 'does-not-exist',
+          })
+        ).rejects.toBeInstanceOf(StorageError);
       });
 
       it('forks can be listed, inspected, and deleted', async () => {

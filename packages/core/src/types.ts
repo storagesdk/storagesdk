@@ -30,6 +30,36 @@ export interface ListResult {
   cursor?: string;
 }
 
+/**
+ * A half-open byte range, in offset/length form. We use offset+length
+ * rather than start/end because every interop point that hits a `range`
+ * is a different convention on the end bound — HTTP's `Range: bytes=N-M`
+ * is inclusive, JS `Array.slice(start, end)` is exclusive,
+ * `fs.createReadStream({ start, end })` is inclusive. Offset+length has
+ * no ambiguity.
+ *
+ * - `offset >= 0` — first byte to read, 0-based.
+ * - `length >  0` — number of bytes to read.
+ *
+ * If `offset + length` extends past the end of the object, the adapter
+ * returns whatever bytes exist (no error) — matches HTTP Range semantics.
+ * `offset` beyond end-of-object surfaces as the backend's range error
+ * (typically `Provider` or `InvalidArgument`).
+ */
+export interface ByteRange {
+  offset: number;
+  length: number;
+}
+
+/**
+ * Options for `download`. `range` requests a slice of the object;
+ * `signal` short-circuits an in-flight read.
+ */
+export interface DownloadOptions {
+  signal?: AbortSignal;
+  range?: ByteRange;
+}
+
 export interface UploadOptions {
   contentType?: string;
   cacheControl?: string;

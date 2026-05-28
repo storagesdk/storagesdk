@@ -128,7 +128,12 @@ function impl(
       checkSignal(opts?.signal);
       const blob = container.getBlockBlobClient(key);
       try {
-        const res = await blob.download(0, undefined, {
+        // Azure's `download(offset, count)` is the native range API.
+        // Passing `count: undefined` reads to end-of-blob; passing a
+        // count past EOF returns whatever bytes exist.
+        const offset = opts?.range?.offset ?? 0;
+        const count = opts?.range?.length;
+        const res = await blob.download(offset, count, {
           ...(opts?.signal ? { abortSignal: opts.signal } : {}),
         });
         const stream = res.readableStreamBody;
