@@ -24,6 +24,10 @@
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
     },
+    "./fly": {
+      "types": "./dist/fly/index.d.ts",
+      "default": "./dist/fly/index.js"
+    },
     "./railway": {
       "types": "./dist/railway/index.d.ts",
       "default": "./dist/railway/index.js"
@@ -73,6 +77,7 @@
     "r2",
     "minio",
     "tigris",
+    "fly",
     "railway",
     "azure",
     "gcs",
