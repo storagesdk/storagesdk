@@ -1,0 +1,24 @@
+# Static-file server for the Astro build output.
+# Listens on :8080 (Fly's internal port); Fly's edge handles TLS.
+
+:8080 {
+	root * /usr/share/caddy
+
+	encode zstd gzip
+
+	# Astro writes pages as `/<route>/index.html`. Resolve both the
+	# directory form (`/get-started/`) and the bare form
+	# (`/get-started`) by trying the index.html fallback.
+	try_files {path} {path}/ {path}.html {path}/index.html =404
+	file_server
+
+	# Astro fingerprints assets under /_astro/, so they can cache
+	# forever without staleness risk.
+	@assets path /_astro/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	# HTML responses should always revalidate so a fresh build is
+	# visible immediately.
+	@html path *.html /
+	header @html Cache-Control "public, max-age=0, must-revalidate"
+}
