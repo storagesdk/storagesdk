@@ -1,4 +1,5 @@
 ---
+import { ClientRouter } from 'astro:transitions';
 import '../styles/global.css';
 import { inlineThemeScript } from '../lib/theme';
 
@@ -22,6 +23,11 @@ const { title, description } = Astro.props;
 
   {/* Read persisted theme before first paint to avoid a flash. */}
   <script is:inline set:html={inlineThemeScript} />
+
+  {/* SPA-style page swaps so the Nav and Footer don't re-mount on
+      every navigation. Marked elements with transition:persist below
+      keep the same DOM node across routes. */}
+  <ClientRouter />
 </head>
 <body>
   <slot />

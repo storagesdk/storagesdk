@@ -57,7 +57,7 @@
   --r-lg: 14px;
   --r-xl: 20px;
 
-  --maxw: 1120px;
+  --maxw: 1240px;
 }
 
 [data-theme="dark"] {
@@ -100,6 +100,13 @@ html,
 body {
   margin: 0;
   padding: 0;
+}
+
+/* Reserve scrollbar space even on pages short enough not to need one,
+   so navigation between short and long pages doesn't reflow the
+   centered containers (nav, footer, content) by ~15px. */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -1651,7 +1658,7 @@ h1.headline em::after {
 .docs-layout {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
-  max-width: 1240px;
+  max-width: var(--maxw);
   margin: 0 auto;
   padding: 0 28px;
   gap: 64px;

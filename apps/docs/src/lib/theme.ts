@@ -8,16 +8,26 @@ export type Theme = 'light' | 'dark';
 
 /**
  * Inline `<script>` body to drop into `<head>` before any visible
- * content. Reads the persisted theme synchronously so the first paint
- * matches the user's last choice (no flash of unstyled content).
+ * content. Reads the persisted theme synchronously on first paint and
+ * re-applies it on every Astro view-transition swap (the incoming
+ * document comes back with the source default each time).
  */
 export const inlineThemeScript = `
-try {
-  const stored = localStorage.getItem(${JSON.stringify(THEME_KEY)});
-  if (stored === "light" || stored === "dark") {
-    document.documentElement.setAttribute("data-theme", stored);
+(function () {
+  var KEY = ${JSON.stringify(THEME_KEY)};
+  function apply(doc) {
+    try {
+      var stored = localStorage.getItem(KEY);
+      if (stored === "light" || stored === "dark") {
+        doc.documentElement.setAttribute("data-theme", stored);
+      }
+    } catch (e) {}
   }
-} catch (e) {}
+  apply(document);
+  document.addEventListener("astro:before-swap", function (e) {
+    apply(e.newDocument);
+  });
+})();
 `.trim();
 
 export function readTheme(): Theme {
