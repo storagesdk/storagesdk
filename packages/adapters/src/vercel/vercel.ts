@@ -468,6 +468,19 @@ function impl(
             message: `fork ${opts.name} already exists`,
           });
         }
+        // Validate `fromSnapshot` against the manifest — without this
+        // check a bogus snapshot id would silently produce an empty
+        // fork referencing nothing. Other adapters (fs, s3, gcs, etc.)
+        // reject; match that.
+        if (
+          opts.fromSnapshot !== undefined &&
+          !existing.snapshots.some((s) => s.id === opts.fromSnapshot)
+        ) {
+          throw new StorageError({
+            code: 'NotFound',
+            message: `snapshot ${opts.fromSnapshot} not found`,
+          });
+        }
         const source = opts.fromSnapshot ?? bucketName;
         try {
           await copyAllBlobs(raw, source, opts.name, opts.signal, tokenSpread);

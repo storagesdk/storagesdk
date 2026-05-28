@@ -607,6 +607,15 @@ export function storageAdapterTestSuite<Raw = unknown>(
         ).rejects.toMatchObject({ code: 'Conflict' });
       });
 
+      it('forks.create with an unknown fromSnapshot throws NotFound', async () => {
+        await expect(
+          ctx.forks.create({
+            name: ctx.forkName('orphan'),
+            fromSnapshot: 'does-not-exist',
+          })
+        ).rejects.toMatchObject({ code: 'NotFound' });
+      });
+
       it('forks can be listed, inspected, and deleted', async () => {
         await ctx.upload('a.jpg', 'a');
         const snap = await ctx.snapshots.create();
