@@ -1,0 +1,44 @@
+---
+import DocsSidebar from '../components/docs/DocsSidebar';
+import OnThisPage from '../components/docs/OnThisPage';
+import Footer from '../components/Footer';
+import Nav from '../components/Nav';
+import { SECTIONS, type SectionId } from '../lib/sections';
+import Base from './Base.astro';
+
+interface Props {
+  /** Frontmatter from the MDX entry. */
+  section: SectionId;
+  title: string;
+  description: string;
+  eyebrow: string;
+  next?: { href: string; title: string } | undefined;
+}
+
+const { section, title, description, eyebrow, next } = Astro.props;
+const cfg = SECTIONS[section];
+---
+<Base title={`${title} · storagesdk`} description={description}>
+  <Nav client:load current={section} />
+  <div class="docs-layout">
+    <DocsSidebar client:load section={cfg} />
+    <article class="docs-main">
+      <div class="docs-eyebrow">{eyebrow}</div>
+      <h1 class="docs-h1">{title}</h1>
+      <slot />
+      {next ? (
+        <>
+          <hr class="docs-rule" />
+          <div class="docs-pagination">
+            <a class="docs-pager docs-pager-next" href={next.href}>
+              <span class="docs-pager-dir">Next</span>
+              <span class="docs-pager-title">{next.title} →</span>
+            </a>
+          </div>
+        </>
+      ) : null}
+    </article>
+    <OnThisPage client:load />
+  </div>
+  <Footer />
+</Base>

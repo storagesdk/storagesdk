@@ -42,6 +42,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "sharp",
       "simple-git-hooks"
     ],
     "overrides": {

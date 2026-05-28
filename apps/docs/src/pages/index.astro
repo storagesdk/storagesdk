@@ -1,0 +1,32 @@
+---
+import AdapterSwitcher from '../components/AdapterSwitcher';
+import CustomAdapterSection from '../components/CustomAdapterSection';
+import Features from '../components/Features';
+import FinalCta from '../components/FinalCta';
+import Footer from '../components/Footer';
+import Hero from '../components/Hero';
+// CLI page/section commented out until @storagesdk/cli ships.
+// import CliSection from '../components/CliSection';
+import InstallSection from '../components/InstallSection';
+import Nav from '../components/Nav';
+import OneVerb from '../components/OneVerb';
+import Primitives from '../components/Primitives';
+import Base from '../layouts/Base.astro';
+---
+<Base
+  title="storagesdk — Snapshots and forks, as primitives."
+  description="A multi-provider TypeScript SDK for object storage across S3, R2, GCS, Azure, MinIO, Tigris, Vercel Blob, and filesystem — with snapshots and forks as core operations."
+>
+  <Nav client:load />
+  <Hero client:load />
+  <AdapterSwitcher client:load />
+  <Primitives client:load />
+  <OneVerb client:load />
+  <Features />
+  <CustomAdapterSection client:load />
+  {/* CliSection hidden from landing until @storagesdk/cli ships. */}
+  {/* <CliSection client:load /> */}
+  <InstallSection client:load />
+  <FinalCta />
+  <Footer />
+</Base>

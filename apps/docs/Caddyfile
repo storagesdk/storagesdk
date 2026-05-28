@@ -1,0 +1,28 @@
+# Static-file server for the Astro build output.
+# Listens on :8080 (Fly's internal port); Fly's edge handles TLS.
+
+:8080 {
+	root * /usr/share/caddy
+
+	encode zstd gzip
+
+	# Astro fingerprints assets under /_astro/, so they're safe to cache
+	# forever. Self-hosted fonts under /fonts/ aren't fingerprinted but
+	# change rarely; long-cache them too.
+	@longCache path /_astro/* /fonts/*
+	header @longCache Cache-Control "public, max-age=31536000, immutable"
+
+	# Everything else — HTML pages (both .html and clean URLs that
+	# resolve to .html via the rewrite below), favicons, etc. — should
+	# always revalidate so a fresh build is visible immediately.
+	# Matching "not the long-cache paths" catches both /get-started and
+	# /get-started/index.html with one rule.
+	@revalidate not path /_astro/* /fonts/*
+	header @revalidate Cache-Control "public, max-age=0, must-revalidate"
+
+	# Astro writes pages as `/<route>/index.html`. Resolve both the
+	# directory form (`/get-started/`) and the bare form
+	# (`/get-started`) by trying the index.html fallback.
+	try_files {path} {path}/ {path}.html {path}/index.html =404
+	file_server
+}

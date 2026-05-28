@@ -1,0 +1,17 @@
+---
+import { getEntry, render } from 'astro:content';
+import DocsLayout from '../layouts/DocsLayout.astro';
+
+const entry = await getEntry('docs', 'adapters');
+if (!entry) throw new Error('Missing docs/adapters.mdx');
+const { Content } = await render(entry);
+---
+<DocsLayout
+  section={entry.data.section}
+  title={entry.data.title}
+  description={entry.data.description}
+  eyebrow={entry.data.eyebrow}
+  next={entry.data.next}
+>
+  <Content />
+</DocsLayout>
