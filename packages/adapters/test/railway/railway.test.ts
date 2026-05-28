@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { storageAdapterTestSuite } from '../../src/test-suite.js';
 import { railway } from '../../src/railway/railway.js';
+import { storageAdapterTestSuite } from '../../src/test-suite.js';
 
 const BUCKET = process.env.RAILWAY_BUCKET;
 const ENDPOINT = process.env.RAILWAY_ENDPOINT;

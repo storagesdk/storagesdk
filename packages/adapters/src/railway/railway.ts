@@ -1,5 +1,5 @@
 import type { Adapter } from '@storagesdk/core/adapter';
-import { tigris, type TigrisConfig, type TigrisRaw } from '../tigris/tigris.js';
+import { type TigrisConfig, type TigrisRaw, tigris } from '../tigris/tigris.js';
 
 export interface RailwayConfig extends TigrisConfig {}
 
