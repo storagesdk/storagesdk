@@ -169,6 +169,15 @@ function impl(
         // CDN (public) or the auth'd origin (private). It returns null
         // for 304 responses — we don't send `ifNoneMatch`, so 200 is
         // the only path we hit on success.
+        // Range requests go through Vercel's `headers` passthrough on
+        // `get` — the CDN/origin honors `Range: bytes=N-M` like any
+        // HTTP server. The response stream contains just the slice.
+        const rangeHeader =
+          opts?.range !== undefined
+            ? {
+                Range: `bytes=${opts.range.offset}-${opts.range.offset + opts.range.length - 1}`,
+              }
+            : undefined;
         const res = await get(bucketKey(bucketName, key), {
           access: raw.access,
           // The SDK contract is read-your-writes — writes that just
@@ -179,9 +188,14 @@ function impl(
           // bypasses the CDN; it's effective for private blobs and a
           // no-op for public ones (documented caveat in the README).
           useCache: false,
+          ...(rangeHeader !== undefined ? { headers: rangeHeader } : {}),
           ...(opts?.signal ? { abortSignal: opts.signal } : {}),
           ...tokenSpread,
         });
+        // `@vercel/blob` normalizes any non-304 HTTP status to
+        // `statusCode: 200` in `GetBlobResult` (incl. 206 Partial
+        // Content for range responses), so the 200 check is the
+        // success path for both full and range reads.
         if (res === null || res.statusCode !== 200) {
           throw new StorageError({
             code: 'NotFound',
@@ -191,7 +205,11 @@ function impl(
         const body = await readStreamToBytes(res.stream);
         return {
           path: key,
-          size: res.blob.size,
+          // `res.blob.size` is the full-object size from blob metadata;
+          // on a range response that doesn't match what's in `body`.
+          // Use the actual bytes returned so `StorageItem.size`
+          // reflects the slice — matches the cross-adapter contract.
+          size: body.byteLength,
           contentType: res.blob.contentType,
           etag: res.blob.etag,
           lastModified: res.blob.uploadedAt,

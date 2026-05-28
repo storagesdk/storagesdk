@@ -172,6 +172,24 @@ const stream = await storage.download('large.mp4', { as: 'stream' });
 // Web ReadableStream<Uint8Array>
 ```
 
+### Byte-range reads
+
+```ts
+// Fetch a slice instead of the full object.
+const item = await storage.download('video.mp4', {
+  range: { offset: 0, length: 65_536 },
+});
+item.size; // 65536 — the slice length, not the full-object size
+
+// Combines with the `as` overloads.
+const bytes = await storage.download('big.bin', {
+  as: 'bytes',
+  range: { offset: 4096, length: 1024 },
+});
+```
+
+Maps to each backend's native range API (`Range: bytes=N-M` for S3-family, `download(offset, count)` for Azure, `createReadStream({ start, end })` for GCS, the `Range` header on Vercel). `range` past EOF returns the bytes that exist — matches HTTP `Range` semantics.
+
 ### AbortSignal
 
 ```ts

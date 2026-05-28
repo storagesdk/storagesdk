@@ -341,6 +341,63 @@ export function storageAdapterTestSuite<Raw = unknown>(
       });
     });
 
+    describe('byte-range reads', () => {
+      // Use a 32-byte alphabet so slice boundaries are easy to eyeball
+      // in test output if any of these fail.
+      const ALPHABET = 'abcdefghijklmnopqrstuvwxyz012345';
+
+      it('reads a middle slice', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const item = await ctx.download('alphabet.txt', {
+          range: { offset: 5, length: 10 },
+        });
+        expect(bodyText(item)).toBe('fghijklmno');
+        expect(item.size).toBe(10);
+      });
+
+      it('reads from offset 0', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const item = await ctx.download('alphabet.txt', {
+          range: { offset: 0, length: 4 },
+        });
+        expect(bodyText(item)).toBe('abcd');
+        expect(item.size).toBe(4);
+      });
+
+      it('returns what exists when length runs past EOF', async () => {
+        // 32-byte body, request 100 starting at byte 28 → only 4 left.
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const item = await ctx.download('alphabet.txt', {
+          range: { offset: 28, length: 100 },
+        });
+        expect(bodyText(item)).toBe('2345');
+        expect(item.size).toBe(4);
+      });
+
+      it('range works with `as: bytes`', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        const bytes = await ctx.download('alphabet.txt', {
+          as: 'bytes',
+          range: { offset: 10, length: 5 },
+        });
+        expect(new TextDecoder().decode(bytes)).toBe('klmno');
+      });
+
+      it('rejects negative offset with InvalidArgument', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        await expect(
+          ctx.download('alphabet.txt', { range: { offset: -1, length: 4 } })
+        ).rejects.toMatchObject({ code: 'InvalidArgument' });
+      });
+
+      it('rejects zero length with InvalidArgument', async () => {
+        await ctx.upload('alphabet.txt', ALPHABET);
+        await expect(
+          ctx.download('alphabet.txt', { range: { offset: 0, length: 0 } })
+        ).rejects.toMatchObject({ code: 'InvalidArgument' });
+      });
+    });
+
     describe('list, delete, copy, move', () => {
       it('deletes a key', async () => {
         await ctx.upload('photo.jpg', 'bytes');
