@@ -476,6 +476,20 @@ function impl(
     forks: {
       async create(opts): Promise<ForkInfo> {
         checkSignal(opts.signal);
+        // Validate `fromSnapshot` against the parent manifest. Without
+        // this check, copying from a bogus snapshot id surfaces as
+        // whatever the SDK happens to throw (typically `Provider`
+        // when the source bucket doesn't exist) instead of the
+        // cross-adapter `NotFound`.
+        if (opts.fromSnapshot !== undefined) {
+          const parentMeta = await manifest.read(client, bucket);
+          if (!parentMeta.snapshots.some((s) => s.id === opts.fromSnapshot)) {
+            throw new StorageError({
+              code: 'NotFound',
+              message: `snapshot ${opts.fromSnapshot} not found`,
+            });
+          }
+        }
         // Seed the fork from either a named snapshot bucket or the parent
         // bucket's live state. Both are server-side `CopyObject` per entry
         // via `copyAllObjects`.

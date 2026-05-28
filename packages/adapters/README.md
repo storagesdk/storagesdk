@@ -18,6 +18,7 @@ Each backend's SDK is an optional peer dependency. Install only the SDKs for ada
 | MinIO | [`@storagesdk/adapters/minio`](./src/minio/README.md) | [MinIO](https://min.io/). |
 | Azure Blob | [`@storagesdk/adapters/azure`](./src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
 | GCS | [`@storagesdk/adapters/gcs`](./src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
+| Vercel Blob | [`@storagesdk/adapters/vercel`](./src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
 | Tigris | [`@storagesdk/adapters/tigris`](./src/tigris/README.md) | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
 
 ## Snapshots and forks
@@ -29,5 +30,3 @@ See each adapter's README for the specifics — naming convention, what the mani
 ## Conformance suite
 
 `@storagesdk/adapters/test-suite` exports the cross-adapter behavioral suite (upload round-trip, NotFound semantics, snapshot/fork contract, AbortSignal short-circuit, etc.). Drop it into your own adapter's test file to verify you're spec-compliant. See the top-level README's "Authoring adapters" section for details.
-
-> Status: pre-release. See `docs/RFC.md` and `docs/PLAN.md` at the repo root.

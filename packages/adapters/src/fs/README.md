@@ -83,7 +83,7 @@ Keys containing `..` segments that resolve outside the adapter's folder are reje
 
 ## Snapshots and forks
 
-Both follow the SDK's [sibling-location convention](../../../../docs/RFC.md#snapshot-and-fork-convention) — each snapshot/fork is a **sibling folder** under `<root>` with its own `.storagesdk.metadata.json`. `snapshots.list()` and `forks.list()` read the parent's manifest.
+Both follow the SDK's sibling-location convention — each snapshot/fork is a **sibling folder** under `<root>` with its own `.storagesdk.metadata.json`. `snapshots.list()` and `forks.list()` read the parent's manifest.
 
 ### How creation works
 

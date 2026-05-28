@@ -32,6 +32,10 @@
       "types": "./dist/gcs/index.d.ts",
       "default": "./dist/gcs/index.js"
     },
+    "./vercel": {
+      "types": "./dist/vercel/index.d.ts",
+      "default": "./dist/vercel/index.js"
+    },
     "./test-suite": {
       "types": "./dist/test-suite.d.ts",
       "default": "./dist/test-suite.js"
@@ -66,7 +70,8 @@
     "minio",
     "tigris",
     "azure",
-    "gcs"
+    "gcs",
+    "vercel-blob"
   ],
   "author": "",
   "license": "Apache-2.0",
@@ -89,6 +94,7 @@
     "@azure/storage-blob": "^12.0.0",
     "@google-cloud/storage": "^7.0.0",
     "@tigrisdata/storage": "^3.10.0",
+    "@vercel/blob": "^2.3.0",
     "vitest": "^4.0.0"
   },
   "peerDependenciesMeta": {
@@ -113,6 +119,9 @@
     "@tigrisdata/storage": {
       "optional": true
     },
+    "@vercel/blob": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     }
@@ -124,6 +133,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1053.0",
     "@azure/storage-blob": "^12.31.0",
     "@google-cloud/storage": "^7.19.0",
-    "@tigrisdata/storage": "^3.10.0"
+    "@tigrisdata/storage": "^3.10.0",
+    "@vercel/blob": "^2.4.0"
   }
 }
