@@ -151,10 +151,10 @@ The shared cross-adapter behavior is in `packages/adapters/src/test-suite.ts`. E
 
 ## Commits and PRs
 
-- **Conventional commits.** Format: `type(scope): subject`. Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `ci`, `perf`, `style`, `revert`. Subject is imperative mood, lowercase, no trailing period. Scope is optional and names the package or area, e.g. `core`, `s3`, `release.yml`.
+- **Semantic / conventional commits.** Format: `type(scope): subject`. Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `ci`, `perf`, `style`, `revert`. Subject is imperative mood, lowercase, no trailing period. Scope is optional and names the package or area, e.g. `core`, `s3`, `release.yml`.
 - **Never commit without explicit confirmation.** When the changes are ready, surface the proposed commit message and the file list to the user and wait for their go-ahead. Same for amending.
 - **Never push or open a PR without explicit confirmation.** Show the proposed PR title and description and wait for approval before running `git push` or `gh pr create`.
-- **Keep PR title and description in sync with the branch.** When pushing a new commit to an existing PR, update the PR title and description if the change shifts what the PR is doing. Don't leave a stale title from the first commit.
+- **Keep PR title and description current.** When pushing a new commit to an existing PR, the title and body must reflect what the branch is doing *now*, not what the first commit was about. After every push to an existing PR, re-check the title and description against the cumulative changes and update them via `gh pr edit` if anything's stale.
 
 ## Releasing
 
