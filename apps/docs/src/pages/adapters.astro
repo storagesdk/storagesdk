@@ -1,0 +1,12 @@
+---
+import Footer from '../components/Footer';
+import AdaptersPage from '../components/docs/AdaptersPage';
+import Base from '../layouts/Base.astro';
+---
+<Base
+  title="Adapters · storagesdk"
+  description="Per-adapter config, auth, and gotchas for every first-party storagesdk backend."
+>
+  <AdaptersPage client:load />
+  <Footer />
+</Base>

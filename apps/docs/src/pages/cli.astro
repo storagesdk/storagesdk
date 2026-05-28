@@ -1,0 +1,12 @@
+---
+import Footer from '../components/Footer';
+import CliPage from '../components/docs/CliPage';
+import Base from '../layouts/Base.astro';
+---
+<Base
+  title="CLI · storagesdk"
+  description="@storagesdk/cli — the same surface, from your shell."
+>
+  <CliPage client:load />
+  <Footer />
+</Base>

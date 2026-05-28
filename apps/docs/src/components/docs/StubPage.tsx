@@ -19,8 +19,8 @@ export default function StubPage({ eyebrow, title, blurb }: Props) {
       <h1 className="docs-h1">{title}</h1>
       <P>{blurb}</P>
       <Note>
-        This page is a placeholder while the docs are being written. The sidebar on the
-        left shows the structure that will be filled in.
+        This page is a placeholder while the docs are being written. The sidebar
+        on the left shows the structure that will be filled in.
       </Note>
     </article>
   );

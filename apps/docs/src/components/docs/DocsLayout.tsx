@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { SECTIONS, type SectionId } from '../../lib/sections';
 import { useScrollSpy } from '../../lib/scrollSpy';
+import { SECTIONS, type SectionId } from '../../lib/sections';
 import Nav from '../Nav';
 import DocsSidebar from './DocsSidebar';
 import OnThisPage from './OnThisPage';

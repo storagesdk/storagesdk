@@ -19,7 +19,9 @@ export default function DocsSidebar({ section, active }: Props) {
                   className={'sb-link' + (it.id === active ? ' is-active' : '')}
                 >
                   <span>{it.label}</span>
-                  {it.badge ? <span className="sb-badge">{it.badge}</span> : null}
+                  {it.badge ? (
+                    <span className="sb-badge">{it.badge}</span>
+                  ) : null}
                 </a>
               </li>
             ))}

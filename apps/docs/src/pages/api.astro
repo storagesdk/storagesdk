@@ -1,0 +1,12 @@
+---
+import Footer from '../components/Footer';
+import ApiPage from '../components/docs/ApiPage';
+import Base from '../layouts/Base.astro';
+---
+<Base
+  title="API · storagesdk"
+  description="Every method, every option, every return type of the storagesdk API."
+>
+  <ApiPage client:load />
+  <Footer />
+</Base>
