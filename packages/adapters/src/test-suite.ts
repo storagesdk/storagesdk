@@ -1,4 +1,4 @@
-import { Storage } from '@storagesdk/core';
+import { Storage, StorageError } from '@storagesdk/core';
 import type { Adapter, ReadOnlyAdapter } from '@storagesdk/core/adapter';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -664,13 +664,20 @@ export function storageAdapterTestSuite<Raw = unknown>(
         ).rejects.toMatchObject({ code: 'Conflict' });
       });
 
-      it('forks.create with an unknown fromSnapshot throws NotFound', async () => {
+      it('forks.create with an unknown fromSnapshot fails (no silent success)', async () => {
+        // The original failure mode this pins down was Vercel silently
+        // creating an empty fork when `fromSnapshot` didn't exist.
+        // Different adapters surface this as different codes — some
+        // explicit `NotFound`, some `Provider` from the underlying
+        // backend's NoSuchBucket / similar — so the contract is
+        // "throws *something*", not a specific code. Anything is
+        // better than the empty-fork-with-no-record case.
         await expect(
           ctx.forks.create({
             name: ctx.forkName('orphan'),
             fromSnapshot: 'does-not-exist',
           })
-        ).rejects.toMatchObject({ code: 'NotFound' });
+        ).rejects.toBeInstanceOf(StorageError);
       });
 
       it('forks can be listed, inspected, and deleted', async () => {

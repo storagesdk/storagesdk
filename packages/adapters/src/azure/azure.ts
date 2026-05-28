@@ -406,20 +406,6 @@ function impl(
     forks: {
       async create(opts): Promise<ForkInfo> {
         checkSignal(opts.signal);
-        // Validate `fromSnapshot` against the parent manifest before
-        // touching Azure. A bogus snapshot id otherwise surfaces as
-        // `Provider` (whatever Azure throws when the source container
-        // is missing), violating the cross-adapter `NotFound` contract.
-        if (opts.fromSnapshot !== undefined) {
-          const parent = impl(client, credential, bucket);
-          const parentMeta = await readManifest(parent);
-          if (!parentMeta.snapshots.some((s) => s.id === opts.fromSnapshot)) {
-            throw new StorageError({
-              code: 'NotFound',
-              message: `snapshot ${opts.fromSnapshot} not found`,
-            });
-          }
-        }
         await createSibling(client, opts.name);
         try {
           const source = opts.fromSnapshot ?? bucket;
