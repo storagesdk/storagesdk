@@ -2044,8 +2044,8 @@ h1.headline em::after {
    token. The default config uses `--shiki-light`. We flip to the dark
    variant when `data-theme="dark"` so the same DOM serves both modes
    with no client-side re-render. */
-[data-theme='dark'] .astro-code,
-[data-theme='dark'] .astro-code span {
+[data-theme="dark"] .astro-code,
+[data-theme="dark"] .astro-code span {
   color: var(--shiki-dark) !important;
   background-color: var(--shiki-dark-bg) !important;
   font-style: var(--shiki-dark-font-style) !important;
@@ -2146,7 +2146,7 @@ h1.headline em::after {
 }
 
 .docs-main > ul > li::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0.6em;

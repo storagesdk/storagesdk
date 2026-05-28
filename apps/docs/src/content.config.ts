@@ -1,6 +1,6 @@
-import { glob } from 'astro/loaders';
 import { defineCollection } from 'astro:content';
-import { z } from 'astro:schema';
+import { glob } from 'astro/loaders';
+import { z } from 'astro/zod';
 
 // Docs collection. One MDX file per route under `src/content/docs/`.
 // The `id` (filename without `.mdx`) matches the route segment in
