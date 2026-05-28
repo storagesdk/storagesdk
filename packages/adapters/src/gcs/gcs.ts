@@ -152,7 +152,17 @@ function impl(
         // Single HTTP GET: body streams from the same response whose
         // headers carry the metadata, so they can't drift apart (no
         // TOCTOU between a download and a getMetadata).
-        const stream = file.createReadStream();
+        // GCS `createReadStream({ start, end })` is inclusive on both
+        // ends; convert offset/length → start/end before passing in.
+        // `end` past EOF is fine — GCS returns what exists, no error.
+        const streamOpts =
+          opts?.range !== undefined
+            ? {
+                start: opts.range.offset,
+                end: opts.range.offset + opts.range.length - 1,
+              }
+            : undefined;
+        const stream = file.createReadStream(streamOpts);
         const headersPromise = new Promise<
           Record<string, string | string[] | undefined>
         >((resolve, reject) => {

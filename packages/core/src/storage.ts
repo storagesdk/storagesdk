@@ -3,6 +3,7 @@ import { toWebStream } from './streams.js';
 import type {
   BodyInput,
   CreateSnapshotOptions,
+  DownloadOptions,
   ForkInfo,
   ForkOptions,
   ListOptions,
@@ -40,35 +41,33 @@ export class ReadOnlyStorage {
     this.#adapter = opts.adapter;
   }
 
-  download(path: string, opts?: { signal?: AbortSignal }): Promise<StorageItem>;
+  download(path: string, opts?: DownloadOptions): Promise<StorageItem>;
   download(
     path: string,
-    opts: { as: 'stream'; signal?: AbortSignal }
+    opts: DownloadOptions & { as: 'stream' }
   ): Promise<ReadableStream<Uint8Array>>;
   download(
     path: string,
-    opts: { as: 'text'; signal?: AbortSignal }
+    opts: DownloadOptions & { as: 'text' }
   ): Promise<string>;
   download(
     path: string,
-    opts: { as: 'bytes'; signal?: AbortSignal }
+    opts: DownloadOptions & { as: 'bytes' }
   ): Promise<Uint8Array>;
+  download(path: string, opts: DownloadOptions & { as: 'blob' }): Promise<Blob>;
   download(
     path: string,
-    opts: { as: 'blob'; signal?: AbortSignal }
-  ): Promise<Blob>;
-  download(
-    path: string,
-    opts: { as: 'json'; signal?: AbortSignal }
+    opts: DownloadOptions & { as: 'json' }
   ): Promise<unknown>;
   async download(
     path: string,
-    opts?: {
+    opts?: DownloadOptions & {
       as?: 'stream' | 'text' | 'bytes' | 'blob' | 'json';
-      signal?: AbortSignal;
     }
   ): Promise<unknown> {
-    const passthrough = opts?.signal ? { signal: opts.signal } : undefined;
+    const passthrough: DownloadOptions = {};
+    if (opts?.signal) passthrough.signal = opts.signal;
+    if (opts?.range) passthrough.range = opts.range;
     const item = await this.#adapter.download(path, passthrough);
     switch (opts?.as) {
       case 'stream':

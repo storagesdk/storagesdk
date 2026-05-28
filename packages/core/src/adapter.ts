@@ -1,7 +1,9 @@
+import { StorageError } from './errors.js';
 import { normalizePath, normalizePrefix } from './paths.js';
 import type {
   BodyInput,
   CreateSnapshotOptions,
+  DownloadOptions,
   ForkInfo,
   ForkOptions,
   ListOptions,
@@ -20,7 +22,7 @@ import type {
  * and fork readers (where a fork happens to be addressed read-only).
  */
 export interface ReadOnlyAdapter {
-  download(path: string, opts?: { signal?: AbortSignal }): Promise<StorageItem>;
+  download(path: string, opts?: DownloadOptions): Promise<StorageItem>;
   head(path: string, opts?: { signal?: AbortSignal }): Promise<StorageItemMeta>;
   list(opts?: ListOptions): Promise<ListResult>;
   url(path: string, opts?: UrlOptions): Promise<string>;
@@ -93,9 +95,36 @@ function normalizeListOptions(opts?: ListOptions): ListOptions | undefined {
   return { ...opts, prefix: normalizePrefix(opts.prefix) };
 }
 
+/**
+ * Validates `download({ range })`. `offset >= 0` and `length > 0` are the
+ * only inputs we accept; everything else (offset past EOF, length running
+ * past EOF) is the adapter's concern — the contract says "return what
+ * exists, no error" for the latter, and adapters surface backend errors
+ * for the former.
+ */
+function validateRange(opts?: DownloadOptions): void {
+  const r = opts?.range;
+  if (r === undefined) return;
+  if (!Number.isInteger(r.offset) || r.offset < 0) {
+    throw new StorageError({
+      code: 'InvalidArgument',
+      message: `range.offset must be a non-negative integer (got ${r.offset})`,
+    });
+  }
+  if (!Number.isInteger(r.length) || r.length <= 0) {
+    throw new StorageError({
+      code: 'InvalidArgument',
+      message: `range.length must be a positive integer (got ${r.length})`,
+    });
+  }
+}
+
 function normalizeReadOnly(adapter: ReadOnlyAdapter): ReadOnlyAdapter {
   return {
-    download: async (path, opts) => adapter.download(normalizePath(path), opts),
+    download: async (path, opts) => {
+      validateRange(opts);
+      return adapter.download(normalizePath(path), opts);
+    },
     head: async (path, opts) => adapter.head(normalizePath(path), opts),
     list: async (opts) => adapter.list(normalizeListOptions(opts)),
     url: async (path, opts) => adapter.url(normalizePath(path), opts),
@@ -114,7 +143,10 @@ export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
     name: impl.name,
     raw: impl.raw,
 
-    download: async (path, opts) => impl.download(normalizePath(path), opts),
+    download: async (path, opts) => {
+      validateRange(opts);
+      return impl.download(normalizePath(path), opts);
+    },
     head: async (path, opts) => impl.head(normalizePath(path), opts),
     list: async (opts) => impl.list(normalizeListOptions(opts)),
     url: async (path, opts) => impl.url(normalizePath(path), opts),

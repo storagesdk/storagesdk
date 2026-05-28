@@ -210,6 +210,20 @@ function createImpl(config: FsConfig): Adapter {
         throw asStorageError(err);
       }
       const meta = await statToMeta(fullPath, key);
+      // Range reads on fs: slice the in-memory bytes. The contract says
+      // `length` past EOF returns whatever bytes exist (no error), which
+      // `subarray` happily clamps. `size` reflects the actual slice.
+      if (opts?.range) {
+        const { offset, length } = opts.range;
+        const slice = new Uint8Array(
+          bytes.buffer,
+          bytes.byteOffset,
+          bytes.byteLength
+        ).subarray(offset, offset + length);
+        const sliced = new Uint8Array(slice.byteLength);
+        sliced.set(slice);
+        return { ...meta, size: sliced.byteLength, body: sliced };
+      }
       return { ...meta, body: new Uint8Array(bytes) };
     },
 

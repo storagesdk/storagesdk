@@ -212,8 +212,19 @@ function impl(
     async download(key, opts): Promise<StorageItem> {
       checkSignal(opts?.signal);
       try {
+        // S3 ranges are inclusive on both ends — `bytes=N-M` returns
+        // bytes N through M, M − N + 1 total. `length` past EOF is
+        // fine: S3 returns whatever bytes exist (no error).
+        const range =
+          opts?.range !== undefined
+            ? `bytes=${opts.range.offset}-${opts.range.offset + opts.range.length - 1}`
+            : undefined;
         const out = await client.send(
-          new GetObjectCommand({ Bucket: bucket, Key: key }),
+          new GetObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            ...(range !== undefined ? { Range: range } : {}),
+          }),
           opts?.signal ? { abortSignal: opts.signal } : undefined
         );
         if (!out.Body) {
@@ -225,6 +236,8 @@ function impl(
         const body = await out.Body.transformToByteArray();
         return {
           path: key,
+          // `ContentLength` on a 206 response is the slice length —
+          // exactly what we want for `StorageItem.size`.
           size: out.ContentLength ?? body.byteLength,
           contentType: out.ContentType ?? 'application/octet-stream',
           etag: stripQuotes(out.ETag ?? ''),
