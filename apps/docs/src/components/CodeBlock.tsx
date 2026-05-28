@@ -256,33 +256,3 @@ export default function CodeBlock({
   );
 }
 
-export function HeroCommand({
-  cmd = 'npm install @storagesdk/core @storagesdk/adapters',
-}: {
-  cmd?: string;
-}) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(cmd);
-    } catch {
-      /* ignore */
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1400);
-  };
-  return (
-    <div className="hero-cmd">
-      <span className="hero-cmd-prompt">$</span>
-      <span>{cmd}</span>
-      <button
-        type="button"
-        className="hero-cmd-copy"
-        onClick={copy}
-        aria-label="Copy command"
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-      </button>
-    </div>
-  );
-}

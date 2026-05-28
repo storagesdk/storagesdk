@@ -1,25 +1,7 @@
 import type { SVGProps } from 'react';
 
-// Shared icons used by Nav, Hero, section headers, marquee, etc. All
-// stroke/fill currentColor so they pick up surrounding text color.
-
-export function SearchIcon(p: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      aria-hidden="true"
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      {...p}
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" strokeLinecap="round" />
-    </svg>
-  );
-}
+// Shared icons. All stroke/fill currentColor so they pick up surrounding
+// text color.
 
 export function GithubIcon(p: SVGProps<SVGSVGElement>) {
   return (
@@ -93,20 +75,3 @@ export function ArrowIcon(p: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function DriverIcon(p: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      {...p}
-    >
-      <rect x="3" y="4" width="18" height="6" rx="1.5" />
-      <rect x="3" y="14" width="18" height="6" rx="1.5" />
-      <circle cx="7" cy="7" r=".8" fill="currentColor" />
-      <circle cx="7" cy="17" r=".8" fill="currentColor" />
-    </svg>
-  );
-}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useScrollSpy } from '../../lib/scrollSpy';
 
 interface Heading {
@@ -30,7 +30,10 @@ export default function OnThisPage() {
     setHeadings(found);
   }, []);
 
-  const active = useScrollSpy(headings.map((h) => h.id));
+  // Stable reference so the scroll-spy effect doesn't tear down its
+  // listener every time `setActive` re-renders the component.
+  const ids = useMemo(() => headings.map((h) => h.id), [headings]);
+  const active = useScrollSpy(ids);
 
   if (headings.length === 0) return null;
 

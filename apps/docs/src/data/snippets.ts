@@ -303,5 +303,3 @@ export function myAdapter(config: MyConfig): Adapter {
   });
 }`,
 };
-
-export type Snippets = typeof SNIPPETS;

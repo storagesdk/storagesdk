@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useScrollSpy } from '../../lib/scrollSpy';
 import type { Section } from '../../lib/sections';
 
@@ -6,7 +7,13 @@ interface Props {
 }
 
 export default function DocsSidebar({ section }: Props) {
-  const active = useScrollSpy(section.sidebar.items.map((i) => i.id));
+  // Stable reference so the scroll-spy effect doesn't tear down its
+  // listener every time `setActive` re-renders the component.
+  const ids = useMemo(
+    () => section.sidebar.items.map((i) => i.id),
+    [section]
+  );
+  const active = useScrollSpy(ids);
   return (
     <aside className="docs-sidebar">
       <div className="docs-sidebar-inner">

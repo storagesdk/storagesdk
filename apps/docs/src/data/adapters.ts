@@ -62,14 +62,3 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/fs',
   },
 ];
-
-/** Adapter backends we're considering / accepting requests for. */
-export const ROADMAP_BACKENDS = [
-  'Backblaze B2',
-  'DigitalOcean Spaces',
-  'Wasabi',
-  'Linode Object Storage',
-  'Oracle Cloud Object Storage',
-  'IBM Cloud Object Storage',
-  'Supabase Storage',
-];
