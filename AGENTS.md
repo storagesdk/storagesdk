@@ -40,7 +40,7 @@ These are decided. Don't re-litigate without a clear reason.
 - **Add only what's used.** No speculative dependencies. No config that restates defaults. No files the tool would generate itself on first run. If unsure, leave it out and let need surface.
 - **No caveats, no workarounds.** If a setup choice produces a warning or needs to be papered over, change the choice. Don't add a workaround.
 - **Plain writing.** No "roster", "moot", "first-class citizens", "surface area", or other LLM/MBA-flavored words. Write like a person.
-- **Independent SDK lens.** Design as if shipping on npm independently. Tigris-specific features ride on a vendor-neutral primitive, not as vocabulary in the public API.
+- **Independent SDK lens.** Design as if shipping on npm independently. Tigris-specific features ride on a multi-provider primitive, not as vocabulary in the public API.
 
 ## Gates
 
