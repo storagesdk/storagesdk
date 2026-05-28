@@ -2,7 +2,7 @@
 // custom properties in global.css. Read at first paint via the inline
 // script in `BaseHead.astro`; toggled at runtime by the Nav component.
 
-export const THEME_KEY = 'storagesdk-theme';
+const THEME_KEY = 'storagesdk-theme';
 
 export type Theme = 'light' | 'dark';
 

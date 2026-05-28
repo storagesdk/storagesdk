@@ -1,7 +1,7 @@
 // Per-adapter metadata shared across the marquee, switcher, and adapter
 // grid. Keep in sync with packages/adapters/package.json's subpath exports.
 
-export interface AdapterEntry {
+interface AdapterEntry {
   /** Full name used in adapter grids, marquee, and prose. */
   name: string;
   /** Short label for compact UI like the adapter switcher tab strip. */

@@ -118,7 +118,7 @@ function tokenize(src: string): Token[] {
   return out;
 }
 
-export function HighlightedCode({ src }: { src: string }) {
+function HighlightedCode({ src }: { src: string }) {
   const tokens = useMemo(() => tokenize(src), [src]);
   return (
     <pre>
@@ -202,11 +202,11 @@ export default function CodeBlock({
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(current);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
     } catch {
-      /* clipboard unavailable in some sandboxes */
+      /* clipboard unavailable in some sandboxes; leave copied=false */
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1400);
   };
 
   return (

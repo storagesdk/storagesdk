@@ -4,7 +4,7 @@
 
 export type SectionId = 'get-started' | 'api' | 'adapters' | 'cli';
 
-export interface SidebarItem {
+interface SidebarItem {
   /** DOM id of the heading this entry jumps to. */
   id: string;
   label: string;
@@ -20,7 +20,6 @@ export interface Section {
     label: string;
     items: SidebarItem[];
   };
-  defaultActive: string;
 }
 
 export const SECTIONS: Record<SectionId, Section> = {
@@ -37,7 +36,6 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'adapter', label: 'Adapter' },
       ],
     },
-    defaultActive: 'overview',
   },
   api: {
     id: 'api',
@@ -60,7 +58,6 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'forks', label: 'forks.*' },
       ],
     },
-    defaultActive: 'overview',
   },
   adapters: {
     id: 'adapters',
@@ -81,7 +78,6 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'byo', label: 'Bring your own' },
       ],
     },
-    defaultActive: 'overview',
   },
   cli: {
     id: 'cli',
@@ -97,6 +93,5 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'pipes', label: 'Pipes & stdin/stdout' },
       ],
     },
-    defaultActive: 'overview',
   },
 };
