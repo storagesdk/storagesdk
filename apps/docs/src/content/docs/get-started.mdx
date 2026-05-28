@@ -1,0 +1,91 @@
+---
+title: Up and running in a minute.
+eyebrow: Get Started
+description: Install storagesdk, pick an adapter, and make your first upload, download, snapshot, and fork.
+section: get-started
+next:
+  href: /api
+  title: API reference
+---
+
+import { ADAPTERS } from '../../data/adapters';
+import { SNIPPETS } from '../../data/snippets';
+import CodeBlock from '../../components/CodeBlock';
+import Note from '../../components/docs/Note.astro';
+
+**storagesdk** is a multi-provider TypeScript SDK for object storage — with `fork` and
+`snapshot` as primitives. Install the package, pick an adapter, build a `Storage`, and
+start calling it.
+
+## Overview
+
+Every operation is the same shape on every backend. You build a `Storage` by passing it
+an adapter — that's it. The adapter handles auth, request signing, and any quirks of
+the underlying service.
+
+Snapshots and forks are first-class. On Tigris they map to the native APIs; on every
+other backend the SDK emulates them as sibling buckets and bookkeeps the metadata so
+you don't have to. The call site stays the same either way.
+
+- **One API, every backend** — Amazon S3, Cloudflare R2, Tigris, GCS, Azure Blob, Vercel Blob, MinIO, and the local filesystem.
+- **Snapshot and fork as primitives** — branch a bucket per agent run, freeze a moment in time, replay it deterministically.
+- **Web-standard streams** in and out, `AbortSignal` on every method, typed `StorageError` codes.
+- **Typed escape hatch** via `storage.raw` when you need an adapter-specific operation.
+
+## Installation
+
+Install the core package and the adapters bundle with your package manager of choice:
+
+<CodeBlock
+  client:load
+  tabs={["npm", "pnpm", "bun", "yarn"]}
+  snippets={[
+    SNIPPETS.install.npm,
+    SNIPPETS.install.pnpm,
+    SNIPPETS.install.bun,
+    SNIPPETS.install.yarn,
+  ]}
+/>
+
+<Note>
+  Each adapter's native SDK is an **optional peer dependency** — you only need to install
+  the ones you actually use. The filesystem adapter has no peer deps and is the fastest
+  way to try the API end-to-end.
+</Note>
+
+## Usage
+
+Construct a `Storage`, then call its methods. `upload()` takes a string, `Uint8Array`,
+`Blob`, or a web `ReadableStream`. `download()` is overloaded by destination type — pass
+`as: 'text'`, `'bytes'`, `'stream'`, or omit it to get the full `StorageItem`.
+
+<CodeBlock client:load filename="first-call.ts" snippets={SNIPPETS.firstCall} />
+
+### Snapshot and fork
+
+Freeze a bucket's state, then branch from that frozen state into a writable fork.
+Per-agent sandboxes; reproducible runs.
+
+<CodeBlock client:load filename="snapshot-and-fork.ts" snippets={SNIPPETS.hero} />
+
+<Note>
+  On Tigris this is zero-copy and instant. On every other backend the SDK emulates
+  snapshots and forks as sibling buckets it manages for you.
+</Note>
+
+## Adapter
+
+Switching backends means changing the import. The rest of your code doesn't move.
+Below is the same upload-and-download sequence across every first-party adapter — flip
+the tab to compare.
+
+<CodeBlock
+  client:load
+  filename="storage.ts"
+  tabs={ADAPTERS.map((a) => a.short)}
+  snippets={ADAPTERS.map((a) => SNIPPETS.adapters[a.key] ?? '')}
+/>
+
+Each adapter accepts its backend's standard config — bucket and credentials for cloud
+backends; a local `root` directory for filesystem. See the [Adapters](/adapters)
+section for full per-backend configuration, auth, and gotchas.

@@ -1,12 +1,17 @@
 ---
-import CliPage from '../components/docs/CliPage';
-import Footer from '../components/Footer';
-import Base from '../layouts/Base.astro';
+import { getEntry, render } from 'astro:content';
+import DocsLayout from '../layouts/DocsLayout.astro';
+
+const entry = await getEntry('docs', 'cli');
+if (!entry) throw new Error('Missing docs/cli.mdx');
+const { Content } = await render(entry);
 ---
-<Base
-  title="CLI · storagesdk"
-  description="@storagesdk/cli — the same surface, from your shell."
+<DocsLayout
+  section={entry.data.section}
+  title={entry.data.title}
+  description={entry.data.description}
+  eyebrow={entry.data.eyebrow}
+  next={entry.data.next}
 >
-  <CliPage client:load />
-  <Footer />
-</Base>
+  <Content />
+</DocsLayout>

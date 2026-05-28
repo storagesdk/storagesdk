@@ -1,12 +1,17 @@
 ---
-import GetStartedPage from '../components/docs/GetStartedPage';
-import Footer from '../components/Footer';
-import Base from '../layouts/Base.astro';
+import { getEntry, render } from 'astro:content';
+import DocsLayout from '../layouts/DocsLayout.astro';
+
+const entry = await getEntry('docs', 'get-started');
+if (!entry) throw new Error('Missing docs/get-started.mdx');
+const { Content } = await render(entry);
 ---
-<Base
-  title="Get Started · storagesdk"
-  description="Install storagesdk, pick an adapter, and make your first upload, download, snapshot, and fork."
+<DocsLayout
+  section={entry.data.section}
+  title={entry.data.title}
+  description={entry.data.description}
+  eyebrow={entry.data.eyebrow}
+  next={entry.data.next}
 >
-  <GetStartedPage client:load />
-  <Footer />
-</Base>
+  <Content />
+</DocsLayout>

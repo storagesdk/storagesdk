@@ -1,12 +1,17 @@
 ---
-import ApiPage from '../components/docs/ApiPage';
-import Footer from '../components/Footer';
-import Base from '../layouts/Base.astro';
+import { getEntry, render } from 'astro:content';
+import DocsLayout from '../layouts/DocsLayout.astro';
+
+const entry = await getEntry('docs', 'api');
+if (!entry) throw new Error('Missing docs/api.mdx');
+const { Content } = await render(entry);
 ---
-<Base
-  title="API · storagesdk"
-  description="Every method, every option, every return type of the storagesdk API."
+<DocsLayout
+  section={entry.data.section}
+  title={entry.data.title}
+  description={entry.data.description}
+  eyebrow={entry.data.eyebrow}
+  next={entry.data.next}
 >
-  <ApiPage client:load />
-  <Footer />
-</Base>
+  <Content />
+</DocsLayout>

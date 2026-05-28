@@ -1,12 +1,17 @@
 ---
-import AdaptersPage from '../components/docs/AdaptersPage';
-import Footer from '../components/Footer';
-import Base from '../layouts/Base.astro';
+import { getEntry, render } from 'astro:content';
+import DocsLayout from '../layouts/DocsLayout.astro';
+
+const entry = await getEntry('docs', 'adapters');
+if (!entry) throw new Error('Missing docs/adapters.mdx');
+const { Content } = await render(entry);
 ---
-<Base
-  title="Adapters · storagesdk"
-  description="Per-adapter config, auth, and gotchas for every first-party storagesdk backend."
+<DocsLayout
+  section={entry.data.section}
+  title={entry.data.title}
+  description={entry.data.description}
+  eyebrow={entry.data.eyebrow}
+  next={entry.data.next}
 >
-  <AdaptersPage client:load />
-  <Footer />
-</Base>
+  <Content />
+</DocsLayout>

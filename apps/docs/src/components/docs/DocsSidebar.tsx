@@ -1,11 +1,12 @@
+import { useScrollSpy } from '../../lib/scrollSpy';
 import type { Section } from '../../lib/sections';
 
 interface Props {
   section: Section;
-  active: string;
 }
 
-export default function DocsSidebar({ section, active }: Props) {
+export default function DocsSidebar({ section }: Props) {
+  const active = useScrollSpy(section.sidebar.items.map((i) => i.id));
   return (
     <aside className="docs-sidebar">
       <div className="docs-sidebar-inner">
@@ -19,9 +20,7 @@ export default function DocsSidebar({ section, active }: Props) {
                   className={'sb-link' + (it.id === active ? ' is-active' : '')}
                 >
                   <span>{it.label}</span>
-                  {it.badge ? (
-                    <span className="sb-badge">{it.badge}</span>
-                  ) : null}
+                  {it.badge ? <span className="sb-badge">{it.badge}</span> : null}
                 </a>
               </li>
             ))}

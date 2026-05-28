@@ -2035,3 +2035,122 @@ h1.headline em::after {
   padding-left: 22px;
   font-size: 12px;
 }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   MDX content + Shiki dual-theme code blocks
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Shiki emits inline styles `--shiki-light: …; --shiki-dark: …` per
+   token. The default config uses `--shiki-light`. We flip to the dark
+   variant when `data-theme="dark"` so the same DOM serves both modes
+   with no client-side re-render. */
+[data-theme='dark'] .astro-code,
+[data-theme='dark'] .astro-code span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+/* Shiki's `.astro-code` <pre> wrapper — match our existing code-body
+   look so MDX code blocks slot into the docs layout cleanly. */
+.docs-main pre.astro-code {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 24px;
+}
+
+/* MDX-emitted prose elements pick up `.docs-*` styling via the
+   `.docs-main` ancestor — no per-element className needed. */
+.docs-main > h2 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 56px 0 16px;
+  scroll-margin-top: 80px;
+  line-height: 1.2;
+}
+
+.docs-main > h3 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 36px 0 12px;
+  scroll-margin-top: 80px;
+  line-height: 1.25;
+}
+
+.docs-main > p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--fg-muted);
+  margin: 0 0 18px;
+  text-wrap: pretty;
+  max-width: 64ch;
+}
+
+.docs-main > p strong,
+.docs-main > p b,
+.docs-main > ul strong,
+.docs-main > ul b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* Inline code (descendant of any prose, not inside a `<pre>`). */
+.docs-main :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  color: var(--fg);
+  background: var(--bg-sunk);
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.docs-main > p a,
+.docs-main > ul a {
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent-line);
+  transition: border-color 0.12s;
+}
+
+.docs-main > p a:hover,
+.docs-main > ul a:hover {
+  border-bottom-color: var(--accent);
+}
+
+.docs-main > ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docs-main > ul > li {
+  font-size: 14.5px;
+  color: var(--fg-muted);
+  line-height: 1.55;
+  padding-left: 18px;
+  position: relative;
+}
+
+.docs-main > ul > li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 8px;
+  height: 1px;
+  background: var(--accent);
+}
