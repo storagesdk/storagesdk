@@ -192,6 +192,10 @@ function impl(
           ...(opts?.signal ? { abortSignal: opts.signal } : {}),
           ...tokenSpread,
         });
+        // `@vercel/blob` normalizes any non-304 HTTP status to
+        // `statusCode: 200` in `GetBlobResult` (incl. 206 Partial
+        // Content for range responses), so the 200 check is the
+        // success path for both full and range reads.
         if (res === null || res.statusCode !== 200) {
           throw new StorageError({
             code: 'NotFound',
@@ -201,7 +205,11 @@ function impl(
         const body = await readStreamToBytes(res.stream);
         return {
           path: key,
-          size: res.blob.size,
+          // `res.blob.size` is the full-object size from blob metadata;
+          // on a range response that doesn't match what's in `body`.
+          // Use the actual bytes returned so `StorageItem.size`
+          // reflects the slice — matches the cross-adapter contract.
+          size: body.byteLength,
           contentType: res.blob.contentType,
           etag: res.blob.etag,
           lastModified: res.blob.uploadedAt,
