@@ -1,0 +1,29 @@
+---
+import '../styles/global.css';
+import { inlineThemeScript } from '../lib/theme';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+
+  <link rel="preload" href="/fonts/Geist.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/GeistMono.woff2" as="font" type="font/woff2" crossorigin />
+
+  {/* Read persisted theme before first paint to avoid a flash. */}
+  <script is:inline set:html={inlineThemeScript} />
+</head>
+<body>
+  <slot />
+</body>
+</html>

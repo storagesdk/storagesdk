@@ -98,6 +98,21 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
+    vercel: `import { Storage } from '@storagesdk/core';
+import { vercel } from '@storagesdk/adapters/vercel';
+
+const storage = new Storage({
+  adapter: vercel({
+    bucket: 'photos',
+    // token defaults to process.env.BLOB_READ_WRITE_TOKEN
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     fs: `import { Storage } from '@storagesdk/core';
 import { fs } from '@storagesdk/adapters/fs';
 

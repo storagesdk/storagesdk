@@ -432,6 +432,21 @@ h1.headline em::after {
   border-color: var(--border-strong);
 }
 
+/* ─── hero install (tabbed CodeBlock, centered, stable width) ─── */
+.hero-install {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto 22px;
+  text-align: left;
+}
+
+/* Anchors the inner CodeBlock to the full hero-install width so it
+   doesn't shrink-wrap to the active snippet — switching between
+   `npm install …` and `bun add …` keeps the same overall card size. */
+.hero-install > .code {
+  width: 100%;
+}
+
 .cta-row {
   display: flex;
   gap: 10px;
@@ -610,7 +625,7 @@ h1.headline em::after {
 .code-head {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 14px;
   padding: 8px 10px 8px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-elev);
@@ -624,6 +639,8 @@ h1.headline em::after {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .code-filename-dot {
@@ -636,7 +653,7 @@ h1.headline em::after {
 .code-tabs {
   display: flex;
   gap: 2px;
-  margin-left: -4px;
+  flex-wrap: wrap;
 }
 
 .code-tab {
@@ -837,6 +854,15 @@ h1.headline em::after {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
+}
+
+/* Code blocks inside install steps must stretch to fill the step card
+   so their width doesn't jitter when switching between `npm`, `pnpm`,
+   `bun`, `yarn` snippets that differ in length. */
+.step > .code {
+  align-self: stretch;
+  width: 100%;
 }
 
 .step-num {

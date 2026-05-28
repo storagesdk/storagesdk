@@ -1,15 +1,34 @@
 ---
-import '../styles/global.css';
+import AdapterSwitcher from '../components/AdapterSwitcher';
+import CustomAdapterSection from '../components/CustomAdapterSection';
+import Features from '../components/Features';
+import FinalCta from '../components/FinalCta';
+import Footer from '../components/Footer';
+import Hero from '../components/Hero';
+// CLI page/section commented out until @storagesdk/cli ships.
+// import CliSection from '../components/CliSection';
+import InstallSection from '../components/InstallSection';
+import Marquee from '../components/Marquee';
+import Nav from '../components/Nav';
+import OneVerb from '../components/OneVerb';
+import Primitives from '../components/Primitives';
+import Base from '../layouts/Base.astro';
 ---
-<!doctype html>
-<html lang="en" data-theme="dark">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>storagesdk — multi-provider TypeScript SDK for object storage</title>
-  <meta name="description" content="A multi-provider TypeScript SDK for object storage across S3, R2, GCS, Azure, MinIO, Tigris, Vercel Blob, and filesystem — with snapshots and forks as core operations." />
-</head>
-<body>
-  <div id="root">storagesdk.dev — landing page coming up next commit.</div>
-</body>
-</html>
+<Base
+  title="storagesdk — Snapshots and forks, as primitives."
+  description="A multi-provider TypeScript SDK for object storage across S3, R2, GCS, Azure, MinIO, Tigris, Vercel Blob, and filesystem — with snapshots and forks as core operations."
+>
+  <Nav client:load />
+  <Hero client:load />
+  <Marquee />
+  <AdapterSwitcher client:load />
+  <Primitives client:load />
+  <OneVerb client:load />
+  <Features />
+  <CustomAdapterSection client:load />
+  {/* CliSection hidden from landing until @storagesdk/cli ships. */}
+  {/* <CliSection client:load /> */}
+  <InstallSection client:load />
+  <FinalCta />
+  <Footer />
+</Base>
