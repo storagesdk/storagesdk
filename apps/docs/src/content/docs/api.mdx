@@ -1,15 +1,335 @@
 ---
-title: API reference.
-eyebrow: API
+title: API reference
 description: Every method, every option, every return type of the storagesdk API.
 section: api
 ---
 
-import Note from '../../components/docs/Note.astro';
+## Overview
 
-Every method, every option, every return type. The same shape on every adapter.
+```ts
+class Storage<Raw = unknown> extends ReadOnlyStorage {
+  constructor(opts: { adapter: Adapter<Raw> });
 
-<Note>
-  This page is a placeholder while the docs are being written. The sidebar on the
-  left shows the structure that will be filled in.
-</Note>
+  readonly raw: Raw;
+  readonly snapshots: { create, list, head, delete, get };
+  readonly forks:     { create, list, head, delete, get };
+
+  // Reads — inherited from ReadOnlyStorage
+  download(path, opts?): Promise<StorageItem | …>;
+  head(path, opts?):     Promise<StorageItemMeta>;
+  list(opts?):           Promise<ListResult>;
+  url(path, opts?):      Promise<string>;
+
+  // Writes — added by Storage
+  upload(path, body, opts?): Promise<StorageItemMeta>;
+  delete(path, opts?):       Promise<void>;
+  copy(from, to, opts?):     Promise<void>;
+  move(from, to, opts?):     Promise<void>;
+  uploadUrl(path, opts?):    Promise<UploadUrlResult>;
+}
+```
+
+`storage.snapshots.get(id)` returns a `ReadOnlyStorage` — same `download` overloads, no writes. `storage.forks.get(name)` returns a full `Storage<Raw>` so writes propagate and the typed `raw` survives fork navigation.
+
+Every method that touches I/O accepts an optional `signal?: AbortSignal`. Cancelled operations throw `StorageError({ code: 'Aborted' })` — see [Get Started](/get-started) for the typed error catalogue.
+
+<h2 id="upload">upload()</h2>
+
+```ts
+storage.upload(
+  path: string,
+  body: BodyInput,
+  opts?: UploadOptions,
+): Promise<StorageItemMeta>;
+
+type BodyInput =
+  | string
+  | Uint8Array
+  | ArrayBuffer
+  | Blob
+  | ReadableStream<Uint8Array>;
+```
+
+```ts
+await storage.upload('report.pdf', body, {
+  contentType: 'application/pdf',
+  metadata: { uploadedBy: 'alice' },
+});
+```
+
+`upload` auto-decides multipart vs single PUT: `ReadableStream` is always multipart (size unknown upfront); size-known bodies (`string`, `Uint8Array`, `Blob`, `ArrayBuffer`) go multipart only above the threshold.
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `contentType` | `string` | Defaults to `application/octet-stream`. |
+| `cacheControl` | `string` | `Cache-Control` header on the stored object. |
+| `metadata` | `Record<string, string>` | User-defined headers. Vercel drops them; S3 lowercases keys. |
+| `multipart` | `boolean` | Force on/off. Default: auto-decide. |
+| `multipartThreshold` | `number` | Size in bytes above which auto-decide picks multipart. Default `5 * 1024 * 1024`. |
+| `partSize`, `concurrency` | `number` | Backend-specific multipart tuning. |
+| `onProgress` | `(e: { loaded, total }) => void` | Multipart only. |
+| `signal` | `AbortSignal` | Cancels in-flight upload. |
+
+<h2 id="download">download()</h2>
+
+Six overloads — the default returns the full `StorageItem`; the `as:` option returns just the body in the requested shape.
+
+```ts
+storage.download(path, opts?):                            Promise<StorageItem>;
+storage.download(path, { as: 'stream', ... }):            Promise<ReadableStream<Uint8Array>>;
+storage.download(path, { as: 'text',   ... }):            Promise<string>;
+storage.download(path, { as: 'bytes',  ... }):            Promise<Uint8Array>;
+storage.download(path, { as: 'blob',   ... }):            Promise<Blob>;
+storage.download(path, { as: 'json',   ... }):            Promise<unknown>;
+```
+
+```ts
+const item = await storage.download('photo.jpg');
+// → { path, size, contentType, etag, lastModified, metadata, body: Uint8Array }
+
+const text = await storage.download('readme.md',   { as: 'text' });
+const bytes = await storage.download('blob.bin',   { as: 'bytes' });
+const stream = await storage.download('video.mp4', { as: 'stream' });
+const config = await storage.download('cfg.json',  { as: 'json' });
+```
+
+Byte-range reads via `range: { offset, length }` — matches HTTP `Range` semantics (extends-past-EOF returns the bytes that exist):
+
+```ts
+const slice = await storage.download('big.bin', {
+  as: 'bytes',
+  range: { offset: 4096, length: 1024 },
+});
+slice.byteLength; // 1024
+```
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `as` | `'stream' \| 'text' \| 'bytes' \| 'blob' \| 'json'` | Body shape. Omit for the full `StorageItem`. |
+| `range` | `{ offset: number; length: number }` | Offset/length form to dodge end-bound ambiguity. |
+| `signal` | `AbortSignal` | |
+
+<h2 id="head">head()</h2>
+
+```ts
+storage.head(path: string, opts?: { signal? }): Promise<StorageItemMeta>;
+```
+
+```ts
+const meta = await storage.head('photo.jpg');
+meta.size;          // number
+meta.contentType;   // string
+meta.etag;          // string
+meta.lastModified;  // Date
+meta.metadata;      // Record<string, string> | undefined
+```
+
+Returns the same shape as one entry from `list()`. No body — call `download()` if you need the bytes.
+
+<h2 id="list">list()</h2>
+
+```ts
+storage.list(opts?: ListOptions): Promise<ListResult>;
+
+type ListResult = {
+  items: StorageItemMeta[];
+  cursor?: string;
+};
+```
+
+```ts
+const page = await storage.list({ prefix: 'reports/', limit: 100 });
+for (const item of page.items) {
+  console.log(item.path, item.size);
+}
+if (page.cursor) {
+  const next = await storage.list({ prefix: 'reports/', cursor: page.cursor });
+}
+```
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `prefix` | `string` | Filter to keys under a path prefix. |
+| `limit` | `number` | Max items returned per page. Backend caps apply. |
+| `cursor` | `string` | Continuation token from the previous response. |
+| `delimiter` | `string` | Hierarchical listings (e.g. `'/'` for folder-like grouping). |
+| `signal` | `AbortSignal` | |
+
+<h2 id="copy">copy()</h2>
+
+```ts
+storage.copy(
+  from: string,
+  to: string,
+  opts?: { signal?: AbortSignal },
+): Promise<void>;
+```
+
+```ts
+await storage.copy('inbox/photo.jpg', 'archive/2026/photo.jpg');
+```
+
+Server-side copy where the provider supports it; falls back to download-and-reupload otherwise. The destination overwrites silently if it exists.
+
+<h2 id="move">move()</h2>
+
+```ts
+storage.move(
+  from: string,
+  to: string,
+  opts?: { signal?: AbortSignal },
+): Promise<void>;
+```
+
+```ts
+await storage.move('tmp/upload-42.bin', 'final/upload-42.bin');
+```
+
+Implemented as `copy` then `delete`. Not atomic — if the delete fails after the copy succeeds, both keys exist.
+
+<h2 id="delete">delete()</h2>
+
+```ts
+storage.delete(path: string, opts?: { signal?: AbortSignal }): Promise<void>;
+```
+
+```ts
+await storage.delete('old/report.pdf');
+```
+
+No-op if the key doesn't exist on most providers (S3 semantics).
+
+<h2 id="url">url()</h2>
+
+```ts
+storage.url(path: string, opts?: UrlOptions): Promise<string>;
+```
+
+```ts
+// 5-minute GET URL.
+const url = await storage.url('photo.jpg', { expiresIn: 300 });
+
+// Force a download with a filename.
+const dl = await storage.url('report.pdf', {
+  expiresIn: 300,
+  responseContentDisposition: 'attachment; filename="report.pdf"',
+});
+```
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `expiresIn` | `number` | Seconds. Default is provider-specific. |
+| `responseContentDisposition` | `string` | Set on the response (e.g. force-download). |
+| `responseContentType` | `string` | Override the response `Content-Type`. |
+| `signal` | `AbortSignal` | |
+
+The fs adapter returns `file://` URLs — explicitly not signed, local-dev only.
+
+<h2 id="upload-url">uploadUrl()</h2>
+
+```ts
+storage.uploadUrl(path: string, opts?: UploadUrlOptions): Promise<UploadUrlResult>;
+
+type UploadUrlResult =
+  | { method: 'PUT';  url: string; headers?: Record<string, string> }
+  | { method: 'POST'; url: string; fields: Record<string, string> };
+```
+
+`uploadUrl` returns a discriminated value — `PUT` is the default; the adapter switches to `POST` (when supported) if you set `maxSize` / `minSize` so the provider can server-enforce the upload bounds.
+
+```ts
+// PUT — the client does fetch(url, { method: 'PUT', body }).
+const put = await storage.uploadUrl('new.jpg', {
+  expiresIn: 300,
+  contentType: 'image/jpeg',
+});
+// → { method: 'PUT', url, headers? }
+
+// POST — client submits multipart/form-data with `fields` + the file.
+// The provider rejects uploads above `maxSize` or with the wrong type.
+const post = await storage.uploadUrl('new.jpg', {
+  expiresIn: 300,
+  maxSize: 5_000_000,
+  contentType: 'image/jpeg',
+});
+// → { method: 'POST', url, fields }
+```
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `expiresIn` | `number` | Seconds. |
+| `contentType` | `string` | Locks the request to a `Content-Type`. |
+| `maxSize` | `number` | Cap upload size in bytes. Switches to POST on adapters that support it. |
+| `minSize` | `number` | Minimum upload size. |
+| `signal` | `AbortSignal` | |
+
+See [Adapters](/adapters) for which providers enforce `maxSize` / `minSize` server-side.
+
+<h2 id="snapshots">snapshots.*</h2>
+
+```ts
+storage.snapshots.create(opts?: CreateSnapshotOptions): Promise<SnapshotInfo>;
+storage.snapshots.list():                               Promise<SnapshotInfo[]>;
+storage.snapshots.head(id, opts?: { signal? }):         Promise<SnapshotInfo>;
+storage.snapshots.delete(id, opts?: { signal? }):       Promise<void>;
+storage.snapshots.get(id):                              ReadOnlyStorage;
+
+type SnapshotInfo = {
+  readonly id: string;
+  readonly name?: string;
+  readonly createdAt: Date;
+};
+```
+
+```ts
+const snap = await storage.snapshots.create({ name: 'pre-migration' });
+
+const reader = storage.snapshots.get(snap.id);
+const before = await reader.download('photo.jpg', { as: 'text' });
+
+const all = await storage.snapshots.list();
+await storage.snapshots.delete(snap.id);
+```
+
+`snapshots.get(id)` returns a `ReadOnlyStorage` — the same overloaded `download`, plus `head`, `list`, and `url`. No writes (the snapshot is frozen).
+
+| Option (`create`) | Type | Notes |
+| --- | --- | --- |
+| `name` | `string` | Human-readable label. The `id` is always backend-generated. |
+| `onProgress` | `(e: { scanned, total? }) => void` | Copy-based adapters report progress while copying objects. |
+| `signal` | `AbortSignal` | |
+
+<h2 id="forks">forks.*</h2>
+
+```ts
+storage.forks.create(opts: ForkOptions):              Promise<ForkInfo>;
+storage.forks.list():                                 Promise<ForkInfo[]>;
+storage.forks.head(name, opts?: { signal? }):         Promise<ForkInfo>;
+storage.forks.delete(name, opts?: { signal? }):       Promise<void>;
+storage.forks.get(name):                              Storage<Raw>;
+
+type ForkInfo = {
+  readonly name: string;
+  readonly fromSnapshot?: string;
+  readonly createdAt: Date;
+};
+```
+
+```ts
+await storage.forks.create({ name: 'experiment', fromSnapshot: snap.id });
+
+const fork = storage.forks.get('experiment');
+await fork.upload('config.json', JSON.stringify({ flag: true }));
+// Parent untouched; the fork has its own writable view.
+
+await storage.forks.delete('experiment');
+```
+
+`forks.get(name)` returns a full `Storage<Raw>` — writes are supported and the typed `raw` survives navigation, so `storage.raw` and `storage.forks.get('x').raw` are the same client type.
+
+| Option (`create`) | Type | Notes |
+| --- | --- | --- |
+| `name` | `string` | User-provided. Must be unique within the parent. |
+| `fromSnapshot` | `string` | Seed the fork from a snapshot id. Omit to seed from the parent's current live state. |
+| `onProgress` | `(e: { copied, total, bytes? }) => void` | Copy-based adapters report progress. |
+| `signal` | `AbortSignal` | |
