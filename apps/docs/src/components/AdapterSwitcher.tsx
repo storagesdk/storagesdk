@@ -1,26 +1,11 @@
-import { ADAPTERS } from '../data/adapters';
+import { FEATURED_ADAPTERS } from '../data/adapters';
 import { SNIPPETS } from '../data/snippets';
 import CodeBlock from './CodeBlock';
 import { ArrowIcon } from './Icon';
 
-// Tabs shown in the homepage switcher. The branded Tigris aliases
-// (fly, railway) live on the /adapters page only — keeping the homepage
-// teaser to the eight primary backends.
-const HOMEPAGE_KEYS = new Set([
-  'tigris',
-  's3',
-  'r2',
-  'gcs',
-  'azure',
-  'vercel',
-  'minio',
-  'fs',
-]);
-
 export default function AdapterSwitcher() {
-  const shown = ADAPTERS.filter((a) => HOMEPAGE_KEYS.has(a.key));
-  const labels = shown.map((a) => a.short);
-  const snippets = shown.map(
+  const labels = FEATURED_ADAPTERS.map((a) => a.short);
+  const snippets = FEATURED_ADAPTERS.map(
     (a) =>
       (SNIPPETS.adapters as Record<string, string | undefined>)[a.key] ?? ''
   );

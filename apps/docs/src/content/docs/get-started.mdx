@@ -8,7 +8,7 @@ next:
   title: API reference
 ---
 
-import { ADAPTERS } from '../../data/adapters';
+import { FEATURED_ADAPTERS } from '../../data/adapters';
 import { SNIPPETS } from '../../data/snippets';
 import CodeBlock from '../../components/CodeBlock';
 import Note from '../../components/docs/Note.astro';
@@ -82,8 +82,8 @@ the tab to compare.
 <CodeBlock
   client:load
   filename="storage.ts"
-  tabs={ADAPTERS.map((a) => a.short)}
-  snippets={ADAPTERS.map((a) => SNIPPETS.adapters[a.key] ?? '')}
+  tabs={FEATURED_ADAPTERS.map((a) => a.short)}
+  snippets={FEATURED_ADAPTERS.map((a) => SNIPPETS.adapters[a.key] ?? '')}
 />
 
 Each adapter accepts its provider's standard config — bucket and credentials for cloud

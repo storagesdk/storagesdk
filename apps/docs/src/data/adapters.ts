@@ -75,3 +75,20 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/fs',
   },
 ];
+
+// Subset shown in the landing-page switcher and the Get Started page —
+// the eight primary providers, branded Tigris aliases (fly, railway)
+// live on the /adapters pages only.
+const FEATURED_KEYS = new Set([
+  'tigris',
+  's3',
+  'r2',
+  'gcs',
+  'azure',
+  'vercel',
+  'minio',
+  'fs',
+]);
+export const FEATURED_ADAPTERS = ADAPTERS.filter((a) =>
+  FEATURED_KEYS.has(a.key)
+);
