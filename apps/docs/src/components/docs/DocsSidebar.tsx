@@ -22,8 +22,16 @@ export default function DocsSidebar({ section, currentPath }: Props) {
   );
   const scrollActive = useScrollSpy(ids);
 
+  // Normalize trailing slash so `/adapters/tigris` matches
+  // `Astro.url.pathname === '/adapters/tigris/'` (Astro 6's default
+  // `build.format: 'directory'`).
+  const stripSlash = (p: string) =>
+    p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p;
+  const here = stripSlash(currentPath);
   const isActive = (it: { id: string; href?: string }) =>
-    pageBased ? it.href === currentPath : it.id === scrollActive;
+    pageBased
+      ? it.href !== undefined && stripSlash(it.href) === here
+      : it.id === scrollActive;
 
   return (
     <aside className="docs-sidebar">
