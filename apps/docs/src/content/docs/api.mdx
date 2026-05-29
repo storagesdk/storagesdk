@@ -265,15 +265,11 @@ const post = await storage.uploadUrl('new.jpg', {
 
 See [Adapters](/adapters) for which providers enforce `maxSize` / `minSize` server-side.
 
-<h2 id="snapshots">snapshots.*</h2>
+<h2 id="snapshots">Snapshots</h2>
+
+A snapshot is a frozen, read-only view of a bucket at a moment in time. Native on Tigris (zero-copy via `createBucketSnapshot`); emulated as sibling buckets/containers/folders on every other provider via server-side copy.
 
 ```ts
-storage.snapshots.create(opts?: CreateSnapshotOptions): Promise<SnapshotInfo>;
-storage.snapshots.list():                               Promise<SnapshotInfo[]>;
-storage.snapshots.head(id, opts?: { signal? }):         Promise<SnapshotInfo>;
-storage.snapshots.delete(id, opts?: { signal? }):       Promise<void>;
-storage.snapshots.get(id):                              ReadOnlyStorage;
-
 type SnapshotInfo = {
   readonly id: string;
   readonly name?: string;
@@ -281,33 +277,90 @@ type SnapshotInfo = {
 };
 ```
 
+<h3 id="snapshots-create">snapshots.create()</h3>
+
+```ts
+storage.snapshots.create(opts?: CreateSnapshotOptions): Promise<SnapshotInfo>;
+```
+
 ```ts
 const snap = await storage.snapshots.create({ name: 'pre-migration' });
+snap.id;        // backend-generated, opaque
+snap.name;      // 'pre-migration'
+snap.createdAt; // Date
+```
 
-const reader = storage.snapshots.get(snap.id);
-const before = await reader.download('photo.jpg', { as: 'text' });
+Captures the bucket's current state. The `id` is always backend-generated (Tigris assigns one; copy-based adapters compose it as the parent name plus a `-snapshot-` separator and a 25-digit timestamp + random suffix). `name` is a human-readable label you provide.
 
+| Option | Type | Notes |
+| --- | --- | --- |
+| `name` | `string` | Human-readable label. Stored on `SnapshotInfo`; useful for retrieval-by-name in your own code. |
+| `onProgress` | `(e: { scanned, total? }) => void` | Copy-based adapters fire this as they iterate keys. Tigris finishes in one call so it isn't called. |
+| `signal` | `AbortSignal` | Cancels mid-copy on copy-based adapters; cancels the API call on Tigris. |
+
+<h3 id="snapshots-list">snapshots.list()</h3>
+
+```ts
+storage.snapshots.list(): Promise<SnapshotInfo[]>;
+```
+
+```ts
 const all = await storage.snapshots.list();
+for (const snap of all) {
+  console.log(snap.id, snap.name, snap.createdAt);
+}
+```
+
+Returns every snapshot of the current bucket. No pagination — snapshot counts are expected to be small. No options.
+
+<h3 id="snapshots-head">snapshots.head()</h3>
+
+```ts
+storage.snapshots.head(id: string, opts?: { signal? }): Promise<SnapshotInfo>;
+```
+
+```ts
+const meta = await storage.snapshots.head(snap.id);
+meta.createdAt; // Date — useful for "snapshot is older than X" checks
+```
+
+Fetches a single snapshot's metadata by id. Throws `StorageError({ code: 'NotFound' })` if no snapshot with that id exists. Cheaper than `list()` when you already know the id.
+
+<h3 id="snapshots-delete">snapshots.delete()</h3>
+
+```ts
+storage.snapshots.delete(id: string, opts?: { signal? }): Promise<void>;
+```
+
+```ts
 await storage.snapshots.delete(snap.id);
 ```
 
-`snapshots.get(id)` returns a `ReadOnlyStorage` — the same overloaded `download`, plus `head`, `list`, and `url`. No writes (the snapshot is frozen).
+Deletes a snapshot. On Tigris this is one call; on copy-based adapters it removes the sibling bucket/folder. Forks that were created from this snapshot keep their data — `fromSnapshot` on `ForkInfo` will still point at the deleted id, but reads against the fork itself are unaffected.
 
-| Option (`create`) | Type | Notes |
-| --- | --- | --- |
-| `name` | `string` | Human-readable label. The `id` is always backend-generated. |
-| `onProgress` | `(e: { scanned, total? }) => void` | Copy-based adapters report progress while copying objects. |
-| `signal` | `AbortSignal` | |
-
-<h2 id="forks">forks.*</h2>
+<h3 id="snapshots-get">snapshots.get()</h3>
 
 ```ts
-storage.forks.create(opts: ForkOptions):              Promise<ForkInfo>;
-storage.forks.list():                                 Promise<ForkInfo[]>;
-storage.forks.head(name, opts?: { signal? }):         Promise<ForkInfo>;
-storage.forks.delete(name, opts?: { signal? }):       Promise<void>;
-storage.forks.get(name):                              Storage<Raw>;
+storage.snapshots.get(id: string): ReadOnlyStorage;
+```
 
+```ts
+const reader = storage.snapshots.get(snap.id);
+
+// Same overloaded download from ReadOnlyStorage.
+const before = await reader.download('photo.jpg', { as: 'text' });
+const meta   = await reader.head('photo.jpg');
+const page   = await reader.list({ prefix: 'reports/' });
+const url    = await reader.url('photo.jpg', { expiresIn: 300 });
+```
+
+Returns a `ReadOnlyStorage` bound to the snapshot — the same overloaded `download`, plus `head`, `list`, and `url`. No writes (the snapshot is frozen). Synchronous: this is just a handle; the lookup happens on the first read.
+
+<h2 id="forks">Forks</h2>
+
+A fork is a writable branch of a bucket — your own isolated namespace, seeded from a snapshot or from the parent's live state. Native on Tigris (zero-copy via `createBucket({ sourceBucketName, sourceBucketSnapshot })`); emulated as sibling buckets/containers/folders on every other provider.
+
+```ts
 type ForkInfo = {
   readonly name: string;
   readonly fromSnapshot?: string;
@@ -315,21 +368,88 @@ type ForkInfo = {
 };
 ```
 
+<h3 id="forks-create">forks.create()</h3>
+
 ```ts
-await storage.forks.create({ name: 'experiment', fromSnapshot: snap.id });
-
-const fork = storage.forks.get('experiment');
-await fork.upload('config.json', JSON.stringify({ flag: true }));
-// Parent untouched; the fork has its own writable view.
-
-await storage.forks.delete('experiment');
+storage.forks.create(opts: ForkOptions): Promise<ForkInfo>;
 ```
 
-`forks.get(name)` returns a full `Storage<Raw>` — writes are supported and the typed `raw` survives navigation, so `storage.raw` and `storage.forks.get('x').raw` are the same client type.
+```ts
+// Fork from a specific snapshot — reproducible.
+await storage.forks.create({
+  name: 'experiment-42',
+  fromSnapshot: snap.id,
+});
 
-| Option (`create`) | Type | Notes |
+// Fork from the parent's current live state — seed-at-create.
+await storage.forks.create({ name: 'experiment-43' });
+```
+
+Creates a writable fork. With `fromSnapshot`, the fork starts at exactly that frozen state. Without it, copy-based adapters copy the parent's live state at the moment of creation; native adapters pass the omission through to their fork API.
+
+| Option | Type | Notes |
 | --- | --- | --- |
-| `name` | `string` | User-provided. Must be unique within the parent. |
-| `fromSnapshot` | `string` | Seed the fork from a snapshot id. Omit to seed from the parent's current live state. |
-| `onProgress` | `(e: { copied, total, bytes? }) => void` | Copy-based adapters report progress. |
-| `signal` | `AbortSignal` | |
+| `name` | `string` | Required. Must be unique within the parent. Used as the fork's identifier in every other `forks.*` call. |
+| `fromSnapshot` | `string` | Snapshot id to seed from. Omit to seed from the parent's live state. |
+| `onProgress` | `(e: { copied, total, bytes? }) => void` | Copy-based adapters fire this per object copied. |
+| `signal` | `AbortSignal` | Cancels mid-copy on copy-based adapters; cancels the API call on Tigris. |
+
+<h3 id="forks-list">forks.list()</h3>
+
+```ts
+storage.forks.list(): Promise<ForkInfo[]>;
+```
+
+```ts
+const all = await storage.forks.list();
+for (const fork of all) {
+  console.log(fork.name, fork.fromSnapshot, fork.createdAt);
+}
+```
+
+Returns every fork of the current bucket. `fromSnapshot` is `undefined` for forks created from live state. No pagination, no options.
+
+<h3 id="forks-head">forks.head()</h3>
+
+```ts
+storage.forks.head(name: string, opts?: { signal? }): Promise<ForkInfo>;
+```
+
+```ts
+const meta = await storage.forks.head('experiment-42');
+meta.fromSnapshot; // id or undefined
+```
+
+Fetches a single fork's metadata by name. Throws `StorageError({ code: 'NotFound' })` if no fork with that name exists.
+
+<h3 id="forks-delete">forks.delete()</h3>
+
+```ts
+storage.forks.delete(name: string, opts?: { signal? }): Promise<void>;
+```
+
+```ts
+await storage.forks.delete('experiment-42');
+```
+
+Deletes the fork and its data. The parent is unaffected, and the snapshot the fork was seeded from (if any) is also unaffected.
+
+<h3 id="forks-get">forks.get()</h3>
+
+```ts
+storage.forks.get(name: string): Storage<Raw>;
+```
+
+```ts
+const fork = storage.forks.get('experiment-42');
+
+// Full read + write surface.
+await fork.upload('config.json', JSON.stringify({ flag: true }));
+const cfg = await fork.download('config.json', { as: 'json' });
+
+// Nested forks: same typed `raw` propagates through.
+const nested = fork.forks.get('sub-experiment');
+nested.raw; // same Raw type as storage.raw
+```
+
+Returns a full `Storage<Raw>` bound to the fork — every read and write method, plus `snapshots` and `forks` of its own. The `Raw` generic survives navigation, so `storage.raw` and `storage.forks.get('x').raw` are the same client type without a cast.

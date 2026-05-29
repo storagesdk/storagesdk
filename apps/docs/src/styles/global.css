@@ -1886,7 +1886,7 @@ h1.headline em::after {
 
 .docs-main thead th:first-child {
   padding-right: 24px;
-  width: 34%;
+  width: 22%;
 }
 
 .docs-main tbody td {
@@ -1899,9 +1899,8 @@ h1.headline em::after {
 .docs-main tbody td:first-child {
   color: var(--fg);
   font-weight: 500;
-  white-space: nowrap;
   padding-right: 24px;
-  width: 34%;
+  width: 22%;
 }
 
 .docs-main tbody tr:last-child td {
@@ -1910,6 +1909,9 @@ h1.headline em::after {
 
 .docs-main tbody td code {
   color: var(--fg);
+  /* Long type signatures shouldn't blow out the column width. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* ─── rule + pagination ─── */
