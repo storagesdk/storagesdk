@@ -1,6 +1,6 @@
 # @storagesdk/adapters/fly
 
-Fly.io Tigris adapter for storagesdk.
+Fly.io adapter for storagesdk.
 
 This is a branded alias of the Tigris adapter for Fly-managed Tigris buckets. Behavior, snapshot/fork support, and `storage.raw` are the same as `@storagesdk/adapters/tigris`.
 

@@ -15,15 +15,16 @@ export default function Hero() {
           <span className="eyebrow-arrow">→</span>
         </a>
         <h1 className="headline">
-          Storage for <em>agents</em>.
+          Storage for humans and <em>agents</em>.
         </h1>
         <p className="subhead">
           A multi-provider TypeScript SDK with{' '}
           <b style={{ color: 'var(--fg)', fontWeight: 600 }}>fork</b> and{' '}
           <b style={{ color: 'var(--fg)', fontWeight: 600 }}>snapshot</b> as
           primitives. Branch a bucket per agent run; freeze a moment in time and
-          replay it deterministically. The same API across Amazon S3, Cloudflare
-          R2, Tigris, GCS, Azure Blob, Vercel Blob, MinIO, and your filesystem.
+          replay it deterministically. The same API across Tigris, Amazon S3,
+          Cloudflare R2, GCS, Azure Blob, Vercel Blob, MinIO, and your
+          filesystem.
         </p>
 
         <div className="hero-install">
