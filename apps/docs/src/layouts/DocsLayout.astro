@@ -19,7 +19,7 @@ const { section, title, description, eyebrow, next } = Astro.props;
 const cfg = SECTIONS[section];
 ---
 <Base title={`${title} · storagesdk`} description={description}>
-  <Nav client:load current={section} />
+  <Nav client:load current={section} transition:persist="nav" />
   <div class="docs-layout">
     <DocsSidebar client:load section={cfg} currentPath={Astro.url.pathname} />
     <article class="docs-main">
@@ -40,5 +40,5 @@ const cfg = SECTIONS[section];
     </article>
     <OnThisPage client:load />
   </div>
-  <Footer />
+  <Footer transition:persist="footer" />
 </Base>

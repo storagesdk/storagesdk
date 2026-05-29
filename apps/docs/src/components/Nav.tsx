@@ -2,16 +2,15 @@ import { useEffect, useState } from 'react';
 import { readTheme, type Theme, writeTheme } from '../lib/theme';
 import { GithubIcon, MoonIcon, SunIcon } from './Icon';
 
+type Section = 'get-started' | 'api' | 'adapters' | 'cli';
+
 interface NavProps {
-  /** Section the current page belongs to — used to highlight the matching nav link. */
-  current?: 'get-started' | 'api' | 'adapters' | 'cli';
+  /** Optional initial section — used during SSR so the right link is
+   *  highlighted before client hydration runs. */
+  current?: Section;
 }
 
-const LINKS: {
-  id: NonNullable<NavProps['current']>;
-  label: string;
-  href: string;
-}[] = [
+const LINKS: { id: Section; label: string; href: string }[] = [
   { id: 'get-started', label: 'Get Started', href: '/get-started' },
   { id: 'api', label: 'API', href: '/api' },
   { id: 'adapters', label: 'Adapters', href: '/adapters' },
@@ -19,13 +18,27 @@ const LINKS: {
   // { id: 'cli', label: 'CLI', href: '/cli' },
 ];
 
-export default function Nav({ current }: NavProps) {
-  const [theme, setTheme] = useState<Theme>('dark');
+function deriveSection(pathname: string): Section | undefined {
+  if (pathname.startsWith('/get-started')) return 'get-started';
+  if (pathname.startsWith('/api')) return 'api';
+  if (pathname.startsWith('/adapters')) return 'adapters';
+  if (pathname.startsWith('/cli')) return 'cli';
+  return undefined;
+}
 
-  // Sync from <html data-theme> on mount (the inline script in <head>
-  // already set the right value before first paint).
+export default function Nav({ current: ssrCurrent }: NavProps) {
+  const [theme, setTheme] = useState<Theme>('dark');
+  // Derived from `location.pathname` so the highlighted link updates
+  // across Astro view transitions even when the Nav island is
+  // `transition:persist`-ed (the SSR prop wouldn't re-apply).
+  const [current, setCurrent] = useState<Section | undefined>(ssrCurrent);
+
   useEffect(() => {
     setTheme(readTheme());
+    const sync = () => setCurrent(deriveSection(window.location.pathname));
+    sync();
+    document.addEventListener('astro:after-swap', sync);
+    return () => document.removeEventListener('astro:after-swap', sync);
   }, []);
 
   const toggle = () => {
