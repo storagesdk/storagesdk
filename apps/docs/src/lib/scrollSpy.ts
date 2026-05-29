@@ -37,17 +37,21 @@ export function useScrollSpy(ids: string[]): string {
       const maxScroll = docH - vh;
       const atExactBottom = scrollY + vh >= docH - 4;
 
-      // 1. Exact bottom: snap to last id, or honor URL hash (deep-link
-      //    into a short page where the anchor target can't be scrolled
-      //    to the fold line).
+      // 1. Exact bottom: honor URL hash (deep-link into a short page
+      //    where the anchor target can't be scrolled to the fold) or
+      //    snap to the last id. The snap requires `scrollY > 0` so we
+      //    don't fire it on initial mount of a page that simply fits
+      //    in the viewport (no scrolling possible).
       if (atExactBottom) {
         const hashId = window.location.hash.slice(1);
         if (hashId && ids.includes(hashId)) {
           setActive(hashId);
           return;
         }
-        setActive(ids[ids.length - 1] ?? '');
-        return;
+        if (scrollY > 0) {
+          setActive(ids[ids.length - 1] ?? '');
+          return;
+        }
       }
 
       // 2. Find the last heading whose top has crossed the fold.
