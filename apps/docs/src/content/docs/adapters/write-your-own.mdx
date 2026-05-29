@@ -1,0 +1,73 @@
+---
+title: Write your own
+eyebrow: Adapter
+description: Third-party storagesdk adapters are first-class. Implement the contract, drop in the conformance suite, ship a package.
+section: adapters
+---
+
+## Overview
+
+`@storagesdk/adapters` ships one set of providers — third-party adapters are first-class. Implement the `Adapter` contract, drop in the conformance test suite, ship a package.
+
+The `@storagesdk/core/adapter` entry exposes the contract types and helper utilities you'll need to build an adapter, including manifest helpers for emulating snapshots and forks via sibling buckets.
+
+## The adapter contract
+
+```ts
+import { defineAdapter, type Adapter } from '@storagesdk/core/adapter';
+
+export function myAdapter(config: MyConfig): Adapter {
+  return defineAdapter({
+    name: 'my-provider',
+    raw: /* your provider client */,
+    async upload(path, body, opts) { /* ... */ },
+    async download(path, opts)     { /* ... */ },
+    async head(path, opts)         { /* ... */ },
+    async list(opts)               { /* ... */ },
+    async delete(path, opts)       { /* ... */ },
+    async copy(from, to, opts)     { /* ... */ },
+    async move(from, to, opts)     { /* ... */ },
+    async url(path, opts)          { /* ... */ },
+    async uploadUrl(path, opts)    { /* ... */ },
+    snapshots: { /* create, list, head, delete, get */ },
+    forks:     { /* create, list, head, delete, get */ },
+  });
+}
+```
+
+`defineAdapter` wraps your implementation with path normalization (leading slashes stripped, empty paths throw `InvalidArgument`) and recursive wrapping for `snapshots.get` and `forks.get` return values.
+
+## Helpers
+
+`@storagesdk/core/adapter` exposes:
+
+- **Manifest helpers** for copy-based adapters: `emptyManifest`, `readManifest`, `writeManifest`, `nextSnapshotId`, `isInternalKey`, `MANIFEST_PATH`. Use these to emulate snapshots and forks via sibling buckets when your provider has no native primitive.
+- **Abort plumbing**: `checkSignal`, `isAbortError`, `bridgeSignalToController` for wiring `AbortSignal` through your provider SDK.
+- **Stream utilities**: `toWebStream`, `readStreamToBytes`.
+
+## No capability flags
+
+Adapters that can't support a primitive throw `StorageError({ code: 'NotSupported' })`. There are no runtime capability flags — the consumer either calls it or doesn't, and gets a clear error if the provider doesn't support it.
+
+## Conformance suite
+
+```sh
+npm install --save-dev vitest @storagesdk/adapters
+```
+
+```ts
+import { storageAdapterTestSuite } from '@storagesdk/adapters/test-suite';
+import { myAdapter } from './my-adapter.js';
+
+storageAdapterTestSuite({
+  name: 'my-adapter',
+  adapter: () => myAdapter({ /* config */ }),
+});
+```
+
+The suite runs cross-adapter behavioral tests (upload round-trip, `NotFound` on missing keys, snapshots/forks contract, `AbortSignal` short-circuit, etc.) against your adapter. Failing tests are gaps you need to close.
+
+## Notes
+
+- See the full authoring guide in the [README](https://github.com/storagesdk/storagesdk#authoring-adapters).
+- Look at `@storagesdk/adapters/src/<adapter>/` for reference implementations — `fs` is the simplest, `s3` covers the sibling-bucket convention with manifest helpers.

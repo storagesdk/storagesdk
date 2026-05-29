@@ -1,0 +1,54 @@
+---
+title: Azure Blob
+eyebrow: Adapter
+description: Azure Blob Storage adapter for storagesdk.
+section: adapters
+---
+
+## Overview
+
+The [Azure Blob](https://azure.microsoft.com/products/storage/blobs) adapter maps each storagesdk bucket to an Azure container. Snapshots and forks create sibling containers populated by server-side `Copy Blob` operations. Same-account copies don't require SAS tokens; the manifest lives at `.storagesdk.metadata.json` inside each container.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { azure } from '@storagesdk/adapters/azure';
+
+const storage = new Storage({
+  adapter: azure({
+    bucket: 'agent-runs',
+    accountName: process.env.AZURE_ACCOUNT_NAME,
+    accountKey: process.env.AZURE_ACCOUNT_KEY,
+  }),
+});
+```
+
+```ts
+azure({
+  bucket: string;
+  accountName: string;
+  accountKey: string;
+  endpoint?: string;       // override for Azure Gov, China, Azurite, etc.
+});
+```
+
+## Notes
+
+- Peer dependency: `@azure/storage-blob`.
+- For Entra ID, SAS tokens, or connection-string auth, construct a `BlobServiceClient` yourself and use `storage.raw` directly.
+- `maxSize` / `minSize` on `uploadUrl()` are accepted but **not enforced** — Azure SAS URLs have no `content-length-range` equivalent. Cap server-side if you need a hard limit.
+- `uploadUrl()` returns `x-ms-blob-type: BlockBlob` in `headers` so callers don't need Azure-specific knowledge.
+- Cross-container copies for snapshots/forks use `syncCopyFromURL` with a short-lived read SAS (real Azure requires source URL to self-authenticate; Azurite is lax).
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling containers via `Copy Blob` |
+| Forks | Sibling containers via `Copy Blob` |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✗ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |

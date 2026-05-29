@@ -11,7 +11,7 @@ interface Props {
   section: SectionId;
   title: string;
   description: string;
-  eyebrow: string;
+  eyebrow?: string | undefined;
   next?: { href: string; title: string } | undefined;
 }
 
@@ -21,9 +21,9 @@ const cfg = SECTIONS[section];
 <Base title={`${title} · storagesdk`} description={description}>
   <Nav client:load current={section} />
   <div class="docs-layout">
-    <DocsSidebar client:load section={cfg} />
+    <DocsSidebar client:load section={cfg} currentPath={Astro.url.pathname} />
     <article class="docs-main">
-      <div class="docs-eyebrow">{eyebrow}</div>
+      {eyebrow ? <div class="docs-eyebrow">{eyebrow}</div> : null}
       <h1 class="docs-h1">{title}</h1>
       <slot />
       {next ? (

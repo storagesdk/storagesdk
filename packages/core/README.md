@@ -38,7 +38,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 ## What you get
 
 - **Snapshots and forks as primitives.** Take a snapshot of a bucket, get a read-only handle, fork from it as a writable branch. Native APIs where available (Tigris); sibling buckets/folders otherwise.
-- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for backend-specific operations storagesdk doesn't surface.
+- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for provider-specific operations storagesdk doesn't surface.
 - **ESM-only, Node 20+.** Plain `tsc` build, no bundler.
 
 ## Adapters
@@ -46,7 +46,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | Adapter | Subpath | Backend |
 | --- | --- | --- |
 | Tigris | [`@storagesdk/adapters/tigris`](./packages/adapters/src/tigris/README.md) | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
-| S3 | [`@storagesdk/adapters/s3`](./packages/adapters/src/s3/README.md) | Amazon S3 and any S3-compatible backend (DigitalOcean Spaces, Backblaze B2, etc.). |
+| S3 | [`@storagesdk/adapters/s3`](./packages/adapters/src/s3/README.md) | Amazon S3 and any S3-compatible provider. |
 | R2 | [`@storagesdk/adapters/r2`](./packages/adapters/src/r2/README.md) | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
 | GCS | [`@storagesdk/adapters/gcs`](./packages/adapters/src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
 | Azure Blob | [`@storagesdk/adapters/azure`](./packages/adapters/src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
@@ -188,7 +188,7 @@ const bytes = await storage.download('big.bin', {
 });
 ```
 
-Maps to each backend's native range API (`Range: bytes=N-M` for S3-family, `download(offset, count)` for Azure, `createReadStream({ start, end })` for GCS, the `Range` header on Vercel). `range` past EOF returns the bytes that exist — matches HTTP `Range` semantics.
+Maps to each provider's native range API (`Range: bytes=N-M` for S3-family, `download(offset, count)` for Azure, `createReadStream({ start, end })` for GCS, the `Range` header on Vercel). `range` past EOF returns the bytes that exist — matches HTTP `Range` semantics.
 
 ### AbortSignal
 
@@ -222,7 +222,7 @@ pnpm --filter @storagesdk/examples forks
 
 ## Authoring adapters
 
-`@storagesdk/adapters` is *one* set of backends; the SDK is designed for third-party adapters too.
+`@storagesdk/adapters` is *one* set of providers; the SDK is designed for third-party adapters too.
 
 ```sh
 npm install @storagesdk/core

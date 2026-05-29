@@ -1,0 +1,56 @@
+---
+title: Tigris
+eyebrow: Adapter
+description: Tigris adapter for storagesdk — native snapshots and forks via the @tigrisdata/storage SDK.
+section: adapters
+---
+
+## Overview
+
+[Tigris](https://www.tigrisdata.com/) is a globally distributed S3-compatible object storage service. Snapshots and forks are first-class on Tigris: the adapter calls `createBucketSnapshot` and `createBucket({ sourceBucketName, sourceBucketSnapshot })` directly — no manifest sidecar, no bytewise copying.
+
+`storage.raw` is a proxy over the entire `@tigrisdata/storage` module with this adapter's config auto-injected. Reach for any provider-specific op as `storage.raw.<fn>(...)` and it's fully typed.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { tigris } from '@storagesdk/adapters/tigris';
+
+const storage = new Storage({
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY,
+  }),
+});
+```
+
+```ts
+tigris({
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint?: string;       // defaults to Tigris production
+  forcePathStyle?: boolean;
+});
+```
+
+## Notes
+
+- Peer dependency: `@tigrisdata/storage`.
+- Credentials are explicit — supply `accessKeyId` and `secretAccessKey` (or pass via `process.env`). There's no env-based fallback at the adapter layer.
+- `download()` doesn't surface an etag even though `upload()`, `head()`, and `list()` do.
+- Snapshot-scoped presigned URLs (`snapshots.get(id).url(key)`) currently return a URL for the live bucket, not the snapshot version — upstream support is pending.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Native — `createBucketSnapshot` |
+| Forks | Native — `createBucket({ sourceBucketSnapshot })` |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✓ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |

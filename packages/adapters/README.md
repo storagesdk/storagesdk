@@ -6,14 +6,14 @@ Backend adapters for [storagesdk](https://github.com/storagesdk/storagesdk). Imp
 npm install @storagesdk/core @storagesdk/adapters
 ```
 
-Each backend's SDK is an optional peer dependency. Install only the SDKs for adapters you actually import — see each adapter's README for the exact install line.
+Each provider's SDK is an optional peer dependency. Install only the SDKs for adapters you actually import — see each adapter's README for the exact install line.
 
 ## Available adapters
 
 | Adapter | Subpath | Backend |
 | --- | --- | --- |
 | Tigris | [`@storagesdk/adapters/tigris`](./src/tigris/README.md) | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
-| S3 | [`@storagesdk/adapters/s3`](./src/s3/README.md) | Amazon S3 and any S3-compatible backend (DigitalOcean Spaces, Backblaze B2, etc.). |
+| S3 | [`@storagesdk/adapters/s3`](./src/s3/README.md) | Amazon S3 and any S3-compatible provider. |
 | R2 | [`@storagesdk/adapters/r2`](./src/r2/README.md) | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
 | GCS | [`@storagesdk/adapters/gcs`](./src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
 | Azure Blob | [`@storagesdk/adapters/azure`](./src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |

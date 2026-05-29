@@ -1861,6 +1861,57 @@ h1.headline em::after {
   margin: 0 0 24px;
 }
 
+/* ─── docs tables (spec-sheet style) ─── */
+.docs-main table {
+  width: 100%;
+  margin: 8px 0 32px;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-main thead th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-main thead th:first-child {
+  padding-right: 24px;
+  width: 34%;
+}
+
+.docs-main tbody td {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  vertical-align: top;
+}
+
+.docs-main tbody td:first-child {
+  color: var(--fg);
+  font-weight: 500;
+  white-space: nowrap;
+  padding-right: 24px;
+  width: 34%;
+}
+
+.docs-main tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.docs-main tbody td code {
+  color: var(--fg);
+}
+
 /* ─── rule + pagination ─── */
 .docs-rule {
   border: 0;

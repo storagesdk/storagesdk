@@ -11,7 +11,7 @@ export default function InstallSection() {
           <div className="section-eyebrow">install</div>
           <h2>From zero to upload in a minute.</h2>
           <p className="lead">
-            Install core plus the adapters bundle, pick a backend, construct a
+            Install core plus the adapters bundle, pick a provider, construct a
             Storage, and call it. The local filesystem adapter has no peer deps
             — run it in tests today.
           </p>
@@ -33,7 +33,7 @@ export default function InstallSection() {
                 >
                   @storagesdk/adapters
                 </code>{' '}
-                ships the first-party backends. Each native SDK is an optional
+                ships the first-party providers. Each native SDK is an optional
                 peer dependency.
               </p>
             </div>
@@ -49,7 +49,7 @@ export default function InstallSection() {
               <h4>Make your first call</h4>
               <p>
                 The filesystem adapter is the fastest way to try the surface —
-                no credentials, no network. Swap the import to switch backends.
+                no credentials, no network. Swap the import to switch providers.
               </p>
             </div>
             <CodeBlock filename="index.ts" snippets={SNIPPETS.firstCall} />

@@ -5,11 +5,15 @@
 export type SectionId = 'get-started' | 'api' | 'adapters' | 'cli';
 
 interface SidebarItem {
-  /** DOM id of the heading this entry jumps to. */
+  /** DOM id of the heading this entry jumps to (anchor-based nav), or
+   *  a stable key to identify the item (page-based nav). */
   id: string;
   label: string;
   /** Pill rendered next to the label (e.g. `native`). */
   badge?: string;
+  /** Full URL when the sidebar links to other pages instead of in-page
+   *  anchors. When set, the active state matches by URL, not scroll. */
+  href?: string;
 }
 
 export interface Section {
@@ -66,18 +70,27 @@ export const SECTIONS: Record<SectionId, Section> = {
     sidebar: {
       label: 'Adapters',
       items: [
-        { id: 'overview', label: 'Overview' },
-        { id: 'tigris', label: 'Tigris', badge: 'native' },
-        { id: 's3', label: 'Amazon S3' },
-        { id: 'r2', label: 'Cloudflare R2' },
-        { id: 'gcs', label: 'Google Cloud Storage' },
-        { id: 'azure', label: 'Azure Blob' },
-        { id: 'vercel', label: 'Vercel Blob' },
-        { id: 'minio', label: 'MinIO' },
-        { id: 'fly', label: 'Fly.io', badge: 'native' },
-        { id: 'railway', label: 'Railway', badge: 'native' },
-        { id: 'fs', label: 'Filesystem' },
-        { id: 'byo', label: 'Bring your own' },
+        { id: 'overview', label: 'Overview', href: '/adapters' },
+        {
+          id: 'tigris',
+          label: 'Tigris',
+          badge: 'native',
+          href: '/adapters/tigris',
+        },
+        { id: 's3', label: 'Amazon S3', href: '/adapters/s3' },
+        { id: 'r2', label: 'Cloudflare R2', href: '/adapters/r2' },
+        { id: 'gcs', label: 'Google Cloud Storage', href: '/adapters/gcs' },
+        { id: 'azure', label: 'Azure Blob', href: '/adapters/azure' },
+        { id: 'vercel', label: 'Vercel Blob', href: '/adapters/vercel' },
+        { id: 'minio', label: 'MinIO', href: '/adapters/minio' },
+        { id: 'fly', label: 'Fly.io', href: '/adapters/fly' },
+        { id: 'railway', label: 'Railway', href: '/adapters/railway' },
+        { id: 'fs', label: 'Filesystem', href: '/adapters/fs' },
+        {
+          id: 'write-your-own',
+          label: 'Write your own',
+          href: '/adapters/write-your-own',
+        },
       ],
     },
   },

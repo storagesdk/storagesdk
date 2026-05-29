@@ -77,4 +77,3 @@ await storage.raw.list({ config: { bucket: 'another-bucket' } });
 
 - **`etag` on `download()`.** Tigris's `get` returns a bare `File` / `ReadableStream` — no etag is exposed in that path. `upload()`, `head()`, and `list()` all return real etags from Tigris's SDK responses; only download is empty.
 - **Snapshot-scoped presigned URLs.** `snapshots.get(id).url(key)` currently returns a presigned URL for the live bucket, not the snapshot version. Tracking upstream support in `@tigrisdata/storage`.
-- **POST policies on `uploadUrl`.** Only PUT presigning today.

@@ -1,16 +1,28 @@
 ---
-title: Pick a backend. Bring your own.
-eyebrow: Adapters
-description: Per-adapter config, auth, and gotchas for every first-party storagesdk backend.
+title: Adapters
+eyebrow: Introduction
+description: First-party storagesdk adapters and where to start for each provider.
 section: adapters
 ---
 
-import Note from '../../components/docs/Note.astro';
+## Overview
 
-Per-adapter config, auth, and gotchas. Snapshots and forks are native on Tigris and
-emulated as sibling buckets on every other backend.
+Every adapter implements the same `Adapter` contract: `upload`, `download`, `head`, `list`, `copy`, `move`, `delete`, `url`, `uploadUrl`, plus the `snapshots` and `forks` namespaces. Pick one based on your provider; the call site doesn't change.
 
-<Note>
-  This page is a placeholder while the docs are being written. The sidebar on the
-  left shows the structure that will be filled in.
-</Note>
+Snapshots and forks are **native** on Tigris and its branded aliases (Fly.io, Railway) — the adapter calls the provider's native APIs and no data is copied. On every other provider they're **emulated** as sibling buckets, and the adapter does the bookkeeping via a small `.storagesdk.metadata.json` manifest.
+
+Each adapter's provider SDK is an optional peer dependency. Install only the SDKs for the adapters you actually import.
+
+## Adapters
+
+- [Tigris](/adapters/tigris) — native snapshots & forks via `@tigrisdata/storage`.
+- [Amazon S3](/adapters/s3) — and any S3-compatible provider.
+- [Cloudflare R2](/adapters/r2) — thin wrapper over S3 with R2-friendly defaults.
+- [Google Cloud Storage](/adapters/gcs) — sibling buckets via server-side copy.
+- [Azure Blob](/adapters/azure) — sibling containers via `Copy Blob`.
+- [Vercel Blob](/adapters/vercel) — sibling prefixes inside a single Blob store.
+- [MinIO](/adapters/minio) — S3-compatible self-hosted.
+- [Fly.io](/adapters/fly) — branded alias of the Tigris adapter.
+- [Railway](/adapters/railway) — branded alias of the Tigris adapter.
+- [Filesystem](/adapters/fs) — `node:fs/promises` for local development and tests.
+- [Write your own](/adapters/write-your-own) — the adapter contract and the conformance suite.

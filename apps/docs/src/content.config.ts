@@ -10,8 +10,9 @@ const docs = defineCollection({
   schema: z.object({
     /** Page title — used in <title>, the article h1, and the OG meta. */
     title: z.string(),
-    /** Short eyebrow line above the h1 (e.g. "Get Started"). */
-    eyebrow: z.string(),
+    /** Short eyebrow line above the h1 (e.g. "Get Started"). Omit for pages
+     *  where the title is self-evident (e.g. the Adapters index). */
+    eyebrow: z.string().optional(),
     /** SEO description. */
     description: z.string(),
     /** Which section the page belongs to (drives nav highlight + sidebar). */

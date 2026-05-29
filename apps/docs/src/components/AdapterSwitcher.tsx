@@ -31,7 +31,7 @@ export default function AdapterSwitcher() {
           <div className="section-eyebrow">one api</div>
           <h2>Same API, different provider.</h2>
           <p className="lead">
-            Switch backends by changing the import. The rest of your code
+            Switch providers by changing the import. The rest of your code
             doesn't move.
           </p>
         </div>

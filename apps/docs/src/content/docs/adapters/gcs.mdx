@@ -1,0 +1,57 @@
+---
+title: Google Cloud Storage
+eyebrow: Adapter
+description: Google Cloud Storage adapter for storagesdk.
+section: adapters
+---
+
+## Overview
+
+The [Google Cloud Storage](https://cloud.google.com/storage) adapter creates sibling buckets for snapshots and forks (globally unique names, populated by server-side copy). Manifest lives at `.storagesdk.metadata.json` at the bucket root.
+
+Siblings are colocated in the parent's location via `bucket.getMetadata().location`.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { gcs } from '@storagesdk/adapters/gcs';
+
+const storage = new Storage({
+  adapter: gcs({
+    bucket: 'agent-runs',
+    projectId: process.env.GOOGLE_PROJECT_ID,
+    keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  }),
+});
+```
+
+```ts
+gcs({
+  bucket: string;
+  projectId: string;
+  credentials?: { client_email: string; private_key: string };
+  keyFilename?: string;
+  apiEndpoint?: string;    // override for fake-gcs-server local emulation
+});
+```
+
+## Notes
+
+- Peer dependency: `@google-cloud/storage`.
+- Omit both `credentials` and `keyFilename` to use Application Default Credentials (env var, `gcloud auth application-default login`, or GCE/GKE metadata server).
+- GCS bucket names are **globally unique**. Snapshot ids embed 25 digits for collision safety; fork names are user-provided — prefix them with an org or project name.
+- `uploadUrl({ maxSize, contentType })` returns a v4 POST policy when size constraints are set; otherwise PUT presigning.
+- `createReadStream({ start, end })` is used for byte-range reads; the `'response'` event captures body + metadata in a single HTTP GET.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling buckets via server-side copy |
+| Forks | Sibling buckets via server-side copy |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✓ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |

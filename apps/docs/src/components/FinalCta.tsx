@@ -5,7 +5,7 @@ export default function FinalCta() {
     <section className="final-cta">
       <div className="shell">
         <h2>
-          One SDK. <em>Snapshots and forks</em> on every backend.
+          One SDK. <em>Snapshots and forks</em> on every provider.
         </h2>
         <p>
           Open source, Apache 2.0, ESM-only, Node 20+. Built by the Tigris team
