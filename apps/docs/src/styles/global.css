@@ -176,30 +176,17 @@ button {
 }
 
 .brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  background: var(--fg);
-  position: relative;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
+  background-image: url("/logo/storagesdk-mark-light.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
 }
 
-.brand-mark::before {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  background: var(--accent);
-  border-radius: 1px;
-}
-
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  top: 8px;
-  height: 1px;
-  background: var(--fg);
+[data-theme="dark"] .brand-mark {
+  background-image: url("/logo/storagesdk-mark-white.svg");
 }
 
 .nav-links {

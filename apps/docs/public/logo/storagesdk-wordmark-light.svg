@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 256" width="512" height="256">
+  <defs></defs>
+  <rect width="512" height="256" fill="#ffffff"></rect>
+  <text x="256" y="150.784" text-anchor="middle" font-family="Geist, &#39;Space Grotesk&#39;, sans-serif" font-weight="900" font-size="138.24" fill="#0a0a0a" opacity="1">S</text>
+  <text x="256" y="140.032" text-anchor="middle" font-family="Geist, &#39;Space Grotesk&#39;, sans-serif" font-weight="900" font-size="107.52" fill="#0a0a0a" opacity="0.55">S</text>
+  <text x="256" y="129.28" text-anchor="middle" font-family="Geist, &#39;Space Grotesk&#39;, sans-serif" font-weight="900" font-size="76.8" fill="#0a0a0a" opacity="0.3">S</text>
+  <text x="256" y="225.28" text-anchor="middle" font-family="&#39;Geist Mono&#39;, &#39;JetBrains Mono&#39;, ui-monospace, monospace" font-weight="600" font-size="30.72" letter-spacing="1.2" fill="#0a0a0a">storagesdk</text>
+</svg>
