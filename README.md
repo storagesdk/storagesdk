@@ -4,7 +4,7 @@
 [![CI](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml/badge.svg)](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@storagesdk/core)](./LICENSE)
 
-A multi-provider SDK for object storage. One API across S3, Cloudflare R2, MinIO, Azure Blob, Google Cloud Storage, Vercel Blob, Tigris, and local filesystems — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
+A multi-provider SDK for object storage. One API across Tigris, S3, Cloudflare R2, Google Cloud Storage, Azure Blob, Vercel Blob, MinIO, and local filesystems — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
@@ -12,13 +12,13 @@ npm install @storagesdk/core @storagesdk/adapters
 
 ```ts
 import { Storage } from '@storagesdk/core';
-import { s3 } from '@storagesdk/adapters/s3';
+import { tigris } from '@storagesdk/adapters/tigris';
 
 const storage = new Storage({
-  adapter: s3({
-    bucket: 'photos',
-    region: 'us-east-1',
-    credentials: { accessKeyId, secretAccessKey },
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY,
   }),
 });
 
@@ -30,31 +30,31 @@ const text = await storage.download('hello.txt', { as: 'text' });
 const url = await storage.url('hello.txt', { expiresIn: 300 });
 
 const snap = await storage.snapshots.create({ name: 'pre-migration' });
-await storage.forks.create({ name: 'photos-exp', fromSnapshot: snap.id });
-const fork = storage.forks.get('photos-exp');
+await storage.forks.create({ name: 'agent-runs-exp', fromSnapshot: snap.id });
+const fork = storage.forks.get('agent-runs-exp');
 await fork.upload('hello.txt', 'mutated in fork only');
 ```
 
 ## What you get
 
 - **Snapshots and forks as primitives.** Take a snapshot of a bucket, get a read-only handle, fork from it as a writable branch. Native APIs where available (Tigris); sibling buckets/folders otherwise.
-- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for backend-specific operations storagesdk doesn't surface.
+- **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for provider-specific operations storagesdk doesn't surface.
 - **ESM-only, Node 20+.** Plain `tsc` build, no bundler.
 
 ## Adapters
 
 | Adapter | Subpath | Backend |
 | --- | --- | --- |
-| Filesystem | `@storagesdk/adapters/fs` | Local `node:fs/promises`. For development and tests. |
-| S3 | `@storagesdk/adapters/s3` | Amazon S3 and any S3-compatible backend (DigitalOcean Spaces, Backblaze B2, etc.). |
-| R2 | `@storagesdk/adapters/r2` | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
-| MinIO | `@storagesdk/adapters/minio` | [MinIO](https://min.io/). |
-| Azure Blob | `@storagesdk/adapters/azure` | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
-| GCS | `@storagesdk/adapters/gcs` | [Google Cloud Storage](https://cloud.google.com/storage). |
-| Vercel Blob | `@storagesdk/adapters/vercel` | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
-| Tigris | `@storagesdk/adapters/tigris` | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
-
-Each adapter has its own README with config details, escape-hatch examples, and any backend-specific notes. See `packages/adapters/src/<adapter>/README.md`.
+| Tigris | [`@storagesdk/adapters/tigris`](./packages/adapters/src/tigris/README.md) | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
+| S3 | [`@storagesdk/adapters/s3`](./packages/adapters/src/s3/README.md) | Amazon S3 and any S3-compatible provider. |
+| R2 | [`@storagesdk/adapters/r2`](./packages/adapters/src/r2/README.md) | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
+| GCS | [`@storagesdk/adapters/gcs`](./packages/adapters/src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
+| Azure Blob | [`@storagesdk/adapters/azure`](./packages/adapters/src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
+| Vercel Blob | [`@storagesdk/adapters/vercel`](./packages/adapters/src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
+| MinIO | [`@storagesdk/adapters/minio`](./packages/adapters/src/minio/README.md) | [MinIO](https://min.io/). |
+| Fly.io | [`@storagesdk/adapters/fly`](./packages/adapters/src/fly/README.md) | Fly-managed Tigris buckets — branded alias of the Tigris adapter. |
+| Railway | [`@storagesdk/adapters/railway`](./packages/adapters/src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
+| Filesystem | [`@storagesdk/adapters/fs`](./packages/adapters/src/fs/README.md) | Local `node:fs/promises`. For development and tests. |
 
 ## API
 
@@ -188,7 +188,7 @@ const bytes = await storage.download('big.bin', {
 });
 ```
 
-Maps to each backend's native range API (`Range: bytes=N-M` for S3-family, `download(offset, count)` for Azure, `createReadStream({ start, end })` for GCS, the `Range` header on Vercel). `range` past EOF returns the bytes that exist — matches HTTP `Range` semantics.
+Maps to each provider's native range API (`Range: bytes=N-M` for S3-family, `download(offset, count)` for Azure, `createReadStream({ start, end })` for GCS, the `Range` header on Vercel). `range` past EOF returns the bytes that exist — matches HTTP `Range` semantics.
 
 ### AbortSignal
 
@@ -203,12 +203,10 @@ await storage.upload('big.bin', body, { signal: ctrl.signal });
 ### Escape hatch
 
 ```ts
-import type { S3Client } from '@aws-sdk/client-s3';
+const storage = new Storage({ adapter: tigris({ bucket: 'agent-runs' }) });
+//    ↑ Storage typed with the underlying client end-to-end, no cast needed
 
-const storage = new Storage({ adapter: s3({ bucket: 'photos' }) });
-//    ↑ Storage<S3Client>, no cast needed
-
-storage.raw.send(new SomePowerUserCommand({ /* ... */ }));
+await storage.raw.someBackendOp({ /* ... */ });
 ```
 
 ## Examples
@@ -224,7 +222,7 @@ pnpm --filter @storagesdk/examples forks
 
 ## Authoring adapters
 
-`@storagesdk/adapters` is *one* set of backends; the SDK is designed for third-party adapters too.
+`@storagesdk/adapters` is *one* set of providers; the SDK is designed for third-party adapters too.
 
 ```sh
 npm install @storagesdk/core

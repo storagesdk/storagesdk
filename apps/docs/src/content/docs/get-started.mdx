@@ -8,7 +8,7 @@ next:
   title: API reference
 ---
 
-import { ADAPTERS } from '../../data/adapters';
+import { FEATURED_ADAPTERS } from '../../data/adapters';
 import { SNIPPETS } from '../../data/snippets';
 import CodeBlock from '../../components/CodeBlock';
 import Note from '../../components/docs/Note.astro';
@@ -19,15 +19,15 @@ start calling it.
 
 ## Overview
 
-Every operation is the same shape on every backend. You build a `Storage` by passing it
+Every operation is the same shape on every provider. You build a `Storage` by passing it
 an adapter — that's it. The adapter handles auth, request signing, and any quirks of
 the underlying service.
 
 Snapshots and forks are first-class. On Tigris they map to the native APIs; on every
-other backend the SDK emulates them as sibling buckets and bookkeeps the metadata so
+other provider the SDK emulates them as sibling buckets and bookkeeps the metadata so
 you don't have to. The call site stays the same either way.
 
-- **One API, every backend** — Amazon S3, Cloudflare R2, Tigris, GCS, Azure Blob, Vercel Blob, MinIO, and the local filesystem.
+- **One API, every provider** — Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob, Vercel Blob, MinIO, and the local filesystem.
 - **Snapshot and fork as primitives** — branch a bucket per agent run, freeze a moment in time, replay it deterministically.
 - **Web-standard streams** in and out, `AbortSignal` on every method, typed `StorageError` codes.
 - **Typed escape hatch** via `storage.raw` when you need an adapter-specific operation.
@@ -69,23 +69,23 @@ Per-agent sandboxes; reproducible runs.
 <CodeBlock client:load filename="snapshot-and-fork.ts" snippets={SNIPPETS.hero} />
 
 <Note>
-  On Tigris this is zero-copy and instant. On every other backend the SDK emulates
+  On Tigris this is zero-copy and instant. On every other provider the SDK emulates
   snapshots and forks as sibling buckets it manages for you.
 </Note>
 
 ## Adapter
 
-Switching backends means changing the import. The rest of your code doesn't move.
+Switching providers means changing the import. The rest of your code doesn't move.
 Below is the same upload-and-download sequence across every first-party adapter — flip
 the tab to compare.
 
 <CodeBlock
   client:load
   filename="storage.ts"
-  tabs={ADAPTERS.map((a) => a.short)}
-  snippets={ADAPTERS.map((a) => SNIPPETS.adapters[a.key] ?? '')}
+  tabs={FEATURED_ADAPTERS.map((a) => a.short)}
+  snippets={FEATURED_ADAPTERS.map((a) => SNIPPETS.adapters[a.key] ?? '')}
 />
 
-Each adapter accepts its backend's standard config — bucket and credentials for cloud
-backends; a local `root` directory for filesystem. See the [Adapters](/adapters)
-section for full per-backend configuration, auth, and gotchas.
+Each adapter accepts its provider's standard config — bucket and credentials for cloud
+providers; a local `root` directory for filesystem. See the [Adapters](/adapters)
+section for full per-provider configuration, auth, and gotchas.

@@ -14,22 +14,21 @@ interface AdapterEntry {
   native?: boolean;
 }
 
-// Canonical adapter order used everywhere on the site. Cloud-first
-// adapters in the order the user specified, then dev/local at the end.
+// Canonical adapter order used everywhere on the site.
 export const ADAPTERS: AdapterEntry[] = [
-  { name: 'Amazon S3', short: 'S3', key: 's3', sub: '@storagesdk/adapters/s3' },
-  {
-    name: 'Cloudflare R2',
-    short: 'R2',
-    key: 'r2',
-    sub: '@storagesdk/adapters/r2',
-  },
   {
     name: 'Tigris',
     short: 'Tigris',
     key: 'tigris',
     sub: '@storagesdk/adapters/tigris',
     native: true,
+  },
+  { name: 'Amazon S3', short: 'S3', key: 's3', sub: '@storagesdk/adapters/s3' },
+  {
+    name: 'Cloudflare R2',
+    short: 'R2',
+    key: 'r2',
+    sub: '@storagesdk/adapters/r2',
   },
   {
     name: 'Google Cloud Storage',
@@ -56,9 +55,40 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/minio',
   },
   {
+    name: 'Fly.io',
+    short: 'Fly',
+    key: 'fly',
+    sub: '@storagesdk/adapters/fly',
+    native: true,
+  },
+  {
+    name: 'Railway',
+    short: 'Railway',
+    key: 'railway',
+    sub: '@storagesdk/adapters/railway',
+    native: true,
+  },
+  {
     name: 'Filesystem',
     short: 'FS',
     key: 'fs',
     sub: '@storagesdk/adapters/fs',
   },
 ];
+
+// Subset shown in the landing-page switcher and the Get Started page —
+// the eight primary providers, branded Tigris aliases (fly, railway)
+// live on the /adapters pages only.
+const FEATURED_KEYS = new Set([
+  'tigris',
+  's3',
+  'r2',
+  'gcs',
+  'azure',
+  'vercel',
+  'minio',
+  'fs',
+]);
+export const FEATURED_ADAPTERS = ADAPTERS.filter((a) =>
+  FEATURED_KEYS.has(a.key)
+);

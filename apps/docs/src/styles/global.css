@@ -176,30 +176,17 @@ button {
 }
 
 .brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  background: var(--fg);
-  position: relative;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
+  background-image: url("/logo/storagesdk-mark-light.svg");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
 }
 
-.brand-mark::before {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  background: var(--accent);
-  border-radius: 1px;
-}
-
-.brand-mark::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  top: 8px;
-  height: 1px;
-  background: var(--fg);
+[data-theme="dark"] .brand-mark {
+  background-image: url("/logo/storagesdk-mark-white.svg");
 }
 
 .nav-links {
@@ -278,14 +265,36 @@ button {
   .nav-search {
     display: none;
   }
+  .nav-inner {
+    gap: 18px;
+  }
   .nav-links {
     gap: 14px;
   }
 }
 
 @media (max-width: 600px) {
-  .nav-links {
+  /* Drop the wordmark text and use only the brand mark — gives the
+     nav links the breathing room they need to fit. */
+  .brand > span:last-child {
     display: none;
+  }
+  .nav-inner {
+    gap: 14px;
+  }
+  .nav-links {
+    gap: 12px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 380px) {
+  .nav-inner {
+    gap: 10px;
+  }
+  .nav-links {
+    gap: 10px;
+    font-size: 12.5px;
   }
 }
 
@@ -844,7 +853,6 @@ h1.headline em::after {
 .final-cta {
   padding: 80px 0;
   text-align: center;
-  border-bottom: 1px solid var(--border);
 }
 
 .final-cta h2 {
@@ -873,6 +881,7 @@ h1.headline em::after {
 
 /* ─── footer ─── */
 .footer {
+  border-top: 1px solid var(--border);
   padding: 56px 0 40px;
   font-size: 13px;
   color: var(--fg-muted);
@@ -1859,6 +1868,59 @@ h1.headline em::after {
 /* ─── code-block spacing on docs ─── */
 .docs-main .code {
   margin: 0 0 24px;
+}
+
+/* ─── docs tables (spec-sheet style) ─── */
+.docs-main table {
+  width: 100%;
+  margin: 8px 0 32px;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-main thead th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-main thead th:first-child {
+  padding-right: 24px;
+  width: 22%;
+}
+
+.docs-main tbody td {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  vertical-align: top;
+}
+
+.docs-main tbody td:first-child {
+  color: var(--fg);
+  font-weight: 500;
+  padding-right: 24px;
+  width: 22%;
+}
+
+.docs-main tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.docs-main tbody td code {
+  color: var(--fg);
+  /* Long type signatures shouldn't blow out the column width. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* ─── rule + pagination ─── */

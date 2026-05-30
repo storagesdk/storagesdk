@@ -1,0 +1,58 @@
+---
+title: MinIO
+eyebrow: Adapter
+description: MinIO adapter for storagesdk.
+section: adapters
+---
+
+## Overview
+
+The [MinIO](https://min.io/) adapter wraps the MinIO S3-compatible API. Snapshots and forks follow the same sibling-bucket pattern as the S3 adapter (server-side copy + manifest).
+
+Primarily useful for local development against `docker run minio/minio`, or for self-hosted S3-compatible storage on your own infrastructure.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { minio } from '@storagesdk/adapters/minio';
+
+const storage = new Storage({
+  adapter: minio({
+    bucket: 'agent-runs',
+    endpoint: process.env.MINIO_ENDPOINT,
+    accessKeyId: process.env.MINIO_ACCESS_KEY_ID,
+    secretAccessKey: process.env.MINIO_SECRET_ACCESS_KEY,
+  }),
+});
+```
+
+```ts
+minio({
+  bucket: string;
+  endpoint: string;        // required — no default
+  accessKeyId: string;
+  secretAccessKey: string;
+  region?: string;         // defaults to 'us-east-1'
+  forcePathStyle?: boolean; // defaults to true
+});
+```
+
+## Notes
+
+- Same peer deps as the S3 adapter: `@aws-sdk/client-s3` and friends.
+- `endpoint` is required. Typical local setup is `http://localhost:9000`.
+- `forcePathStyle` defaults to `true` — the underlying S3 client needs path-style addressing against MinIO.
+- For other S3-compatible providers, prefer the [S3 adapter](/adapters/s3) directly with `forcePathStyle: false`.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling buckets via server-side `CopyObject` |
+| Forks | Sibling buckets via server-side `CopyObject` |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✓ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |

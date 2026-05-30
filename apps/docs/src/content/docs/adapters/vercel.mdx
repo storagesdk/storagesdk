@@ -1,0 +1,52 @@
+---
+title: Vercel Blob
+eyebrow: Adapter
+description: Vercel Blob adapter for storagesdk.
+section: adapters
+---
+
+## Overview
+
+[Vercel Blob](https://vercel.com/docs/vercel-blob) has no native bucket concept, so the adapter maps each storagesdk `bucket` to a pathname prefix (`<bucket>/<key>`). Multiple logical buckets can coexist in one Vercel Blob store; snapshots and forks land at sibling prefixes.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { vercel } from '@storagesdk/adapters/vercel';
+
+const storage = new Storage({
+  adapter: vercel({
+    bucket: 'agent-runs',
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+  }),
+});
+```
+
+```ts
+vercel({
+  bucket: string;
+  token?: string;          // defaults to BLOB_READ_WRITE_TOKEN env var
+  access?: 'public' | 'private';  // default 'public'
+});
+```
+
+## Notes
+
+- Peer dependency: `@vercel/blob`.
+- `token` defaults to `process.env.BLOB_READ_WRITE_TOKEN` (set automatically on Vercel runtimes); pass explicitly when running elsewhere.
+- Per-object `metadata` on `upload()` is **silently dropped** — Vercel Blob has no user-metadata field. Use a sidecar object if you need it.
+- `minSize` on `uploadUrl()` is silently dropped (Vercel signed URLs cap with `maximumSizeInBytes`; no lower bound).
+- `access: 'public'` (the default) serves through Vercel's CDN — brief stale reads possible. Use `access: 'private'` when snapshot/fork manifest reads need strong consistency.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling prefixes inside one Blob store |
+| Forks | Sibling prefixes inside one Blob store |
+| Byte-range reads | ✓ |
+| Multipart upload | ✗ |
+| Enforced upload limits | ✓ |
+| User metadata | ✗ |
+| Signed URLs | ✓ |

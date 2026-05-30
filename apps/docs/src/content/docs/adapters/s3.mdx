@@ -1,0 +1,65 @@
+---
+title: Amazon S3
+eyebrow: Adapter
+description: Amazon S3 adapter for storagesdk — works against S3 and any S3-compatible provider.
+section: adapters
+---
+
+## Overview
+
+The S3 adapter targets [Amazon S3](https://aws.amazon.com/s3/) and any S3-compatible provider. Snapshots and forks land as **sibling buckets** populated by server-side `CopyObject`; siblings are co-located in the parent's region via `GetBucketLocation`.
+
+Manifest lineage lives at `.storagesdk.metadata.json` at the root of each bucket, filtered out of `list()` results.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { s3 } from '@storagesdk/adapters/s3';
+
+const storage = new Storage({
+  adapter: s3({
+    bucket: 'agent-runs',
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+  }),
+});
+```
+
+```ts
+s3({
+  bucket: string;
+  region?: string;
+  endpoint?: string;
+  forcePathStyle?: boolean;
+  credentials?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    sessionToken?: string;
+  };
+});
+```
+
+## Notes
+
+- Peer deps: `@aws-sdk/client-s3`, `@aws-sdk/lib-storage`, `@aws-sdk/s3-request-presigner`, `@aws-sdk/s3-presigned-post`.
+- Omit `credentials` to use the AWS default credential provider chain (env vars, shared profile, IAM role, SSO, EC2/ECS/EKS metadata).
+- S3 **lowercases** user-metadata keys server-side. `metadata: { Author: 'alice' }` reads back as `{ author: 'alice' }`.
+- Snapshot bucket names append `-snapshot-<25 digits>` (35 chars overhead). Keep parent names ≤ 28 characters to stay under S3's 63-char limit.
+- Objects ≤ 5 GB use single `CopyObject`; larger objects fall back to multipart copy via `UploadPartCopy` automatically.
+- `uploadUrl({ maxSize, contentType })` returns a presigned POST policy via `@aws-sdk/s3-presigned-post`. PUT presigning is the default otherwise.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling buckets via server-side `CopyObject` |
+| Forks | Sibling buckets via server-side `CopyObject` |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✓ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |

@@ -1,0 +1,63 @@
+---
+title: Filesystem
+eyebrow: Adapter
+description: Filesystem adapter for storagesdk — uses node:fs/promises. Primarily for local development and tests.
+section: adapters
+---
+
+## Overview
+
+The filesystem adapter targets `node:fs/promises`. Data lives at `<root>/<folder>/`; snapshots and forks land as sibling folders directly under `<root>` — not nested inside the data folder.
+
+Primarily for local development and tests where you don't want to spin up a real provider.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { fs } from '@storagesdk/adapters/fs';
+
+const storage = new Storage({
+  adapter: fs({
+    root: './.storage',
+    folder: 'agent-runs',
+  }),
+});
+```
+
+```ts
+fs({
+  root: string;     // parent directory under which the folder and siblings live
+  folder: string;   // the folder this adapter operates on
+});
+```
+
+For the call above, layout on disk:
+
+```
+./.storage/
+├── agent-runs/                                  ← this adapter's data
+│   ├── hello.txt
+│   └── .storagesdk.metadata.json
+├── agent-runs-snapshot-1747318800123456789012/  ← a snapshot
+└── agent-runs-exp/                              ← a fork named `agent-runs-exp`
+```
+
+## Notes
+
+- No peer dependencies — uses only Node.js built-ins.
+- Content type and user metadata are stored in per-object sidecar files (`.storagesdk.meta.json`). `head()` and `download()` read them; `list()` skips them.
+- `url()` and `uploadUrl()` return `file://` URLs with an `?expires=…` parameter — explicitly **not signed**. Local dev only.
+- Streaming download buffers the full file before returning; multipart uploads are accepted but written in one `fs.writeFile` call.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling folders under `root` |
+| Forks | Sibling folders under `root` |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | n/a |
+| User metadata | ✓ |
+| Signed URLs | n/a |

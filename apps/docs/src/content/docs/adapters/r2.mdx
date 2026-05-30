@@ -1,0 +1,58 @@
+---
+title: Cloudflare R2
+eyebrow: Adapter
+description: Cloudflare R2 adapter for storagesdk — thin wrapper over the S3 adapter with R2-friendly defaults.
+section: adapters
+---
+
+## Overview
+
+[Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/) speaks S3 but with a few rough edges (no `ListObjectVersions`, no bucket tagging). The R2 adapter is a thin wrapper over the S3 adapter with R2-friendly defaults: `region: 'auto'` and an endpoint derived from your account ID.
+
+Snapshots and forks follow the same sibling-bucket pattern as S3; the manifest sits at `.storagesdk.metadata.json` at the bucket root and is filtered out of `list()`.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { r2 } from '@storagesdk/adapters/r2';
+
+const storage = new Storage({
+  adapter: r2({
+    bucket: 'agent-runs',
+    accountId: process.env.R2_ACCOUNT_ID,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  }),
+});
+```
+
+```ts
+r2({
+  bucket: string;
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint?: string;       // override for EU / FedRAMP jurisdictions
+});
+```
+
+## Notes
+
+- Same peer deps as the S3 adapter: `@aws-sdk/client-s3` and friends.
+- `endpoint` defaults to `https://<accountId>.r2.cloudflarestorage.com`. Override for jurisdiction-specific endpoints (EU, FedRAMP High).
+- R2 doesn't expose `ListObjectVersions`, so snapshot/fork cleanup uses `ListObjectsV2`.
+- R2 doesn't support bucket tagging, so the manifest always lands at `.storagesdk.metadata.json` (S3-style tagging fallback).
+- Create R2 API tokens scoped to the bucket(s) you intend to use — Cloudflare dashboard → R2 → "Manage R2 API Tokens".
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling buckets via server-side `CopyObject` |
+| Forks | Sibling buckets via server-side `CopyObject` |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✓ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |

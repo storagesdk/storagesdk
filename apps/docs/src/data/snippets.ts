@@ -3,14 +3,33 @@
 export const SNIPPETS = {
   // ── Multi-adapter switcher: same call site, different adapter import ──
   adapters: {
+    tigris: `import { Storage } from '@storagesdk/core';
+import { tigris } from '@storagesdk/adapters/tigris';
+
+const storage = new Storage({
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     s3: `import { Storage } from '@storagesdk/core';
 import { s3 } from '@storagesdk/adapters/s3';
 
 const storage = new Storage({
   adapter: s3({
-    bucket: 'photos',
+    bucket: 'agent-runs',
     region: 'us-east-1',
-    credentials: { accessKeyId, secretAccessKey },
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
   }),
 });
 
@@ -24,9 +43,10 @@ import { r2 } from '@storagesdk/adapters/r2';
 
 const storage = new Storage({
   adapter: r2({
-    bucket: 'photos',
+    bucket: 'agent-runs',
     accountId: process.env.R2_ACCOUNT_ID,
-    credentials: { accessKeyId, secretAccessKey },
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   }),
 });
 
@@ -40,9 +60,9 @@ import { gcs } from '@storagesdk/adapters/gcs';
 
 const storage = new Storage({
   adapter: gcs({
-    bucket: 'photos',
-    projectId: 'my-project',
-    keyFilename: './service-account.json',
+    bucket: 'agent-runs',
+    projectId: process.env.GOOGLE_PROJECT_ID,
+    keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
   }),
 });
 
@@ -56,40 +76,9 @@ import { azure } from '@storagesdk/adapters/azure';
 
 const storage = new Storage({
   adapter: azure({
-    container: 'photos',
-    accountName: 'myaccount',
+    bucket: 'agent-runs',
+    accountName: process.env.AZURE_ACCOUNT_NAME,
     accountKey: process.env.AZURE_ACCOUNT_KEY,
-  }),
-});
-
-await storage.upload('hello.txt', 'Hello, storage SDK!', {
-  contentType: 'text/plain',
-});
-
-const text = await storage.download('hello.txt', { as: 'text' });`,
-    tigris: `import { Storage } from '@storagesdk/core';
-import { tigris } from '@storagesdk/adapters/tigris';
-
-const storage = new Storage({
-  adapter: tigris({
-    bucket: 'photos',
-    // endpoint defaults to https://t3.storage.dev
-  }),
-});
-
-await storage.upload('hello.txt', 'Hello, storage SDK!', {
-  contentType: 'text/plain',
-});
-
-const text = await storage.download('hello.txt', { as: 'text' });`,
-    minio: `import { Storage } from '@storagesdk/core';
-import { minio } from '@storagesdk/adapters/minio';
-
-const storage = new Storage({
-  adapter: minio({
-    bucket: 'photos',
-    endpoint: 'http://localhost:9000',
-    credentials: { accessKeyId, secretAccessKey },
   }),
 });
 
@@ -103,8 +92,57 @@ import { vercel } from '@storagesdk/adapters/vercel';
 
 const storage = new Storage({
   adapter: vercel({
-    bucket: 'photos',
-    // token defaults to process.env.BLOB_READ_WRITE_TOKEN
+    bucket: 'agent-runs',
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
+    minio: `import { Storage } from '@storagesdk/core';
+import { minio } from '@storagesdk/adapters/minio';
+
+const storage = new Storage({
+  adapter: minio({
+    bucket: 'agent-runs',
+    endpoint: process.env.MINIO_ENDPOINT,
+    accessKeyId: process.env.MINIO_ACCESS_KEY_ID,
+    secretAccessKey: process.env.MINIO_SECRET_ACCESS_KEY,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
+    fly: `import { Storage } from '@storagesdk/core';
+import { fly } from '@storagesdk/adapters/fly';
+
+const storage = new Storage({
+  adapter: fly({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.ACCESS_KEY_ID,
+    secretAccessKey: process.env.SECRET_ACCESS_KEY,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
+    railway: `import { Storage } from '@storagesdk/core';
+import { railway } from '@storagesdk/adapters/railway';
+
+const storage = new Storage({
+  adapter: railway({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.ACCESS_KEY_ID,
+    secretAccessKey: process.env.SECRET_ACCESS_KEY,
   }),
 });
 
@@ -119,6 +157,7 @@ import { fs } from '@storagesdk/adapters/fs';
 const storage = new Storage({
   adapter: fs({
     root: './.storage',
+    folder: 'agent-runs',
   }),
 });
 
@@ -134,15 +173,19 @@ const text = await storage.download('hello.txt', { as: 'text' });`,
 import { tigris } from '@storagesdk/adapters/tigris';
 
 const storage = new Storage({
-  adapter: tigris({ bucket: 'photos' }),
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY,
+  }),
 });
 
 // Freeze the current state.
 const snap = await storage.snapshots.create({ name: 'pre-migration' });
 
 // Branch from that snapshot — writable, isolated.
-await storage.forks.create({ name: 'photos-exp', fromSnapshot: snap.id });
-const fork = storage.forks.get('photos-exp');
+await storage.forks.create({ name: 'agent-runs-exp', fromSnapshot: snap.id });
+const fork = storage.forks.get('agent-runs-exp');
 
 await fork.upload('hello.txt', 'mutated in fork only');`,
 
@@ -218,13 +261,17 @@ await storage.uploadUrl('new.jpg', {
 // → { method: 'POST', url, fields }`,
 
   // ── Typed escape hatch ──
-  escapeHatch: `import type { S3Client } from '@aws-sdk/client-s3';
-
-const storage = new Storage({ adapter: s3({ bucket: 'photos' }) });
-//    ^^^^^^^^ — Storage<S3Client>, inferred. No cast.
+  escapeHatch: `const storage = new Storage({
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY,
+  }),
+});
+//    ^ Storage typed end-to-end via the adapter — no cast.
 
 // Need a backend-specific op? Reach through .raw — fully typed.
-await storage.raw.send(new SomePowerUserCommand({ /* ... */ }));`,
+await storage.raw.someBackendOp({ /* ... */ });`,
 
   // ── AbortSignal ──
   abort: `const ctrl = new AbortController();
@@ -276,7 +323,7 @@ storage get report.pdf --adapter gcs --bucket reports --stdout > out.pdf`,
 import { fs } from '@storagesdk/adapters/fs';
 
 const storage = new Storage({
-  adapter: fs({ root: './.storage' }),
+  adapter: fs({ root: './.storage', folder: 'agent-runs' }),
 });
 
 await storage.upload('hello.txt', 'Hello, storage SDK!');

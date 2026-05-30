@@ -60,9 +60,8 @@ export default function Primitives() {
         <div className="support-note">
           <span className="support-note-dot" aria-hidden="true" />
           <span>
-            <b>Native on Tigris.</b> Emulated as sibling buckets on S3, R2, GCS,
-            Azure, MinIO, Vercel Blob, and the filesystem — we do the
-            bookkeeping so you don't have to.
+            <b>Native on Tigris.</b> Emulated as sibling buckets on S3, R2, GCS
+            and others — we do the bookkeeping so you don't have to.
           </span>
         </div>
       </div>

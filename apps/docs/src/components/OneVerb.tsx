@@ -25,7 +25,7 @@ export default function OneVerb() {
           <div className="section-eyebrow">api</div>
           <h2>One verb per intent.</h2>
           <p className="lead">
-            Methods named after what you want, not what the backend calls it.{' '}
+            Methods named after what you want, not what the provider calls it.{' '}
             <C>download</C> is overloaded by destination type — <C>text</C>,{' '}
             <C>bytes</C>, <C>stream</C>, or the full <C>StorageItem</C>.
             Web-standard streams in and out,

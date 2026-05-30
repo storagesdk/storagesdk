@@ -1,0 +1,44 @@
+---
+title: Fly.io
+eyebrow: Adapter
+description: Fly.io adapter for storagesdk — branded alias of the Tigris adapter for Fly-managed Tigris buckets.
+section: adapters
+---
+
+## Overview
+
+A branded alias of the [Tigris adapter](/adapters/tigris) for Fly-managed Tigris buckets. Behavior, snapshot/fork support, and `storage.raw` are identical to the Tigris adapter — the only difference is the import name, which matches the platform you're working in.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { fly } from '@storagesdk/adapters/fly';
+
+const storage = new Storage({
+  adapter: fly({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.ACCESS_KEY_ID,
+    secretAccessKey: process.env.SECRET_ACCESS_KEY,
+  }),
+});
+```
+
+```ts
+fly({
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  endpoint?: string;
+  forcePathStyle?: boolean;
+});
+```
+
+## Notes
+
+- Peer dependency: `@tigrisdata/storage`.
+- Behavior and semantics match `@storagesdk/adapters/tigris` exactly — see the [Tigris page](/adapters/tigris) for full details.
+
+## Compatibility
+
+Identical to [Tigris](/adapters/tigris#compatibility) — same SDK underneath.

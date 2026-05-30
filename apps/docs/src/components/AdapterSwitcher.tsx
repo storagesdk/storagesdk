@@ -1,11 +1,11 @@
-import { ADAPTERS } from '../data/adapters';
+import { FEATURED_ADAPTERS } from '../data/adapters';
 import { SNIPPETS } from '../data/snippets';
 import CodeBlock from './CodeBlock';
 import { ArrowIcon } from './Icon';
 
 export default function AdapterSwitcher() {
-  const labels = ADAPTERS.map((a) => a.short);
-  const snippets = ADAPTERS.map(
+  const labels = FEATURED_ADAPTERS.map((a) => a.short);
+  const snippets = FEATURED_ADAPTERS.map(
     (a) =>
       (SNIPPETS.adapters as Record<string, string | undefined>)[a.key] ?? ''
   );
@@ -16,7 +16,7 @@ export default function AdapterSwitcher() {
           <div className="section-eyebrow">one api</div>
           <h2>Same API, different provider.</h2>
           <p className="lead">
-            Switch backends by changing the import. The rest of your code
+            Switch providers by changing the import. The rest of your code
             doesn't move.
           </p>
         </div>

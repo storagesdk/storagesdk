@@ -7,7 +7,7 @@ const FEATURES = [
   {
     tag: 'signed urls',
     title: 'PUT or POST, your call',
-    body: 'Presigned PUT by default; POST with maxSize / contentType when the backend should enforce the bounds.',
+    body: 'Presigned PUT by default; POST with maxSize / contentType when the provider should enforce the bounds.',
   },
   {
     tag: 'escape hatch',

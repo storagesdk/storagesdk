@@ -10,10 +10,7 @@ export default function Footer() {
               <span className="brand-mark" aria-hidden="true" />
               <span>storagesdk.dev</span>
             </a>
-            <p className="footer-blurb">
-              A multi-provider TypeScript SDK for object storage. Snapshots and
-              forks as primitives, every backend behind one API.
-            </p>
+            <p className="footer-blurb">Storage for humans and agents</p>
           </div>
           <div className="footer-col">
             <h5>Docs</h5>
