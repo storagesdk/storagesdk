@@ -64,6 +64,15 @@ EXAMPLE_ACCESS_KEY_ID=minioadmin \
 EXAMPLE_SECRET_ACCESS_KEY=minioadmin \
 pnpm --filter @storagesdk/examples quickstart
 
+# GitHub — token reads from GITHUB_TOKEN. Snapshots are tags, forks
+# are branches; use a throwaway test repo, each run mutates the
+# working branch.
+EXAMPLE_ADAPTER=github \
+EXAMPLE_OWNER=storagesdk \
+EXAMPLE_REPO=sdk-test-fixture \
+GITHUB_TOKEN=ghp_... \
+pnpm --filter @storagesdk/examples quickstart
+
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```
