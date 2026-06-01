@@ -27,8 +27,10 @@ storageAdapterTestSuite({
   name: 'vercel adapter',
   skip: !configured,
   adapter: buildAdapter,
-  // Vercel Blob has no user-metadata concept.
-  metadata: false,
+  capabilities: {
+    // Vercel Blob has no user-metadata concept.
+    userMetadata: false,
+  },
 });
 
 if (!configured) {

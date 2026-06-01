@@ -21,8 +21,10 @@ const buildAdapter = () => fs({ root: FS_TEST_ROOT, folder: FS_TEST_FOLDER });
 storageAdapterTestSuite({
   name: 'fs adapter',
   adapter: buildAdapter,
-  // fs `url()` returns `file://`, not fetchable via HTTP.
-  httpSignedUrls: false,
+  capabilities: {
+    // fs `url()` returns `file://`, not fetchable via HTTP.
+    fetchableSignedUrls: false,
+  },
 });
 
 // FS-specific implementation details: sidecar files, path-traversal guards,
