@@ -1,6 +1,6 @@
 {
   "name": "@storagesdk/core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Core types and runtime for storagesdk. One API across object storage providers, with fork and snapshot built in.",
   "type": "module",
   "types": "./dist/index.d.ts",
