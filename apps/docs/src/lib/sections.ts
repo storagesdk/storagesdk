@@ -83,6 +83,12 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'azure', label: 'Azure Blob', href: '/adapters/azure' },
         { id: 'vercel', label: 'Vercel Blob', href: '/adapters/vercel' },
         { id: 'minio', label: 'MinIO', href: '/adapters/minio' },
+        {
+          id: 'github',
+          label: 'GitHub',
+          badge: 'native',
+          href: '/adapters/github',
+        },
         { id: 'fly', label: 'Fly.io', href: '/adapters/fly' },
         { id: 'railway', label: 'Railway', href: '/adapters/railway' },
         { id: 'fs', label: 'Filesystem', href: '/adapters/fs' },

@@ -15,6 +15,7 @@ export { Storage } from './storage.js';
 export type {
   BodyInput,
   CreateSnapshotOptions,
+  DownloadOptions,
   ForkInfo,
   ForkOptions,
   ForkProgress,

@@ -19,6 +19,7 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 | Azure Blob | [`@storagesdk/adapters/azure`](./src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
 | Vercel Blob | [`@storagesdk/adapters/vercel`](./src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
 | MinIO | [`@storagesdk/adapters/minio`](./src/minio/README.md) | [MinIO](https://min.io/). |
+| GitHub | [`@storagesdk/adapters/github`](./src/github/README.md) | [GitHub](https://github.com) repository — snapshots are tags, forks are branches, native git refs all the way down. |
 | Fly.io | [`@storagesdk/adapters/fly`](./src/fly/README.md) | Fly-managed Tigris buckets — branded alias of the Tigris adapter. |
 | Railway | [`@storagesdk/adapters/railway`](./src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
 | Filesystem | [`@storagesdk/adapters/fs`](./src/fs/README.md) | Local `node:fs/promises`. For development and tests. |

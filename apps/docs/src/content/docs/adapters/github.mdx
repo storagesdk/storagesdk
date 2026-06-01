@@ -1,0 +1,63 @@
+---
+title: GitHub
+eyebrow: Adapter
+description: GitHub adapter for storagesdk — snapshots are tags, forks are branches, native git refs all the way down.
+section: adapters
+---
+
+## Overview
+
+Adapter for a [GitHub](https://github.com) repository. Object operations go through the Contents API; snapshots and forks are first-class git refs — every snapshot is a **tag** and every fork is a **branch**. Of every provider in the catalog, this one maps the snapshots-and-forks model most literally onto the backend.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { github } from '@storagesdk/adapters/github';
+
+const storage = new Storage({
+  adapter: github({
+    owner: 'storagesdk',
+    repo: 'agent-artifacts',
+    // branch defaults to the repo's default branch
+    // token defaults to process.env.GITHUB_TOKEN
+  }),
+});
+```
+
+```ts
+github({
+  owner: string;
+  repo: string;
+  branch?: string;     // defaults to the repo's default branch
+  token?: string;      // GITHUB_TOKEN env if omitted
+  baseUrl?: string;    // GitHub Enterprise
+  commitMessage?: (op, paths) => string;
+});
+```
+
+No `bucket` field — the storage namespace is `(owner, repo, branch)`. Snapshots and forks are addressed by tag and branch name respectively.
+
+## Notes
+
+- Peer dependency: `@octokit/rest`.
+- **File size ≤ 1 MB.** The Contents API caps at 1 MB; larger files throw `InvalidArgument`. Reach for the Git Data API via `storage.raw` if you need large blobs.
+- **No presigned uploads.** `uploadUrl()` throws `NotSupported` — GitHub has no equivalent.
+- **No user metadata.** Git tracks file content + path, not arbitrary metadata. `upload({ metadata })` is silently dropped.
+- **No Content-Type.** `download` returns `'application/octet-stream'` regardless of how the file was uploaded.
+- Every write op creates a commit. Default commit message is `"storagesdk: <op> <path>"`; customize via the `commitMessage` config.
+- Rate limits: 5,000 req/hr authenticated. First-time uploads are one call; overwrites cost one extra (SHA lookup). `head`/`download` are two calls each (content + last-commit lookup).
+- **Eventual consistency.** GitHub's Contents API and `listTags`/`listBranches` lag writes by a few seconds. The adapter retries reads once on 404 (covers read-after-write) and filters in-flight deletions out of subsequent list calls — bounded to one `Storage` instance.
+- `storage.raw` is the underlying `Octokit` instance — use it for releases, PRs, GraphQL, or the Git Data API.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Native — git tag at `refs/tags/<id>` |
+| Forks | Native — git branch at `refs/heads/<name>` |
+| Byte-range reads | ✓ (slice of the downloaded blob) |
+| Multipart upload | ✗ |
+| Enforced upload limits | ✗ |
+| User metadata | ✗ |
+| Signed URLs | ✓ — `raw.githubusercontent.com` (public repos only) |

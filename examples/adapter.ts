@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { azure } from '@storagesdk/adapters/azure';
 import { fs } from '@storagesdk/adapters/fs';
 import { gcs } from '@storagesdk/adapters/gcs';
+import { github } from '@storagesdk/adapters/github';
 import { minio } from '@storagesdk/adapters/minio';
 import { r2 } from '@storagesdk/adapters/r2';
 import { s3 } from '@storagesdk/adapters/s3';
@@ -17,8 +18,8 @@ import type { Adapter } from '@storagesdk/core/adapter';
  * vars only.
  *
  * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel (default: fs)
- *   EXAMPLE_BUCKET           required for every non-fs adapter
+ *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github (default: fs)
+ *   EXAMPLE_BUCKET           required for every non-fs, non-github adapter
  *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
  *   EXAMPLE_REGION           optional for s3, minio
  *   EXAMPLE_ACCESS_KEY_ID    required for s3, r2, minio, tigris
@@ -31,6 +32,10 @@ import type { Adapter } from '@storagesdk/core/adapter';
  *   EXAMPLE_KEY_FILENAME     path to GCP service-account JSON key (gcs)
  *   EXAMPLE_TOKEN            Vercel Blob read-write token (vercel; falls back
  *                            to BLOB_READ_WRITE_TOKEN env var on Vercel runtimes)
+ *   EXAMPLE_OWNER            required for github (repo owner)
+ *   EXAMPLE_REPO             required for github (repo name)
+ *   EXAMPLE_BRANCH           optional for github (defaults to repo's default branch).
+ *                            github reads its token from GITHUB_TOKEN.
  */
 export function getAdapter(): Adapter {
   const choice = (process.env.EXAMPLE_ADAPTER ?? 'fs').toLowerCase();
@@ -156,7 +161,24 @@ export function getAdapter(): Adapter {
     }
     return vercel({ bucket, token });
   }
+  if (choice === 'github') {
+    const owner = process.env.EXAMPLE_OWNER;
+    const repo = process.env.EXAMPLE_REPO;
+    if (!owner || !repo) {
+      throw new Error(
+        'EXAMPLE_OWNER and EXAMPLE_REPO are required for EXAMPLE_ADAPTER=github'
+      );
+    }
+    // token defaults to GITHUB_TOKEN inside the adapter.
+    return github({
+      owner,
+      repo,
+      ...(process.env.EXAMPLE_BRANCH !== undefined
+        ? { branch: process.env.EXAMPLE_BRANCH }
+        : {}),
+    });
+  }
   throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel.`
+    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github.`
   );
 }

@@ -155,6 +155,16 @@ The shared cross-adapter behavior is in `packages/adapters/src/test-suite.ts`. E
 - **Never commit without explicit confirmation.** When the changes are ready, surface the proposed commit message and the file list to the user and wait for their go-ahead. Same for amending.
 - **Never push or open a PR without explicit confirmation.** Show the proposed PR title and description and wait for approval before running `git push` or `gh pr create`.
 - **Keep PR title and description current.** When pushing a new commit to an existing PR, the title and body must reflect what the branch is doing *now*, not what the first commit was about. After every push to an existing PR, re-check the title and description against the cumulative changes and update them via `gh pr edit` if anything's stale.
+- **Docs and READMEs come in a follow-up commit, not bundled with the implementation.** The implementation commit ships only the code, tests, and changeset. Once that commit is approved (the user has said "commit") — meaning the implementation has been tested, the API is final, no more adjustments are pending — surface a *second* commit that updates every user-visible doc surface the change touches:
+  - Root `README.md` (and verify `packages/core/README.md` matches via the prepack mirror).
+  - `packages/adapters/README.md`.
+  - The affected per-adapter `packages/adapters/src/<adapter>/README.md`.
+  - The docs site under `apps/docs/`: adapter list in `src/data/adapters.ts`, hero/footer/meta copy if applicable, sidebar in `src/lib/sections.ts`, and the relevant content under `src/content/docs/` (including a new `adapters/<adapter>.mdx` page when shipping a new adapter, with its compatibility table).
+  - Examples in `examples/` when the public API shape changes.
+
+  Why the split: docs trail the API. If the implementation needs revisions after review, the docs would need to be rewritten too — wasted work. Keep them separate so docs can be drafted once against the final, landed API.
+
+  Don't ask "should we also update the docs?" — assume yes, and queue the follow-up commit automatically. If a doc surface is genuinely out of scope, call it out before requesting confirmation for the docs commit.
 
 ## Releasing
 

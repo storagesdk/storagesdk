@@ -55,6 +55,13 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/minio',
   },
   {
+    name: 'GitHub',
+    short: 'GitHub',
+    key: 'github',
+    sub: '@storagesdk/adapters/github',
+    native: true,
+  },
+  {
     name: 'Fly.io',
     short: 'Fly',
     key: 'fly',

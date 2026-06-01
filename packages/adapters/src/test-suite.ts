@@ -2,6 +2,23 @@ import { Storage, StorageError } from '@storagesdk/core';
 import type { Adapter, ReadOnlyAdapter } from '@storagesdk/core/adapter';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+/**
+ * Per-backend capability switches. Every flag defaults to `true`; set one
+ * to `false` to opt the conformance suite out of the assertions that
+ * exercise that capability. Names describe the *behavior* the backend
+ * supports, not the SDK feature.
+ */
+export interface AdapterCapabilities {
+  /** Backend preserves user-provided `metadata` across upload → head/download. */
+  userMetadata?: boolean;
+  /** Backend preserves the `contentType` value across upload → head/download. */
+  contentType?: boolean;
+  /** Backend supports presigned upload URLs (`uploadUrl()` resolves to a URL the client can `PUT`/`POST` against). */
+  presignedUploads?: boolean;
+  /** `url()` returns URLs that can be fetched over plain HTTP. */
+  fetchableSignedUrls?: boolean;
+}
+
 export interface StorageAdapterTestSuiteOptions<Raw = unknown> {
   /** Describe-block name shown in vitest output. */
   name: string;
@@ -22,19 +39,17 @@ export interface StorageAdapterTestSuiteOptions<Raw = unknown> {
    */
   cleanup?: boolean;
   /**
-   * Whether the adapter returns signed URLs that are fetchable via HTTP
-   * (the conformance suite will fetch them to verify the signature
-   * actually works end-to-end). Defaults to true. The fs adapter sets
-   * this to false — its `url()` returns `file://` URLs.
+   * Per-backend capability flags. Omit to assume every capability is
+   * supported (default for cloud object stores). Set a flag to `false`
+   * to opt out of the corresponding assertions.
    */
-  httpSignedUrls?: boolean;
+  capabilities?: AdapterCapabilities;
   /**
-   * Whether the backend preserves user metadata on upload (`metadata`
-   * option round-trips through `head` and `download`). Defaults to
-   * true. The Vercel Blob adapter sets this to false — Vercel Blob
-   * has no user-metadata concept and silently drops the field.
+   * Per-test timeout in milliseconds. Override when a backend's
+   * per-operation latency makes vitest's default 5s too tight (e.g.
+   * tests that perform many sequential network round-trips).
    */
-  metadata?: boolean;
+  testTimeoutMs?: number;
 }
 
 export interface SetupTestStorageOptions {
@@ -291,7 +306,15 @@ export function storageAdapterTestSuite<Raw = unknown>(
 ): void {
   const d = opts.skip ? describe.skip : describe;
 
-  d(opts.name, () => {
+  const caps = opts.capabilities ?? {};
+  const hasUserMetadata = caps.userMetadata !== false;
+  const hasContentType = caps.contentType !== false;
+  const hasPresignedUploads = caps.presignedUploads !== false;
+  const hasFetchableSignedUrls = caps.fetchableSignedUrls !== false;
+  const tMs = opts.testTimeoutMs;
+
+  const describeOpts = tMs !== undefined ? { timeout: tMs } : {};
+  d(opts.name, describeOpts, () => {
     const ctx = setupTestStorage(opts.adapter, {
       ...(opts.cleanup !== undefined ? { cleanup: opts.cleanup } : {}),
     });
@@ -304,23 +327,25 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(item.size).toBe(12);
       });
 
-      it('preserves contentType', async () => {
-        await ctx.upload('photo.jpg', 'bytes', {
-          contentType: 'image/jpeg',
-        });
-        const meta = await ctx.head('photo.jpg');
-        expect(meta.contentType).toBe('image/jpeg');
-      });
+      const contentTypeIt = hasContentType ? it : it.skip;
+      contentTypeIt(
+        hasContentType
+          ? 'preserves contentType'
+          : 'preserves contentType (skipped: backend has no Content-Type field)',
+        async () => {
+          await ctx.upload('photo.jpg', 'bytes', {
+            contentType: 'image/jpeg',
+          });
+          const meta = await ctx.head('photo.jpg');
+          expect(meta.contentType).toBe('image/jpeg');
+        }
+      );
 
-      // Adapters whose backend has a user-metadata field round-trip it
-      // through `head`. Vercel Blob has no such field — opts out via
-      // `metadata: false`. We still register a skipped test so the
-      // skip is visible in test output rather than silently absent.
-      const metadataIt = opts.metadata === false ? it.skip : it;
+      const metadataIt = hasUserMetadata ? it : it.skip;
       metadataIt(
-        opts.metadata === false
-          ? 'preserves user metadata (skipped: backend has no metadata field)'
-          : 'preserves user metadata',
+        hasUserMetadata
+          ? 'preserves user metadata'
+          : 'preserves user metadata (skipped: backend has no metadata field)',
         async () => {
           await ctx.upload('photo.jpg', 'bytes', {
             contentType: 'image/jpeg',
@@ -462,16 +487,20 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(seen).toEqual(expected);
       });
 
-      it('copies and moves keys, preserving contentType', async () => {
+      it('copies and moves keys', async () => {
         await ctx.upload('src.jpg', 'data', { contentType: 'image/jpeg' });
         await ctx.copy('src.jpg', 'dst.jpg');
-        expect((await ctx.head('dst.jpg')).contentType).toBe('image/jpeg');
+        if (hasContentType) {
+          expect((await ctx.head('dst.jpg')).contentType).toBe('image/jpeg');
+        }
 
         await ctx.move('dst.jpg', 'final.jpg');
         await expect(ctx.head('dst.jpg')).rejects.toMatchObject({
           code: 'NotFound',
         });
-        expect((await ctx.head('final.jpg')).contentType).toBe('image/jpeg');
+        if (hasContentType) {
+          expect((await ctx.head('final.jpg')).contentType).toBe('image/jpeg');
+        }
       });
 
       it('handles path separators in keys', async () => {
@@ -505,37 +534,48 @@ export function storageAdapterTestSuite<Raw = unknown>(
         expect(url.length).toBeGreaterThan(0);
       });
 
-      it('uploadUrl returns a PUT URL by default', async () => {
-        const signed = await ctx.uploadUrl('new.jpg', { expiresIn: 300 });
-        expect(signed.method).toBe('PUT');
-        expect(typeof signed.url).toBe('string');
-        expect(signed.url.length).toBeGreaterThan(0);
-      });
-
-      it('uploadUrl accepts maxSize and returns either POST or PUT', async () => {
-        // Backends with POST-policy support (s3/r2/minio, tigris) return
-        // `method: 'POST'` with form `fields`. Backends without (Azure
-        // SAS, file://) silently degrade to a `method: 'PUT'` URL — the
-        // size cap can't be enforced at the URL level on those. The
-        // compat matrix documents which adapters actually enforce.
-        const signed = await ctx.uploadUrl('new.jpg', {
-          expiresIn: 300,
-          maxSize: 5 * 1024 * 1024,
-          contentType: 'image/jpeg',
-        });
-        expect(['PUT', 'POST']).toContain(signed.method);
-        expect(typeof signed.url).toBe('string');
-        expect(signed.url.length).toBeGreaterThan(0);
-        if (signed.method === 'POST') {
-          expect(Object.keys(signed.fields).length).toBeGreaterThan(0);
-          expect(signed.fields.key).toBeDefined();
+      const uploadUrlIt = hasPresignedUploads ? it : it.skip;
+      uploadUrlIt(
+        hasPresignedUploads
+          ? 'uploadUrl returns a PUT URL by default'
+          : 'uploadUrl returns a PUT URL by default (skipped: backend has no presigned uploads)',
+        async () => {
+          const signed = await ctx.uploadUrl('new.jpg', { expiresIn: 300 });
+          expect(signed.method).toBe('PUT');
+          expect(typeof signed.url).toBe('string');
+          expect(signed.url.length).toBeGreaterThan(0);
         }
-      });
+      );
+
+      uploadUrlIt(
+        hasPresignedUploads
+          ? 'uploadUrl accepts maxSize and returns either POST or PUT'
+          : 'uploadUrl accepts maxSize (skipped: backend has no presigned uploads)',
+        async () => {
+          // Backends with POST-policy support (s3/r2/minio, tigris) return
+          // `method: 'POST'` with form `fields`. Backends without (Azure
+          // SAS, file://) silently degrade to a `method: 'PUT'` URL — the
+          // size cap can't be enforced at the URL level on those. The
+          // compat matrix documents which adapters actually enforce.
+          const signed = await ctx.uploadUrl('new.jpg', {
+            expiresIn: 300,
+            maxSize: 5 * 1024 * 1024,
+            contentType: 'image/jpeg',
+          });
+          expect(['PUT', 'POST']).toContain(signed.method);
+          expect(typeof signed.url).toBe('string');
+          expect(signed.url.length).toBeGreaterThan(0);
+          if (signed.method === 'POST') {
+            expect(Object.keys(signed.fields).length).toBeGreaterThan(0);
+            expect(signed.fields.key).toBeDefined();
+          }
+        }
+      );
 
       // Adapters that return HTTP-fetchable signed URLs (every cloud
       // backend) are exercised end-to-end here. fs opts out via
-      // `httpSignedUrls: false` because `url()` returns `file://`.
-      if (opts.httpSignedUrls !== false) {
+      // `capabilities.fetchableSignedUrls: false` (`url()` returns `file://`).
+      if (hasFetchableSignedUrls) {
         it('signed GET URL returns the object content', async () => {
           await ctx.upload('signed.txt', 'signed-content');
           const url = await ctx.url('signed.txt', { expiresIn: 300 });
@@ -544,7 +584,9 @@ export function storageAdapterTestSuite<Raw = unknown>(
           expect(res.status).toBe(200);
           expect(await res.text()).toBe('signed-content');
         });
+      }
 
+      if (hasFetchableSignedUrls && hasPresignedUploads) {
         it('signed PUT URL works for upload', async () => {
           const signed = await ctx.uploadUrl('uploaded.bin', {
             expiresIn: 300,
@@ -609,12 +651,16 @@ export function storageAdapterTestSuite<Raw = unknown>(
         const url = await reader.url('snapurl.txt', { expiresIn: 300 });
         expect(typeof url).toBe('string');
 
-        // For HTTP-based adapters the URL is independently fetchable and we
-        // can verify it returns snapshot bytes. For `file://` URLs Node's
-        // fetch refuses ("not implemented... yet..."); skip the byte check
-        // there — `'snapshot reads stay frozen after live writes'` already
+        // The byte-fetch end-to-end check is gated on
+        // `fetchableSignedUrls`. fs returns `file://` (Node's fetch
+        // refuses); github can return a URL that only resolves on
+        // public repos, so private test repos opt out the same way.
+        // `'snapshot reads stay frozen after live writes'` already
         // proves the SDK reads snapshot bytes via the reader.
-        if (url.startsWith('http://') || url.startsWith('https://')) {
+        if (
+          hasFetchableSignedUrls &&
+          (url.startsWith('http://') || url.startsWith('https://'))
+        ) {
           const res = await fetch(url);
           expect(res.status).toBe(200);
           expect(await res.text()).toBe('snapshot-bytes');
