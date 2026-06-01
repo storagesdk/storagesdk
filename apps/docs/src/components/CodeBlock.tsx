@@ -90,15 +90,17 @@ function tokenize(src: string): Token[] {
     }
     if (ch && /[0-9]/.test(ch)) {
       let j = i;
-      while (j < n && /[0-9_xXa-fA-F.eE+-]/.test(src[j]!)) j++;
-      while (j > i + 1 && /[+\-eE.]$/.test(src[j - 1]!)) j--;
+      // `charAt` returns '' past EOF, which the regex won't match — same
+      // behavior as the bounded `src[j]!` access without the assertion.
+      while (j < n && /[0-9_xXa-fA-F.eE+-]/.test(src.charAt(j))) j++;
+      while (j > i + 1 && /[+\-eE.]$/.test(src.charAt(j - 1))) j--;
       push('n', src.slice(i, j));
       i = j;
       continue;
     }
     if (ch && /[A-Za-z_$]/.test(ch)) {
       let j = i;
-      while (j < n && /[A-Za-z0-9_$]/.test(src[j]!)) j++;
+      while (j < n && /[A-Za-z0-9_$]/.test(src.charAt(j))) j++;
       const word = src.slice(i, j);
       if (TS_KEYWORDS.has(word)) push('k', word);
       else if (/^[A-Z]/.test(word)) push('t', word);
@@ -128,7 +130,7 @@ function HighlightedCode({ src }: { src: string }) {
           // key keeps biome quiet without paying for a uuid.
           const key = `${i}:${t.cls ?? '_'}:${t.text}`;
           return t.cls ? (
-            <span key={key} className={'tok-' + t.cls}>
+            <span key={key} className={`tok-${t.cls}`}>
               {t.text}
             </span>
           ) : (
@@ -237,7 +239,7 @@ export default function CodeBlock({
         {copyable ? (
           <button
             type="button"
-            className={'code-copy' + (copied ? ' copied' : '')}
+            className={`code-copy${copied ? ' copied' : ''}`}
             onClick={copy}
             aria-label="Copy code"
           >
