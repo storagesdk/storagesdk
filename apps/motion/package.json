@@ -1,0 +1,27 @@
+{
+  "name": "@storagesdk/motion",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Remotion animations for storagesdk — install, multi-adapter API, fork & snapshot.",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "preview": "remotion studio",
+    "typecheck": "tsc --noEmit",
+    "upgrade": "remotion upgrade",
+    "render": "remotion render Landscape out/storagesdk-16x9.mp4",
+    "render:landscape": "remotion render Landscape out/storagesdk-16x9.mp4",
+    "still": "remotion still Landscape out/poster.png --frame=120"
+  },
+  "dependencies": {
+    "@remotion/transitions": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@remotion/cli": "^4.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1"
+  }
+}
