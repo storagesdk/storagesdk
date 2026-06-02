@@ -9,6 +9,7 @@ import { r2 } from '@storagesdk/adapters/r2';
 import { s3 } from '@storagesdk/adapters/s3';
 import { tigris } from '@storagesdk/adapters/tigris';
 import { vercel } from '@storagesdk/adapters/vercel';
+import { webdav } from '@storagesdk/adapters/webdav';
 import type { Adapter } from '@storagesdk/core/adapter';
 
 /**
@@ -18,8 +19,8 @@ import type { Adapter } from '@storagesdk/core/adapter';
  * vars only.
  *
  * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github (default: fs)
- *   EXAMPLE_BUCKET           required for every non-fs, non-github adapter
+ *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav (default: fs)
+ *   EXAMPLE_BUCKET           required for every non-fs, non-github, non-webdav adapter
  *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
  *   EXAMPLE_REGION           optional for s3, minio
  *   EXAMPLE_ACCESS_KEY_ID    required for s3, r2, minio, tigris
@@ -36,6 +37,11 @@ import type { Adapter } from '@storagesdk/core/adapter';
  *   EXAMPLE_REPO             required for github (repo name)
  *   EXAMPLE_BRANCH           optional for github (defaults to repo's default branch).
  *                            github reads its token from GITHUB_TOKEN.
+ *   EXAMPLE_URL              required for webdav (server base URL)
+ *   EXAMPLE_ROOT             required for webdav (path under base URL)
+ *   EXAMPLE_FOLDER           required for webdav (folder within root)
+ *   EXAMPLE_USERNAME         optional for webdav (Basic / Digest)
+ *   EXAMPLE_PASSWORD         optional for webdav (Basic / Digest)
  */
 export function getAdapter(): Adapter {
   const choice = (process.env.EXAMPLE_ADAPTER ?? 'fs').toLowerCase();
@@ -178,7 +184,31 @@ export function getAdapter(): Adapter {
         : {}),
     });
   }
+  if (choice === 'webdav') {
+    const baseUrl = process.env.EXAMPLE_URL;
+    const root = process.env.EXAMPLE_ROOT;
+    const folder = process.env.EXAMPLE_FOLDER;
+    if (!baseUrl || !root || !folder) {
+      throw new Error(
+        'EXAMPLE_URL, EXAMPLE_ROOT, and EXAMPLE_FOLDER are required for EXAMPLE_ADAPTER=webdav'
+      );
+    }
+    return webdav({
+      baseUrl,
+      root,
+      folder,
+      ...(process.env.EXAMPLE_USERNAME !== undefined
+        ? { username: process.env.EXAMPLE_USERNAME }
+        : {}),
+      ...(process.env.EXAMPLE_PASSWORD !== undefined
+        ? { password: process.env.EXAMPLE_PASSWORD }
+        : {}),
+      ...(process.env.EXAMPLE_TOKEN !== undefined
+        ? { token: process.env.EXAMPLE_TOKEN }
+        : {}),
+    });
+  }
   throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github.`
+    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav.`
   );
 }

@@ -73,6 +73,17 @@ EXAMPLE_REPO=sdk-test-fixture \
 GITHUB_TOKEN=ghp_... \
 pnpm --filter @storagesdk/examples quickstart
 
+# WebDAV — `docker compose up webdav` runs a local Apache mod_dav
+# container on port 8080 with user/pass credentials. Any WebDAV server
+# (Nextcloud, ownCloud, Box, self-hosted Apache/nginx) plugs in here.
+EXAMPLE_ADAPTER=webdav \
+EXAMPLE_URL=http://localhost:8080 \
+EXAMPLE_USERNAME=user \
+EXAMPLE_PASSWORD=pass \
+EXAMPLE_ROOT=/storagesdk \
+EXAMPLE_FOLDER=demo \
+pnpm --filter @storagesdk/examples quickstart
+
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```

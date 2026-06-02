@@ -23,3 +23,18 @@ services:
     command: azurite-blob --blobHost 0.0.0.0 --loose --skipApiVersionCheck
     ports:
       - 10000:10000
+
+  webdav:
+    # Apache mod_dav. Username `user`, password `pass`, anything writes to
+    # /var/lib/dav inside the container. `LOCATION` sets the URL prefix
+    # the DAV root is served at — keep it `/` so test URLs read like
+    # `http://localhost:8080/<path>`.
+    image: bytemark/webdav:latest
+    container_name: storagesdk-webdav
+    environment:
+      AUTH_TYPE: Basic
+      USERNAME: user
+      PASSWORD: pass
+      LOCATION: /
+    ports:
+      - 8080:80
