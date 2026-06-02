@@ -1,0 +1,68 @@
+---
+title: WebDAV
+eyebrow: Adapter
+description: WebDAV adapter for storagesdk — works against any WebDAV server, snapshots and forks via native server-side COPY.
+section: adapters
+---
+
+## Overview
+
+Adapter for any server that speaks WebDAV — Nextcloud, ownCloud, Apache mod_dav, nginx-dav, NAS appliances (Synology, QNAP, TrueNAS), pCloud, mailbox.org, kDrive, TransIP STACK, disroot, and self-hosted setups.
+
+Snapshots and forks are sibling collections under `root`, populated via the WebDAV `COPY` verb with `Depth: infinity`. **One HTTP request, server-side, recursive** — unlike SFTP/FTP, the client never round-trips the data.
+
+The underlying `webdav` client is stateless: every method is an independent HTTP request, so there's no connection lifecycle to manage.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { webdav } from '@storagesdk/adapters/webdav';
+
+const storage = new Storage({
+  adapter: webdav({
+    baseUrl: 'https://cloud.example.com/remote.php/dav/files/me',
+    root: '/storagesdk',
+    folder: 'demo',
+    username: 'me',
+    password: process.env.WEBDAV_PASSWORD,
+  }),
+});
+```
+
+```ts
+webdav({
+  baseUrl: string;                                  // server root URL
+  root: string;                                     // path under baseUrl
+  folder: string;                                   // <root>/<folder> for this adapter
+  username?: string;                                // Basic / Digest auth
+  password?: string;
+  token?: string;                                   // OAuth Bearer (takes precedence)
+  authType?: 'basic' | 'digest' | 'token' | 'none'; // override the inferred scheme
+});
+```
+
+## Notes
+
+- Peer dependency: `webdav` (v5.x, ESM-only).
+- **Stateless client.** Each method is an independent HTTP request. No socket lifecycle, no idle timeouts, no reconnect logic.
+- **Server-side snapshot/fork.** `COPY` with `Depth: infinity` populates the sibling collection in one HTTP call — no client-side per-file copy.
+- **Content-Type is honored** end-to-end (PUT `Content-Type` on upload, `getcontenttype` via PROPFIND on read; `download` reads it off the GET response headers to skip a separate stat).
+- **No user metadata.** WebDAV's PROPPATCH dead properties exist in the spec but server support is inconsistent (Nextcloud OK, generic Apache mod_dav unreliable). `upload({ metadata })` is silently dropped.
+- **No presigned uploads.** `uploadUrl()` throws `NotSupported`.
+- `url()` returns the plain resource URL (`getFileDownloadLink`). Caller supplies auth to fetch — it's not signed.
+- **Walks use `Depth: 1` PROPFIND.** Most production WebDAV servers (Apache mod_dav, several SaaS providers) disable `Depth: infinity` for safety. The adapter walks subdirectories one PROPFIND at a time, reusing each PROPFIND's `FileStat` so `list` doesn't need a per-item stat round-trip.
+- `storage.raw` is the underlying `WebDAVClient` — use it for PROPPATCH, LOCK, custom properties, or any DAV verb the adapter doesn't surface.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling collection via native server-side `COPY` |
+| Forks | Sibling collection via native server-side `COPY` |
+| Byte-range reads | ✓ (slice of the downloaded blob) |
+| Multipart upload | ✗ |
+| Content-Type | ✓ |
+| User metadata | ✗ |
+| Signed URLs | Plain resource URL, not signed (caller supplies auth) |
+| Presigned uploads | ✗ |

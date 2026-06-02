@@ -89,6 +89,7 @@ export const SECTIONS: Record<SectionId, Section> = {
           badge: 'native',
           href: '/adapters/github',
         },
+        { id: 'webdav', label: 'WebDAV', href: '/adapters/webdav' },
         { id: 'fly', label: 'Fly.io', href: '/adapters/fly' },
         { id: 'railway', label: 'Railway', href: '/adapters/railway' },
         { id: 'fs', label: 'Filesystem', href: '/adapters/fs' },

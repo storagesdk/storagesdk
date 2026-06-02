@@ -62,6 +62,12 @@ export const ADAPTERS: AdapterEntry[] = [
     native: true,
   },
   {
+    name: 'WebDAV',
+    short: 'WebDAV',
+    key: 'webdav',
+    sub: '@storagesdk/adapters/webdav',
+  },
+  {
     name: 'Fly.io',
     short: 'Fly',
     key: 'fly',
