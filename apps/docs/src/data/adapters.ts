@@ -67,6 +67,12 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/spaces',
   },
   {
+    name: 'Wasabi',
+    short: 'Wasabi',
+    key: 'wasabi',
+    sub: '@storagesdk/adapters/wasabi',
+  },
+  {
     name: 'GitHub',
     short: 'GitHub',
     key: 'github',

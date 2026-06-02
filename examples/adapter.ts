@@ -11,6 +11,7 @@ import { s3 } from '@storagesdk/adapters/s3';
 import { spaces } from '@storagesdk/adapters/spaces';
 import { tigris } from '@storagesdk/adapters/tigris';
 import { vercel } from '@storagesdk/adapters/vercel';
+import { wasabi } from '@storagesdk/adapters/wasabi';
 import { webdav } from '@storagesdk/adapters/webdav';
 import type { Adapter } from '@storagesdk/core/adapter';
 
@@ -21,7 +22,7 @@ import type { Adapter } from '@storagesdk/core/adapter';
  * vars only.
  *
  * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav | backblaze | spaces (default: fs)
+ *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav | backblaze | spaces | wasabi (default: fs)
  *   EXAMPLE_BUCKET           required for every non-fs, non-github, non-webdav adapter
  *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
  *   EXAMPLE_REGION           optional for s3, minio
@@ -148,6 +149,26 @@ export function getAdapter(): Adapter {
         : {}),
     });
   }
+  if (choice === 'wasabi') {
+    const bucket = process.env.EXAMPLE_BUCKET;
+    const region = process.env.EXAMPLE_REGION;
+    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
+    if (!bucket || !region || !accessKeyId || !secretAccessKey) {
+      throw new Error(
+        'EXAMPLE_BUCKET, EXAMPLE_REGION, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=wasabi'
+      );
+    }
+    return wasabi({
+      bucket,
+      region,
+      accessKeyId,
+      secretAccessKey,
+      ...(process.env.EXAMPLE_ENDPOINT !== undefined
+        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
+        : {}),
+    });
+  }
   if (choice === 'tigris') {
     const bucket = process.env.EXAMPLE_BUCKET;
     const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
@@ -251,6 +272,6 @@ export function getAdapter(): Adapter {
     });
   }
   throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav, backblaze, spaces.`
+    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav, backblaze, spaces, wasabi.`
   );
 }

@@ -93,6 +93,7 @@ export const SECTIONS: Record<SectionId, Section> = {
           label: 'DigitalOcean Spaces',
           href: '/adapters/spaces',
         },
+        { id: 'wasabi', label: 'Wasabi', href: '/adapters/wasabi' },
         {
           id: 'github',
           label: 'GitHub',

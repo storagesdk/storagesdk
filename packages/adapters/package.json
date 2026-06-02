@@ -28,6 +28,10 @@
       "types": "./dist/spaces/index.d.ts",
       "default": "./dist/spaces/index.js"
     },
+    "./wasabi": {
+      "types": "./dist/wasabi/index.d.ts",
+      "default": "./dist/wasabi/index.js"
+    },
     "./tigris": {
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
@@ -105,7 +109,8 @@
     "backblaze",
     "b2",
     "digitalocean",
-    "spaces"
+    "spaces",
+    "wasabi"
   ],
   "author": "",
   "license": "Apache-2.0",
