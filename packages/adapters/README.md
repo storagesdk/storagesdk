@@ -25,6 +25,8 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 | Railway | [`@storagesdk/adapters/railway`](./src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
 | Filesystem | [`@storagesdk/adapters/fs`](./src/fs/README.md) | Local `node:fs/promises`. For development and tests. |
 
+For the full, up-to-date list see **[storagesdk.dev/adapters](https://storagesdk.dev/adapters)**.
+
 ## Snapshots and forks
 
 Every adapter implements `snapshots` and `forks` against the same contract. Backends that don't offer native primitives use a sibling-bucket / sibling-container convention (server-side copy + a per-bucket manifest); Tigris uses its native snapshot/fork APIs.

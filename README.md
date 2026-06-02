@@ -58,6 +58,8 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | Railway | [`@storagesdk/adapters/railway`](./packages/adapters/src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
 | Filesystem | [`@storagesdk/adapters/fs`](./packages/adapters/src/fs/README.md) | Local `node:fs/promises`. For development and tests. |
 
+For the full, up-to-date list see **[storagesdk.dev/adapters](https://storagesdk.dev/adapters)**.
+
 ## API
 
 ```ts
