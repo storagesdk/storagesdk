@@ -7,7 +7,7 @@ export default function Primitives() {
       <div className="shell">
         <div className="primitives-head">
           <h2>
-            Two primitives <em>nobody else</em> has.
+            Two primitives <em>no other SDK</em> has.
           </h2>
           <p className="lead">
             Cross-provider storage SDKs stop at upload, download, list, delete.
