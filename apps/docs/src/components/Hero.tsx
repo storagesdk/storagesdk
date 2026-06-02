@@ -18,7 +18,7 @@ export default function Hero() {
           Storage for humans and <em>agents</em>.
         </h1>
         <p className="subhead">
-          A fully-featured TypeScript SDK for object storage — one portable
+          A fully-featured TypeScript SDK for storage — one portable
           interface across Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob,
           Vercel Blob, MinIO, and your filesystem, with{' '}
           <b style={{ color: 'var(--fg)', fontWeight: 600 }}>fork</b> and{' '}
