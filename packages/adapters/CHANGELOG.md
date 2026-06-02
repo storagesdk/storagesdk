@@ -1,5 +1,132 @@
 # @storagesdk/adapters
 
+## 0.6.0
+
+### Minor Changes
+
+- f6c729b: New `@storagesdk/adapters/backblaze` adapter — thin wrapper over `@storagesdk/adapters/s3` for [Backblaze B2 Cloud Storage](https://www.backblaze.com/b2/cloud-storage.html). Endpoint is built from `region` (e.g. `us-west-004` → `https://s3.us-west-004.backblazeb2.com`); override via `endpoint`.
+
+  ```ts
+  import { backblaze } from "@storagesdk/adapters/backblaze";
+
+  const storage = new Storage({
+    adapter: backblaze({
+      bucket: "photos",
+      region: "us-west-004",
+      accessKeyId: process.env.B2_KEY_ID!,
+      secretAccessKey: process.env.B2_APPLICATION_KEY!,
+    }),
+  });
+  ```
+
+  Snapshots and forks are sibling buckets via `CopyObject`, same as the rest of the S3-compatible family.
+
+- f6c729b: New `@storagesdk/adapters/linode` adapter — thin wrapper over `@storagesdk/adapters/s3` for [Linode Object Storage](https://www.linode.com/products/object-storage). Endpoint is built from `region` (the cluster name; e.g. `us-east-1` → `https://us-east-1.linodeobjects.com`); override via `endpoint`.
+
+  ```ts
+  import { linode } from "@storagesdk/adapters/linode";
+
+  const storage = new Storage({
+    adapter: linode({
+      bucket: "photos",
+      region: "us-east-1",
+      accessKeyId: process.env.LINODE_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.LINODE_SECRET_ACCESS_KEY!,
+    }),
+  });
+  ```
+
+  Snapshots and forks are sibling buckets via `CopyObject`, same as the rest of the S3-compatible family.
+
+- f6c729b: New `@storagesdk/adapters/spaces` adapter — thin wrapper over `@storagesdk/adapters/s3` for [DigitalOcean Spaces](https://www.digitalocean.com/products/spaces). Endpoint is built from `region` (e.g. `nyc3` → `https://nyc3.digitaloceanspaces.com`); override via `endpoint`.
+
+  ```ts
+  import { spaces } from "@storagesdk/adapters/spaces";
+
+  const storage = new Storage({
+    adapter: spaces({
+      bucket: "photos",
+      region: "nyc3",
+      accessKeyId: process.env.DO_SPACES_KEY!,
+      secretAccessKey: process.env.DO_SPACES_SECRET!,
+    }),
+  });
+  ```
+
+  Snapshots and forks are sibling Spaces via `CopyObject`, same as the rest of the S3-compatible family.
+
+- f6c729b: New `@storagesdk/adapters/supabase` adapter — thin wrapper over `@storagesdk/adapters/s3` for [Supabase Storage](https://supabase.com/storage)'s S3-compatible endpoint. Endpoint is built from `projectRef`; `forcePathStyle: true` is required and pre-set.
+
+  ```ts
+  import { supabase } from "@storagesdk/adapters/supabase";
+
+  const storage = new Storage({
+    adapter: supabase({
+      bucket: "photos",
+      projectRef: "abcdefghijklmnop",
+      accessKeyId: process.env.SUPABASE_S3_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.SUPABASE_S3_SECRET_ACCESS_KEY!,
+    }),
+  });
+  ```
+
+  Snapshots and forks are sibling buckets via `CopyObject`, same as the rest of the S3-compatible family.
+
+- f6c729b: New `@storagesdk/adapters/wasabi` adapter — thin wrapper over `@storagesdk/adapters/s3` for [Wasabi Hot Cloud Storage](https://wasabi.com/cloud-storage). Endpoint is built from `region` (e.g. `us-east-1` → `https://s3.us-east-1.wasabisys.com`); override via `endpoint`.
+
+  ```ts
+  import { wasabi } from "@storagesdk/adapters/wasabi";
+
+  const storage = new Storage({
+    adapter: wasabi({
+      bucket: "photos",
+      region: "us-east-1",
+      accessKeyId: process.env.WASABI_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.WASABI_SECRET_ACCESS_KEY!,
+    }),
+  });
+  ```
+
+  Snapshots and forks are sibling buckets via `CopyObject`, same as the rest of the S3-compatible family.
+
+- 3b80b1a: New `@storagesdk/adapters/webdav` adapter for any WebDAV server — Nextcloud, ownCloud, Apache mod_dav, nginx-dav, NAS appliances (Synology, QNAP, TrueNAS), and providers that still ship WebDAV (pCloud, mailbox.org, kDrive, TransIP STACK, disroot).
+
+  ```ts
+  import { Storage } from "@storagesdk/core";
+  import { webdav } from "@storagesdk/adapters/webdav";
+
+  const storage = new Storage({
+    adapter: webdav({
+      baseUrl: "https://cloud.example.com/remote.php/dav/files/me",
+      root: "/storagesdk",
+      folder: "demo",
+      username: "me",
+      password: process.env.WEBDAV_PASSWORD,
+    }),
+  });
+
+  // Snapshots and forks ride on a single server-side COPY with Depth: infinity.
+  const snap = await storage.snapshots.create({ name: "baseline" });
+  await storage.forks.create({ name: "experiment", fromSnapshot: snap.id });
+  ```
+
+  **Notes:**
+  - Peer dep: `webdav` (v5.x, ESM-only).
+  - The `webdav` client is stateless — every method is an independent HTTP request, so there's no connection lifecycle to manage. Auth via Basic / Digest (auto-detected) / OAuth Bearer / None.
+  - Snapshots and forks are sibling collections under `root`, populated by **one** `COPY` request with `Depth: infinity` (server-side, recursive). No client-side fan-out.
+  - `contentType` is honored end-to-end (PUT `Content-Type` on upload, `getcontenttype` via PROPFIND on read).
+  - `opts.metadata` on `upload` is silently dropped — WebDAV's PROPPATCH dead properties exist in the spec but server support is inconsistent. Conformance flips `userMetadata: false` to match.
+  - `url()` returns the plain resource URL; caller supplies auth. `uploadUrl()` throws `NotSupported`.
+  - `storage.raw` is the underlying `WebDAVClient` for PROPPATCH, LOCK, or anything the adapter doesn't surface directly.
+
+### Patch Changes
+
+- f6c729b: README sync — the root, `@storagesdk/core`, and `@storagesdk/adapters` README tables now point at [storagesdk.dev/adapters](https://storagesdk.dev/adapters) as the canonical, up-to-date list. The static README tables are kept as a quick-glance reference for the initial set; new adapters land on the docs site rather than every README.
+- Updated dependencies [ece57f6]
+- Updated dependencies [3b80b1a]
+- Updated dependencies [f6c729b]
+  - @storagesdk/core@0.4.2
+
 ## 0.5.0
 
 ### Minor Changes
