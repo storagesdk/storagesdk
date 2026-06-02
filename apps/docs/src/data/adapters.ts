@@ -55,6 +55,12 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/minio',
   },
   {
+    name: 'Backblaze B2',
+    short: 'B2',
+    key: 'backblaze',
+    sub: '@storagesdk/adapters/backblaze',
+  },
+  {
     name: 'GitHub',
     short: 'GitHub',
     key: 'github',

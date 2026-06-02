@@ -84,6 +84,11 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'vercel', label: 'Vercel Blob', href: '/adapters/vercel' },
         { id: 'minio', label: 'MinIO', href: '/adapters/minio' },
         {
+          id: 'backblaze',
+          label: 'Backblaze B2',
+          href: '/adapters/backblaze',
+        },
+        {
           id: 'github',
           label: 'GitHub',
           badge: 'native',

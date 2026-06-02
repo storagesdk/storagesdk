@@ -84,6 +84,14 @@ EXAMPLE_ROOT=/storagesdk \
 EXAMPLE_FOLDER=demo \
 pnpm --filter @storagesdk/examples quickstart
 
+# Backblaze B2 — bucket must already exist.
+EXAMPLE_ADAPTER=backblaze \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_REGION=us-west-004 \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```

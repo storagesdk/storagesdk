@@ -20,6 +20,10 @@
       "types": "./dist/minio/index.d.ts",
       "default": "./dist/minio/index.js"
     },
+    "./backblaze": {
+      "types": "./dist/backblaze/index.d.ts",
+      "default": "./dist/backblaze/index.js"
+    },
     "./tigris": {
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
@@ -93,7 +97,9 @@
     "github",
     "webdav",
     "nextcloud",
-    "owncloud"
+    "owncloud",
+    "backblaze",
+    "b2"
   ],
   "author": "",
   "license": "Apache-2.0",

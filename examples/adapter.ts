@@ -1,6 +1,7 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { azure } from '@storagesdk/adapters/azure';
+import { backblaze } from '@storagesdk/adapters/backblaze';
 import { fs } from '@storagesdk/adapters/fs';
 import { gcs } from '@storagesdk/adapters/gcs';
 import { github } from '@storagesdk/adapters/github';
@@ -19,7 +20,7 @@ import type { Adapter } from '@storagesdk/core/adapter';
  * vars only.
  *
  * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav (default: fs)
+ *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav | backblaze (default: fs)
  *   EXAMPLE_BUCKET           required for every non-fs, non-github, non-webdav adapter
  *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
  *   EXAMPLE_REGION           optional for s3, minio
@@ -103,6 +104,26 @@ export function getAdapter(): Adapter {
       secretAccessKey,
       ...(process.env.EXAMPLE_REGION !== undefined
         ? { region: process.env.EXAMPLE_REGION }
+        : {}),
+    });
+  }
+  if (choice === 'backblaze') {
+    const bucket = process.env.EXAMPLE_BUCKET;
+    const region = process.env.EXAMPLE_REGION;
+    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
+    if (!bucket || !region || !accessKeyId || !secretAccessKey) {
+      throw new Error(
+        'EXAMPLE_BUCKET, EXAMPLE_REGION, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=backblaze'
+      );
+    }
+    return backblaze({
+      bucket,
+      region,
+      accessKeyId,
+      secretAccessKey,
+      ...(process.env.EXAMPLE_ENDPOINT !== undefined
+        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
         : {}),
     });
   }
@@ -209,6 +230,6 @@ export function getAdapter(): Adapter {
     });
   }
   throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav.`
+    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav, backblaze.`
   );
 }
