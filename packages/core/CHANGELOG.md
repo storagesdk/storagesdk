@@ -1,5 +1,13 @@
 # @storagesdk/core
 
+## 0.4.2
+
+### Patch Changes
+
+- ece57f6: README tagline updated to match the new positioning: **"A unified TypeScript SDK for storage with first-class support for snapshotting, forking across Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob, Vercel Blob and many more."** Same line is now the GitHub repo description.
+- 3b80b1a: README sync — the published `@storagesdk/core` README now lists the new `@storagesdk/adapters/webdav` row.
+- f6c729b: README sync — the root, `@storagesdk/core`, and `@storagesdk/adapters` README tables now point at [storagesdk.dev/adapters](https://storagesdk.dev/adapters) as the canonical, up-to-date list. The static README tables are kept as a quick-glance reference for the initial set; new adapters land on the docs site rather than every README.
+
 ## 0.4.1
 
 ### Patch Changes

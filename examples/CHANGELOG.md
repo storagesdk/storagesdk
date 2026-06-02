@@ -1,5 +1,21 @@
 # @storagesdk/examples
 
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [f6c729b]
+- Updated dependencies [ece57f6]
+- Updated dependencies [3b80b1a]
+- Updated dependencies [f6c729b]
+- Updated dependencies [f6c729b]
+- Updated dependencies [f6c729b]
+- Updated dependencies [f6c729b]
+- Updated dependencies [f6c729b]
+- Updated dependencies [3b80b1a]
+  - @storagesdk/adapters@0.6.0
+  - @storagesdk/core@0.4.2
+
 ## 0.0.6
 
 ### Patch Changes
