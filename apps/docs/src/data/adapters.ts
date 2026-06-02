@@ -79,6 +79,12 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/supabase',
   },
   {
+    name: 'Linode Object Storage',
+    short: 'Linode',
+    key: 'linode',
+    sub: '@storagesdk/adapters/linode',
+  },
+  {
     name: 'GitHub',
     short: 'GitHub',
     key: 'github',

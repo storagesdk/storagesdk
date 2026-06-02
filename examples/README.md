@@ -116,6 +116,14 @@ EXAMPLE_ACCESS_KEY_ID=... \
 EXAMPLE_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
+# Linode Object Storage — bucket must already exist.
+EXAMPLE_ADAPTER=linode \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_REGION=us-east-1 \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```

@@ -1,0 +1,43 @@
+---
+title: Linode Object Storage
+eyebrow: Adapter
+description: Linode Object Storage adapter for storagesdk — thin wrapper over S3 with Linode-friendly defaults.
+section: adapters
+---
+
+## Overview
+
+[Linode Object Storage](https://www.linode.com/products/object-storage) is S3-compatible. This adapter is a thin wrapper over `@storagesdk/adapters/s3` with Linode defaults baked in — the endpoint is built from your `region` (cluster), and the rest of the surface is identical to the S3 adapter.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { linode } from '@storagesdk/adapters/linode';
+
+const storage = new Storage({
+  adapter: linode({
+    bucket: 'photos',
+    region: 'us-east-1',
+    accessKeyId: process.env.LINODE_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.LINODE_SECRET_ACCESS_KEY!,
+  }),
+});
+```
+
+```ts
+linode({
+  bucket: string;            // bucket the adapter operates on (must already exist)
+  region: string;            // cluster name, e.g. 'us-east-1', 'eu-central-1', 'ap-south-1'
+  accessKeyId: string;       // Object Storage access key
+  secretAccessKey: string;   // Object Storage secret
+  endpoint?: string;         // override; defaults to `https://<region>.linodeobjects.com`
+});
+```
+
+Create Object Storage access keys in Linode Cloud Manager → **Object Storage** → **Access Keys**. The secret is shown only once.
+
+## Notes
+
+- Snapshots and forks are emulated as sibling buckets via `CopyObject` (S3-standard).
+- `storage.raw` is the underlying `@aws-sdk/client-s3` `S3Client` for any S3 operation the adapter doesn't surface.

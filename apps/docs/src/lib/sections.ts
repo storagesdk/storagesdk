@@ -100,6 +100,11 @@ export const SECTIONS: Record<SectionId, Section> = {
           href: '/adapters/supabase',
         },
         {
+          id: 'linode',
+          label: 'Linode Object Storage',
+          href: '/adapters/linode',
+        },
+        {
           id: 'github',
           label: 'GitHub',
           badge: 'native',

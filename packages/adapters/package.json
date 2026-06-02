@@ -36,6 +36,10 @@
       "types": "./dist/supabase/index.d.ts",
       "default": "./dist/supabase/index.js"
     },
+    "./linode": {
+      "types": "./dist/linode/index.d.ts",
+      "default": "./dist/linode/index.js"
+    },
     "./tigris": {
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
@@ -115,7 +119,8 @@
     "digitalocean",
     "spaces",
     "wasabi",
-    "supabase"
+    "supabase",
+    "linode"
   ],
   "author": "",
   "license": "Apache-2.0",
