@@ -48,6 +48,10 @@
       "types": "./dist/github/index.d.ts",
       "default": "./dist/github/index.js"
     },
+    "./webdav": {
+      "types": "./dist/webdav/index.d.ts",
+      "default": "./dist/webdav/index.js"
+    },
     "./test-suite": {
       "types": "./dist/test-suite.d.ts",
       "default": "./dist/test-suite.js"
@@ -85,7 +89,11 @@
     "railway",
     "azure",
     "gcs",
-    "vercel-blob"
+    "vercel-blob",
+    "github",
+    "webdav",
+    "nextcloud",
+    "owncloud"
   ],
   "author": "",
   "license": "Apache-2.0",
@@ -110,7 +118,8 @@
     "@octokit/rest": "^21.0.0",
     "@tigrisdata/storage": "^3.11.0",
     "@vercel/blob": "^2.3.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "webdav": "^5.10.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-s3": {
@@ -142,6 +151,9 @@
     },
     "vitest": {
       "optional": true
+    },
+    "webdav": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -153,6 +165,7 @@
     "@google-cloud/storage": "^7.19.0",
     "@octokit/rest": "^21.1.1",
     "@tigrisdata/storage": "^3.11.0",
-    "@vercel/blob": "^2.4.0"
+    "@vercel/blob": "^2.4.0",
+    "webdav": "^5.10.0"
   }
 }

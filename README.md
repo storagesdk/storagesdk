@@ -53,6 +53,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | Vercel Blob | [`@storagesdk/adapters/vercel`](./packages/adapters/src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
 | MinIO | [`@storagesdk/adapters/minio`](./packages/adapters/src/minio/README.md) | [MinIO](https://min.io/). |
 | GitHub | [`@storagesdk/adapters/github`](./packages/adapters/src/github/README.md) | [GitHub](https://github.com) repository — snapshots are tags, forks are branches, native git refs all the way down. |
+| WebDAV | [`@storagesdk/adapters/webdav`](./packages/adapters/src/webdav/README.md) | Any WebDAV server — Nextcloud, ownCloud, Apache mod_dav, nginx-dav, NAS, pCloud, mailbox.org, kDrive. Snapshots/forks via native server-side `COPY`. |
 | Fly.io | [`@storagesdk/adapters/fly`](./packages/adapters/src/fly/README.md) | Fly-managed Tigris buckets — branded alias of the Tigris adapter. |
 | Railway | [`@storagesdk/adapters/railway`](./packages/adapters/src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
 | Filesystem | [`@storagesdk/adapters/fs`](./packages/adapters/src/fs/README.md) | Local `node:fs/promises`. For development and tests. |
