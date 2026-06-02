@@ -55,6 +55,36 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/minio',
   },
   {
+    name: 'Backblaze B2',
+    short: 'B2',
+    key: 'backblaze',
+    sub: '@storagesdk/adapters/backblaze',
+  },
+  {
+    name: 'DigitalOcean Spaces',
+    short: 'Spaces',
+    key: 'spaces',
+    sub: '@storagesdk/adapters/spaces',
+  },
+  {
+    name: 'Wasabi',
+    short: 'Wasabi',
+    key: 'wasabi',
+    sub: '@storagesdk/adapters/wasabi',
+  },
+  {
+    name: 'Supabase Storage',
+    short: 'Supabase',
+    key: 'supabase',
+    sub: '@storagesdk/adapters/supabase',
+  },
+  {
+    name: 'Linode Object Storage',
+    short: 'Linode',
+    key: 'linode',
+    sub: '@storagesdk/adapters/linode',
+  },
+  {
     name: 'GitHub',
     short: 'GitHub',
     key: 'github',

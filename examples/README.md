@@ -84,6 +84,46 @@ EXAMPLE_ROOT=/storagesdk \
 EXAMPLE_FOLDER=demo \
 pnpm --filter @storagesdk/examples quickstart
 
+# Backblaze B2 — bucket must already exist.
+EXAMPLE_ADAPTER=backblaze \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_REGION=us-west-004 \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
+# DigitalOcean Spaces — Space must already exist.
+EXAMPLE_ADAPTER=spaces \
+EXAMPLE_BUCKET=my-space \
+EXAMPLE_REGION=nyc3 \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
+# Wasabi — bucket must already exist.
+EXAMPLE_ADAPTER=wasabi \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_REGION=us-east-1 \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
+# Supabase Storage — generate S3 credentials in the project dashboard.
+EXAMPLE_ADAPTER=supabase \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_PROJECT_REF=abcdefghijklmnop \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
+# Linode Object Storage — bucket must already exist.
+EXAMPLE_ADAPTER=linode \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_REGION=us-east-1 \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```

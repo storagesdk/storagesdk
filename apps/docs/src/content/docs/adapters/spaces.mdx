@@ -1,0 +1,43 @@
+---
+title: DigitalOcean Spaces
+eyebrow: Adapter
+description: DigitalOcean Spaces adapter for storagesdk — thin wrapper over S3 with Spaces-friendly defaults.
+section: adapters
+---
+
+## Overview
+
+[DigitalOcean Spaces](https://www.digitalocean.com/products/spaces) is S3-compatible. This adapter is a thin wrapper over `@storagesdk/adapters/s3` with Spaces defaults baked in — the endpoint is built from your `region`, and the rest of the surface is identical to the S3 adapter.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { spaces } from '@storagesdk/adapters/spaces';
+
+const storage = new Storage({
+  adapter: spaces({
+    bucket: 'photos',
+    region: 'nyc3',
+    accessKeyId: process.env.DO_SPACES_KEY!,
+    secretAccessKey: process.env.DO_SPACES_SECRET!,
+  }),
+});
+```
+
+```ts
+spaces({
+  bucket: string;            // Space the adapter operates on (must already exist)
+  region: string;            // e.g. 'nyc3', 'ams3', 'sgp1', 'sfo3', 'fra1', 'syd1', 'blr1'
+  accessKeyId: string;       // Spaces access key
+  secretAccessKey: string;   // Spaces secret
+  endpoint?: string;         // override; defaults to `https://<region>.digitaloceanspaces.com`
+});
+```
+
+Create a Spaces key in the DigitalOcean dashboard → **API** → **Spaces Keys**. The secret is shown only once.
+
+## Notes
+
+- Snapshots and forks are emulated as sibling Spaces via `CopyObject` (S3-standard).
+- `storage.raw` is the underlying `@aws-sdk/client-s3` `S3Client` for any S3 operation the adapter doesn't surface.

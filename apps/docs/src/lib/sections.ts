@@ -84,6 +84,27 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'vercel', label: 'Vercel Blob', href: '/adapters/vercel' },
         { id: 'minio', label: 'MinIO', href: '/adapters/minio' },
         {
+          id: 'backblaze',
+          label: 'Backblaze B2',
+          href: '/adapters/backblaze',
+        },
+        {
+          id: 'spaces',
+          label: 'DigitalOcean Spaces',
+          href: '/adapters/spaces',
+        },
+        { id: 'wasabi', label: 'Wasabi', href: '/adapters/wasabi' },
+        {
+          id: 'supabase',
+          label: 'Supabase Storage',
+          href: '/adapters/supabase',
+        },
+        {
+          id: 'linode',
+          label: 'Linode Object Storage',
+          href: '/adapters/linode',
+        },
+        {
           id: 'github',
           label: 'GitHub',
           badge: 'native',

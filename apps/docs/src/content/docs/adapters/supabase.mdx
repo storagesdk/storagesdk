@@ -1,0 +1,45 @@
+---
+title: Supabase Storage
+eyebrow: Adapter
+description: Supabase Storage adapter for storagesdk — thin wrapper over the S3-compatible endpoint.
+section: adapters
+---
+
+## Overview
+
+[Supabase Storage](https://supabase.com/storage) exposes an S3-compatible endpoint. This adapter is a thin wrapper over `@storagesdk/adapters/s3` with Supabase defaults baked in — the endpoint is built from your `projectRef`, `forcePathStyle: true` is required and pre-set, and the rest of the surface is identical to the S3 adapter.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { supabase } from '@storagesdk/adapters/supabase';
+
+const storage = new Storage({
+  adapter: supabase({
+    bucket: 'photos',
+    projectRef: 'abcdefghijklmnop',
+    accessKeyId: process.env.SUPABASE_S3_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.SUPABASE_S3_SECRET_ACCESS_KEY!,
+  }),
+});
+```
+
+```ts
+supabase({
+  bucket: string;            // Storage bucket (must already exist)
+  projectRef: string;        // your project ref (subdomain prefix)
+  accessKeyId: string;       // S3 access key
+  secretAccessKey: string;   // S3 secret
+  region?: string;           // ignored, defaults to 'us-east-1'
+  endpoint?: string;         // override; defaults to `https://<projectRef>.supabase.co/storage/v1/s3`
+});
+```
+
+Generate S3 credentials in the Supabase dashboard → **Project Settings** → **Storage** → **S3 Connection** → **Generate new credentials**. The secret is shown only once.
+
+## Notes
+
+- `forcePathStyle: true` is baked in — Supabase's S3 endpoint requires it.
+- Snapshots and forks are emulated as sibling buckets via `CopyObject` (S3-standard).
+- `storage.raw` is the underlying `@aws-sdk/client-s3` `S3Client` for any S3 operation the adapter doesn't surface.

@@ -20,6 +20,26 @@
       "types": "./dist/minio/index.d.ts",
       "default": "./dist/minio/index.js"
     },
+    "./backblaze": {
+      "types": "./dist/backblaze/index.d.ts",
+      "default": "./dist/backblaze/index.js"
+    },
+    "./spaces": {
+      "types": "./dist/spaces/index.d.ts",
+      "default": "./dist/spaces/index.js"
+    },
+    "./wasabi": {
+      "types": "./dist/wasabi/index.d.ts",
+      "default": "./dist/wasabi/index.js"
+    },
+    "./supabase": {
+      "types": "./dist/supabase/index.d.ts",
+      "default": "./dist/supabase/index.js"
+    },
+    "./linode": {
+      "types": "./dist/linode/index.d.ts",
+      "default": "./dist/linode/index.js"
+    },
     "./tigris": {
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
@@ -93,7 +113,14 @@
     "github",
     "webdav",
     "nextcloud",
-    "owncloud"
+    "owncloud",
+    "backblaze",
+    "b2",
+    "digitalocean",
+    "spaces",
+    "wasabi",
+    "supabase",
+    "linode"
   ],
   "author": "",
   "license": "Apache-2.0",
