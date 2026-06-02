@@ -1,6 +1,14 @@
 import { Storage, StorageError } from '@storagesdk/core';
 import type { Adapter, ReadOnlyAdapter } from '@storagesdk/core/adapter';
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 /**
  * Per-backend capability switches. Every flag defaults to `true`; set one
@@ -314,7 +322,18 @@ export function storageAdapterTestSuite<Raw = unknown>(
   const tMs = opts.testTimeoutMs;
 
   const describeOpts = tMs !== undefined ? { timeout: tMs } : {};
+  // Snapshot/fork describes below have their own 30s baseline for
+  // cloud adapters; honor a higher `testTimeoutMs` when the caller
+  // asks for one (slow WebDAV / SFTP / FTP servers need longer).
+  const snapshotForkTimeoutMs = Math.max(30_000, tMs ?? 0);
   d(opts.name, describeOpts, () => {
+    // Cleanup walks every leftover key + snapshot/fork, and slow
+    // backends shouldn't lose tests to vitest's 10s afterEach
+    // default. Reuse the same `testTimeoutMs` value rather than
+    // surfacing a parallel `hookTimeoutMs` option.
+    if (tMs !== undefined) {
+      vi.setConfig({ hookTimeout: tMs });
+    }
     const ctx = setupTestStorage(opts.adapter, {
       ...(opts.cleanup !== undefined ? { cleanup: opts.cleanup } : {}),
     });
@@ -614,7 +633,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
     // copy-based cloud adapters (s3, r2, azure, gcs). GCS in particular
     // takes 5-15s per bucket plus propagation delay. Bump the per-test
     // timeout for the whole block so cloud runs don't flake.
-    describe('snapshots', { timeout: 30_000 }, () => {
+    describe('snapshots', { timeout: snapshotForkTimeoutMs }, () => {
       it('snapshot reads stay frozen after live writes', async () => {
         await ctx.upload('s.txt', 'before');
         const info = await ctx.snapshots.create({ name: 'baseline' });
@@ -668,7 +687,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
       });
     });
 
-    describe('forks', { timeout: 30_000 }, () => {
+    describe('forks', { timeout: snapshotForkTimeoutMs }, () => {
       it('a fork seeded from a snapshot starts at the snapshot state', async () => {
         await ctx.upload('photo.jpg', 'original');
         const snap = await ctx.snapshots.create();
