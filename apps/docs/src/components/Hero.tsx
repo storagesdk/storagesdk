@@ -18,13 +18,13 @@ export default function Hero() {
           Storage for humans and <em>agents</em>.
         </h1>
         <p className="subhead">
-          A fully-featured TypeScript SDK for storage — one portable
-          interface across Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob,
-          Vercel Blob, MinIO, and your filesystem, with{' '}
+          A fully-featured TypeScript SDK for storage — one portable interface
+          across Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob, Vercel Blob,
+          MinIO, and your filesystem, with{' '}
           <b style={{ color: 'var(--fg)', fontWeight: 600 }}>fork</b> and{' '}
           <b style={{ color: 'var(--fg)', fontWeight: 600 }}>snapshot</b> as
-          first-class primitives. Switch backends in a line; branch a bucket
-          per agent run or replay a moment in time with a single call.
+          first-class primitives. Switch backends in a line; branch a bucket per
+          agent run or replay a moment in time with a single call.
         </p>
 
         <div className="hero-install">
