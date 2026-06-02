@@ -4,7 +4,7 @@
 [![CI](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml/badge.svg)](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@storagesdk/core)](./LICENSE)
 
-A multi-provider SDK for object storage. One API across Tigris, S3, Cloudflare R2, Google Cloud Storage, Azure Blob, Vercel Blob, MinIO, and local filesystems — with **snapshots** and **forks** as core operations alongside upload, download, list, copy, move, delete, and signed URLs.
+A unified TypeScript SDK for storage with first-class support for snapshotting, forking across Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob, Vercel Blob and many more.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
