@@ -38,6 +38,8 @@ github({
 
 No `bucket` field — the storage namespace is `(owner, repo, branch)`. Snapshots and forks are addressed by tag and branch name respectively.
 
+Generate a token in the GitHub UI: [Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens). Fine-grained tokens need **Contents: Read and write** on the target repo; classic tokens need the `repo` scope. See [GitHub's docs on managing personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
 ## Notes
 
 - Peer dependency: `@octokit/rest`.

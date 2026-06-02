@@ -56,7 +56,7 @@ interface GithubConfig {
 }
 ```
 
-- `token` — needs `contents: write` for any write op. Public reads work unauthenticated but you'll hit the unauthenticated rate limit (60 req/hr) fast; pass a token even for read-only use.
+- `token` — needs `contents: write` for any write op. Generate one at [GitHub → Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens); see [GitHub's docs on personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) for fine-grained vs. classic. Public reads work unauthenticated but you'll hit the unauthenticated rate limit (60 req/hr) fast; pass a token even for read-only use.
 - `commitMessage` — every write op (upload/delete/copy/move) creates a commit. Defaults to `"storagesdk: <op> <path>"`. Provide a function to customize.
 
 ## What this adapter doesn't preserve
