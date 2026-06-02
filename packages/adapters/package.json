@@ -32,6 +32,10 @@
       "types": "./dist/wasabi/index.d.ts",
       "default": "./dist/wasabi/index.js"
     },
+    "./supabase": {
+      "types": "./dist/supabase/index.d.ts",
+      "default": "./dist/supabase/index.js"
+    },
     "./tigris": {
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
@@ -110,7 +114,8 @@
     "b2",
     "digitalocean",
     "spaces",
-    "wasabi"
+    "wasabi",
+    "supabase"
   ],
   "author": "",
   "license": "Apache-2.0",

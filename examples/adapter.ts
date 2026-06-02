@@ -9,6 +9,7 @@ import { minio } from '@storagesdk/adapters/minio';
 import { r2 } from '@storagesdk/adapters/r2';
 import { s3 } from '@storagesdk/adapters/s3';
 import { spaces } from '@storagesdk/adapters/spaces';
+import { supabase } from '@storagesdk/adapters/supabase';
 import { tigris } from '@storagesdk/adapters/tigris';
 import { vercel } from '@storagesdk/adapters/vercel';
 import { wasabi } from '@storagesdk/adapters/wasabi';
@@ -22,7 +23,7 @@ import type { Adapter } from '@storagesdk/core/adapter';
  * vars only.
  *
  * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav | backblaze | spaces | wasabi (default: fs)
+ *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav | backblaze | spaces | wasabi | supabase (default: fs)
  *   EXAMPLE_BUCKET           required for every non-fs, non-github, non-webdav adapter
  *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
  *   EXAMPLE_REGION           optional for s3, minio
@@ -169,6 +170,26 @@ export function getAdapter(): Adapter {
         : {}),
     });
   }
+  if (choice === 'supabase') {
+    const bucket = process.env.EXAMPLE_BUCKET;
+    const projectRef = process.env.EXAMPLE_PROJECT_REF;
+    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
+    if (!bucket || !projectRef || !accessKeyId || !secretAccessKey) {
+      throw new Error(
+        'EXAMPLE_BUCKET, EXAMPLE_PROJECT_REF, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=supabase'
+      );
+    }
+    return supabase({
+      bucket,
+      projectRef,
+      accessKeyId,
+      secretAccessKey,
+      ...(process.env.EXAMPLE_ENDPOINT !== undefined
+        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
+        : {}),
+    });
+  }
   if (choice === 'tigris') {
     const bucket = process.env.EXAMPLE_BUCKET;
     const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
@@ -272,6 +293,6 @@ export function getAdapter(): Adapter {
     });
   }
   throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav, backblaze, spaces, wasabi.`
+    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav, backblaze, spaces, wasabi, supabase.`
   );
 }

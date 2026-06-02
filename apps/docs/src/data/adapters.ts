@@ -73,6 +73,12 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/wasabi',
   },
   {
+    name: 'Supabase Storage',
+    short: 'Supabase',
+    key: 'supabase',
+    sub: '@storagesdk/adapters/supabase',
+  },
+  {
     name: 'GitHub',
     short: 'GitHub',
     key: 'github',

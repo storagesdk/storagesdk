@@ -108,6 +108,14 @@ EXAMPLE_ACCESS_KEY_ID=... \
 EXAMPLE_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
+# Supabase Storage — generate S3 credentials in the project dashboard.
+EXAMPLE_ADAPTER=supabase \
+EXAMPLE_BUCKET=my-bucket \
+EXAMPLE_PROJECT_REF=abcdefghijklmnop \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```
