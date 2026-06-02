@@ -119,6 +119,23 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
+    github: `import { Storage } from '@storagesdk/core';
+import { github } from '@storagesdk/adapters/github';
+
+const storage = new Storage({
+  adapter: github({
+    owner: 'agentco',
+    repo: 'agent-runs',
+    // branch defaults to the repo's default branch
+    // token defaults to process.env.GITHUB_TOKEN
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     fly: `import { Storage } from '@storagesdk/core';
 import { fly } from '@storagesdk/adapters/fly';
 

@@ -1,10 +1,27 @@
+import { useEffect, useState } from 'react';
 import { SNIPPETS } from '../data/snippets';
 import CodeBlock from './CodeBlock';
 import { ArrowIcon, GithubIcon } from './Icon';
 
 const MGRS = ['npm', 'pnpm', 'bun', 'yarn'] as const;
+const TICKER_WORDS = [
+  'fork',
+  'snapshot',
+  'download',
+  'upload',
+  'and more',
+] as const;
+const TICKER_INTERVAL_MS = 2000;
 
 export default function Hero() {
+  const [tickerIndex, setTickerIndex] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTickerIndex((i) => (i + 1) % TICKER_WORDS.length);
+    }, TICKER_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <section className="hero">
       <div className="hero-grid" aria-hidden="true" />
@@ -15,16 +32,20 @@ export default function Hero() {
           <span className="eyebrow-arrow">→</span>
         </a>
         <h1 className="headline">
-          Storage for humans and <em>agents</em>.
+          Universal API for{' '}
+          <span className="ticker">
+            <em
+              key={TICKER_WORDS[tickerIndex]}
+              className="ticker-word"
+              aria-live="polite"
+            >
+              {TICKER_WORDS[tickerIndex]}
+            </em>
+          </span>
         </h1>
         <p className="subhead">
-          A fully-featured TypeScript SDK for storage — one portable interface
-          across Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob, Vercel Blob,
-          MinIO, and your filesystem, with{' '}
-          <b style={{ color: 'var(--fg)', fontWeight: 600 }}>fork</b> and{' '}
-          <b style={{ color: 'var(--fg)', fontWeight: 600 }}>snapshot</b> as
-          first-class primitives. Switch backends in a line; branch a bucket per
-          agent run or replay a moment in time with a single call.
+          A unified TypeScript SDK for storage with first-class support for
+          snapshotting, forking across many storage providers.
         </p>
 
         <div className="hero-install">

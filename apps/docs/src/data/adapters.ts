@@ -129,7 +129,7 @@ const FEATURED_KEYS = new Set([
   'gcs',
   'azure',
   'vercel',
-  'minio',
+  'github',
   'fs',
 ]);
 export const FEATURED_ADAPTERS = ADAPTERS.filter((a) =>

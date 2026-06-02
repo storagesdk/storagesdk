@@ -372,7 +372,7 @@ h1.headline {
   letter-spacing: -0.035em;
   font-weight: 600;
   margin: 0 0 22px;
-  max-width: 14ch;
+  max-width: 24ch;
   text-wrap: balance;
 }
 
@@ -392,6 +392,44 @@ h1.headline em::after {
   background: var(--accent);
   opacity: 0.18;
   border-radius: 2px;
+}
+
+/* Rotating headline word ("Forks" ↔ "Snapshots").
+   `min-width` is sized to the longer word ("Snapshots") so the line
+   doesn't reflow as the word swaps. `overflow: hidden` clips the
+   slide-in so the new word appears from the bottom edge. */
+.ticker {
+  display: inline-block;
+  vertical-align: bottom;
+  overflow: hidden;
+  /* Container shrinks to fit each word so short words ("Forks") don't
+     sit with empty space around them. The trade-off is a small line
+     width shift between ticks; `text-wrap: balance` on the H1 absorbs
+     most of it. */
+  width: max-content;
+  line-height: inherit;
+}
+
+.ticker-word {
+  display: inline-block;
+  animation: ticker-slide-in 360ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes ticker-slide-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticker-word {
+    animation: none;
+  }
 }
 
 .subhead {
