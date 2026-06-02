@@ -61,6 +61,12 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/backblaze',
   },
   {
+    name: 'DigitalOcean Spaces',
+    short: 'Spaces',
+    key: 'spaces',
+    sub: '@storagesdk/adapters/spaces',
+  },
+  {
     name: 'GitHub',
     short: 'GitHub',
     key: 'github',

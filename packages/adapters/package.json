@@ -24,6 +24,10 @@
       "types": "./dist/backblaze/index.d.ts",
       "default": "./dist/backblaze/index.js"
     },
+    "./spaces": {
+      "types": "./dist/spaces/index.d.ts",
+      "default": "./dist/spaces/index.js"
+    },
     "./tigris": {
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
@@ -99,7 +103,9 @@
     "nextcloud",
     "owncloud",
     "backblaze",
-    "b2"
+    "b2",
+    "digitalocean",
+    "spaces"
   ],
   "author": "",
   "license": "Apache-2.0",

@@ -92,6 +92,14 @@ EXAMPLE_ACCESS_KEY_ID=... \
 EXAMPLE_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
+# DigitalOcean Spaces — Space must already exist.
+EXAMPLE_ADAPTER=spaces \
+EXAMPLE_BUCKET=my-space \
+EXAMPLE_REGION=nyc3 \
+EXAMPLE_ACCESS_KEY_ID=... \
+EXAMPLE_SECRET_ACCESS_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```

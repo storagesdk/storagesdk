@@ -89,6 +89,11 @@ export const SECTIONS: Record<SectionId, Section> = {
           href: '/adapters/backblaze',
         },
         {
+          id: 'spaces',
+          label: 'DigitalOcean Spaces',
+          href: '/adapters/spaces',
+        },
+        {
           id: 'github',
           label: 'GitHub',
           badge: 'native',
