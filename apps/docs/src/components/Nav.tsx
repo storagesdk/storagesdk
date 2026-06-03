@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { readTheme, type Theme, writeTheme } from '../lib/theme';
 import { GithubIcon, MoonIcon, SunIcon } from './Icon';
 
-type Section = 'get-started' | 'api' | 'adapters' | 'cli';
+type Section = 'get-started' | 'api' | 'adapters' | 'ai-tools' | 'cli';
 
 interface NavProps {
   /** Optional initial section — used during SSR so the right link is
@@ -14,6 +14,7 @@ const LINKS: { id: Section; label: string; href: string }[] = [
   { id: 'get-started', label: 'Get Started', href: '/get-started' },
   { id: 'api', label: 'API', href: '/api' },
   { id: 'adapters', label: 'Adapters', href: '/adapters' },
+  { id: 'ai-tools', label: 'AI tools', href: '/ai-tools' },
   // CLI page hidden from nav until the @storagesdk/cli package ships.
   // { id: 'cli', label: 'CLI', href: '/cli' },
 ];
@@ -22,6 +23,7 @@ function deriveSection(pathname: string): Section | undefined {
   if (pathname.startsWith('/get-started')) return 'get-started';
   if (pathname.startsWith('/api')) return 'api';
   if (pathname.startsWith('/adapters')) return 'adapters';
+  if (pathname.startsWith('/ai-tools')) return 'ai-tools';
   if (pathname.startsWith('/cli')) return 'cli';
   return undefined;
 }

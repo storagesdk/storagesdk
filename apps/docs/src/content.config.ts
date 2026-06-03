@@ -16,7 +16,7 @@ const docs = defineCollection({
     /** SEO description. */
     description: z.string(),
     /** Which section the page belongs to (drives nav highlight + sidebar). */
-    section: z.enum(['get-started', 'api', 'adapters', 'cli']),
+    section: z.enum(['get-started', 'api', 'adapters', 'ai-tools', 'cli']),
     /** Optional next-page pager link. */
     next: z
       .object({

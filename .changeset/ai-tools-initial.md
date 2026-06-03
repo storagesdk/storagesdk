@@ -39,7 +39,7 @@ Read and write tools take an optional `snapshot` / `fork` param so the model can
 
 One `ToolsOptions` type, all fields required when resolved. Callers pass `Partial<ToolsOptions>`; the factory fills defaults:
 
-- `readOnly: true` — strips every write tool, browse-only roster
+- `readOnly: true` — strips mutators only; reads survive (including `snapshot_list`, `snapshot_head`, `fork_list`, `fork_head`)
 - `scope: 'agents/'` — every path strict-validated under that prefix
 - `maxInlineBytes` — cap on inline text from `download` (default 256 KB)
 - `urlExpiresIn` — presigned URL TTL (default 600 s)

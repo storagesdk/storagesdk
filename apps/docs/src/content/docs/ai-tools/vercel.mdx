@@ -1,0 +1,81 @@
+---
+title: Vercel AI SDK
+eyebrow: AI tools
+description: Use @storagesdk/ai/vercel to register storagesdk verbs as Vercel AI SDK tools — drop them into generateText or streamText.
+section: ai-tools
+---
+
+import Note from '../../../components/docs/Note.astro';
+
+## Install
+
+```sh
+npm install @storagesdk/core @storagesdk/adapters @storagesdk/ai ai @ai-sdk/anthropic
+```
+
+`ai` is the Vercel AI SDK. The `@ai-sdk/<provider>` package depends on which model you're calling — `@ai-sdk/anthropic`, `@ai-sdk/openai`, etc.
+
+## Quickstart
+
+```ts
+import { anthropic } from '@ai-sdk/anthropic';
+import { tigris } from '@storagesdk/adapters/tigris';
+import { tools } from '@storagesdk/ai/vercel';
+import { Storage } from '@storagesdk/core';
+import { generateText } from 'ai';
+
+const storage = new Storage({
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY!,
+  }),
+});
+
+const result = await generateText({
+  model: anthropic('claude-sonnet-4-5'),
+  tools: tools(storage),
+  prompt:
+    'Snapshot the repo, then add a section about the new module to README.md.',
+});
+```
+
+`tools(storage)` returns a `Record<string, Tool>` keyed by tool name, ready to pass directly to `generateText` / `streamText`.
+
+## With options
+
+```ts
+import { tools } from '@storagesdk/ai/vercel';
+
+const restricted = tools(storage, {
+  readOnly: true,
+  scope: 'agents/',
+});
+```
+
+See the [AI tools overview](/ai-tools) for the full options reference.
+
+## Targeting a fork
+
+Pass the fork itself (a `Storage` instance) to `tools()`:
+
+```ts
+await storage.forks.create({ name: 'experiment' });
+const sandbox = storage.forks.get('experiment');
+
+const result = await generateText({
+  model: anthropic('claude-sonnet-4-5'),
+  tools: tools(sandbox),
+  prompt: '…',
+});
+```
+
+The agent now operates entirely within `experiment` — tool calls touch only that fork, and snapshots taken by the agent are inside the fork too. Cleanup is a single `storage.forks.delete('experiment')`.
+
+<Note>
+  The [`examples/agent-with-snapshots`](https://github.com/storagesdk/storagesdk/tree/main/examples/agent-with-snapshots) example demonstrates the fork-sandbox pattern end-to-end.
+</Note>
+
+## Under the hood
+
+`tools()` builds a Vercel AI SDK [`dynamicTool`](https://ai-sdk.dev/docs/reference/ai-sdk-core/dynamic-tool) for each storagesdk verb. Each tool's input schema is a Zod object; the Vercel SDK validates the model's tool call against it before invoking the handler. Handlers return the underlying `@storagesdk/core` types directly (`StorageItemMeta`, `SnapshotInfo`, `ForkInfo`, etc.) — the SDK serializes `Date` fields to ISO strings on the wire.
