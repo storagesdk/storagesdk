@@ -8,10 +8,14 @@
     "quickstart": "tsx quickstart/index.ts",
     "snapshots": "tsx snapshots/index.ts",
     "forks": "tsx forks/index.ts",
-    "browser-upload": "tsx browser-upload/index.ts"
+    "browser-upload": "tsx browser-upload/index.ts",
+    "agent-with-snapshots": "tsx agent-with-snapshots/index.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.0",
     "@storagesdk/adapters": "workspace:*",
-    "@storagesdk/core": "workspace:*"
+    "@storagesdk/ai": "workspace:*",
+    "@storagesdk/core": "workspace:*",
+    "ai": "^6.0.0"
   }
 }
