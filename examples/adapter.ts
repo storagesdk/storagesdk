@@ -1,319 +1,36 @@
 import * as os from 'node:os';
-import * as path from 'node:path';
-import { azure } from '@storagesdk/adapters/azure';
-import { backblaze } from '@storagesdk/adapters/backblaze';
-import { fs } from '@storagesdk/adapters/fs';
-import { gcs } from '@storagesdk/adapters/gcs';
-import { github } from '@storagesdk/adapters/github';
-import { linode } from '@storagesdk/adapters/linode';
-import { minio } from '@storagesdk/adapters/minio';
-import { r2 } from '@storagesdk/adapters/r2';
-import { s3 } from '@storagesdk/adapters/s3';
-import { spaces } from '@storagesdk/adapters/spaces';
-import { supabase } from '@storagesdk/adapters/supabase';
-import { tigris } from '@storagesdk/adapters/tigris';
-import { vercel } from '@storagesdk/adapters/vercel';
-import { wasabi } from '@storagesdk/adapters/wasabi';
-import { webdav } from '@storagesdk/adapters/webdav';
+import { ADAPTERS, type AdapterName, buildAdapter } from '@storagesdk/adapters';
 import type { Adapter } from '@storagesdk/core/adapter';
 
 /**
- * Pick a storage adapter for an example based on `EXAMPLE_ADAPTER`
- * (defaults to `fs` — works with zero config). Each example imports this
- * so the same feature demo can run against any backend by changing env
- * vars only.
+ * Pick a storage adapter for an example. Defaults to `fs` so the
+ * examples run without any config; switch with `EXAMPLE_ADAPTER`
+ * and set the matching adapter-native env vars (`TIGRIS_BUCKET`,
+ * `S3_BUCKET` + `S3_ACCESS_KEY_ID`, etc.).
  *
- * Env vars (single namespaced scheme):
- *   EXAMPLE_ADAPTER          fs | s3 | r2 | minio | tigris | azure | gcs | vercel | github | webdav | backblaze | spaces | wasabi | supabase | linode (default: fs)
- *   EXAMPLE_BUCKET           required for every non-fs, non-github, non-webdav adapter
- *   EXAMPLE_ENDPOINT         required for minio; optional for s3, tigris, azure
- *   EXAMPLE_REGION           optional for s3, minio
- *   EXAMPLE_ACCESS_KEY_ID    required for s3, r2, minio, tigris
- *   EXAMPLE_SECRET_ACCESS_KEY required for s3, r2, minio, tigris
- *   EXAMPLE_FORCE_PATH_STYLE 'true' to force path-style addressing (s3, tigris)
- *   EXAMPLE_ACCOUNT_ID       required for r2 (Cloudflare account id)
- *   EXAMPLE_ACCOUNT_NAME     required for azure (Azure storage account name)
- *   EXAMPLE_ACCOUNT_KEY      required for azure (account access key)
- *   EXAMPLE_PROJECT_ID       required for gcs (GCP project id)
- *   EXAMPLE_KEY_FILENAME     path to GCP service-account JSON key (gcs)
- *   EXAMPLE_TOKEN            Vercel Blob read-write token (vercel; falls back
- *                            to BLOB_READ_WRITE_TOKEN env var on Vercel runtimes)
- *   EXAMPLE_OWNER            required for github (repo owner)
- *   EXAMPLE_REPO             required for github (repo name)
- *   EXAMPLE_BRANCH           optional for github (defaults to repo's default branch).
- *                            github reads its token from GITHUB_TOKEN.
- *   EXAMPLE_URL              required for webdav (server base URL)
- *   EXAMPLE_ROOT             required for webdav (path under base URL)
- *   EXAMPLE_FOLDER           required for webdav (folder within root)
- *   EXAMPLE_USERNAME         optional for webdav (Basic / Digest)
- *   EXAMPLE_PASSWORD         optional for webdav (Basic / Digest)
+ * See `@storagesdk/adapters` `getAdapterEnvVars(name)` for the exact
+ * env vars each adapter reads.
+ *
+ * Async because `buildAdapter` dynamically imports only the adapter
+ * you ask for, keeping the example bundle light.
  */
-export function getAdapter(): Adapter {
+export async function getAdapter(): Promise<Adapter> {
   const choice = (process.env.EXAMPLE_ADAPTER ?? 'fs').toLowerCase();
+  if (!isAdapterName(choice)) {
+    throw new Error(
+      `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: ${ADAPTERS.join(', ')}`
+    );
+  }
+  // Convenience defaults for fs so the zero-config path "just works".
   if (choice === 'fs') {
-    const root = path.join(os.tmpdir(), `storagesdk-example-${Date.now()}`);
-    return fs({ root, folder: 'demo' });
-  }
-  if (choice === 's3') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=s3'
-      );
+    if (!process.env.FS_ROOT) process.env.FS_ROOT = os.tmpdir();
+    if (!process.env.FS_FOLDER) {
+      process.env.FS_FOLDER = `storagesdk-example-${Date.now().toString(36)}`;
     }
-    return s3({
-      bucket,
-      credentials: { accessKeyId, secretAccessKey },
-      endpoint: process.env.EXAMPLE_ENDPOINT,
-      region: process.env.EXAMPLE_REGION,
-      forcePathStyle: process.env.EXAMPLE_FORCE_PATH_STYLE === 'true',
-    });
   }
-  if (choice === 'r2') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const accountId = process.env.EXAMPLE_ACCOUNT_ID;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !accountId || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_ACCOUNT_ID, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=r2'
-      );
-    }
-    return r2({
-      bucket,
-      accountId,
-      accessKeyId,
-      secretAccessKey,
-      ...(process.env.EXAMPLE_ENDPOINT !== undefined
-        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
-        : {}),
-    });
-  }
-  if (choice === 'minio') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const endpoint = process.env.EXAMPLE_ENDPOINT;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !endpoint || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_ENDPOINT, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=minio'
-      );
-    }
-    return minio({
-      bucket,
-      endpoint,
-      accessKeyId,
-      secretAccessKey,
-      ...(process.env.EXAMPLE_REGION !== undefined
-        ? { region: process.env.EXAMPLE_REGION }
-        : {}),
-    });
-  }
-  if (choice === 'backblaze') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const region = process.env.EXAMPLE_REGION;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !region || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_REGION, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=backblaze'
-      );
-    }
-    return backblaze({
-      bucket,
-      region,
-      accessKeyId,
-      secretAccessKey,
-      ...(process.env.EXAMPLE_ENDPOINT !== undefined
-        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
-        : {}),
-    });
-  }
-  if (choice === 'spaces') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const region = process.env.EXAMPLE_REGION;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !region || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_REGION, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=spaces'
-      );
-    }
-    return spaces({
-      bucket,
-      region,
-      accessKeyId,
-      secretAccessKey,
-      ...(process.env.EXAMPLE_ENDPOINT !== undefined
-        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
-        : {}),
-    });
-  }
-  if (choice === 'wasabi') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const region = process.env.EXAMPLE_REGION;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !region || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_REGION, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=wasabi'
-      );
-    }
-    return wasabi({
-      bucket,
-      region,
-      accessKeyId,
-      secretAccessKey,
-      ...(process.env.EXAMPLE_ENDPOINT !== undefined
-        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
-        : {}),
-    });
-  }
-  if (choice === 'supabase') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const projectRef = process.env.EXAMPLE_PROJECT_REF;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !projectRef || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_PROJECT_REF, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=supabase'
-      );
-    }
-    return supabase({
-      bucket,
-      projectRef,
-      accessKeyId,
-      secretAccessKey,
-      ...(process.env.EXAMPLE_ENDPOINT !== undefined
-        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
-        : {}),
-    });
-  }
-  if (choice === 'linode') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const region = process.env.EXAMPLE_REGION;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !region || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_REGION, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=linode'
-      );
-    }
-    return linode({
-      bucket,
-      region,
-      accessKeyId,
-      secretAccessKey,
-      ...(process.env.EXAMPLE_ENDPOINT !== undefined
-        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
-        : {}),
-    });
-  }
-  if (choice === 'tigris') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const accessKeyId = process.env.EXAMPLE_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.EXAMPLE_SECRET_ACCESS_KEY;
-    if (!bucket || !accessKeyId || !secretAccessKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_ACCESS_KEY_ID, and EXAMPLE_SECRET_ACCESS_KEY are required for EXAMPLE_ADAPTER=tigris'
-      );
-    }
-    return tigris({
-      bucket,
-      accessKeyId,
-      secretAccessKey,
-      endpoint: process.env.EXAMPLE_ENDPOINT,
-      forcePathStyle: process.env.EXAMPLE_FORCE_PATH_STYLE === 'true',
-    });
-  }
-  if (choice === 'azure') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const accountName = process.env.EXAMPLE_ACCOUNT_NAME;
-    const accountKey = process.env.EXAMPLE_ACCOUNT_KEY;
-    if (!bucket || !accountName || !accountKey) {
-      throw new Error(
-        'EXAMPLE_BUCKET, EXAMPLE_ACCOUNT_NAME, and EXAMPLE_ACCOUNT_KEY are required for EXAMPLE_ADAPTER=azure'
-      );
-    }
-    return azure({
-      bucket,
-      accountName,
-      accountKey,
-      ...(process.env.EXAMPLE_ENDPOINT !== undefined
-        ? { endpoint: process.env.EXAMPLE_ENDPOINT }
-        : {}),
-    });
-  }
-  if (choice === 'gcs') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const projectId = process.env.EXAMPLE_PROJECT_ID;
-    const keyFilename = process.env.EXAMPLE_KEY_FILENAME;
-    if (!bucket || !projectId) {
-      throw new Error(
-        'EXAMPLE_BUCKET and EXAMPLE_PROJECT_ID are required for EXAMPLE_ADAPTER=gcs'
-      );
-    }
-    return gcs({
-      bucket,
-      projectId,
-      ...(keyFilename !== undefined ? { keyFilename } : {}),
-    });
-  }
-  if (choice === 'vercel') {
-    const bucket = process.env.EXAMPLE_BUCKET;
-    const token =
-      process.env.EXAMPLE_TOKEN ?? process.env.BLOB_READ_WRITE_TOKEN;
-    if (!bucket || !token) {
-      throw new Error(
-        'EXAMPLE_BUCKET and EXAMPLE_TOKEN (or BLOB_READ_WRITE_TOKEN) are required for EXAMPLE_ADAPTER=vercel'
-      );
-    }
-    return vercel({ bucket, token });
-  }
-  if (choice === 'github') {
-    const owner = process.env.EXAMPLE_OWNER;
-    const repo = process.env.EXAMPLE_REPO;
-    if (!owner || !repo) {
-      throw new Error(
-        'EXAMPLE_OWNER and EXAMPLE_REPO are required for EXAMPLE_ADAPTER=github'
-      );
-    }
-    // token defaults to GITHUB_TOKEN inside the adapter.
-    return github({
-      owner,
-      repo,
-      ...(process.env.EXAMPLE_BRANCH !== undefined
-        ? { branch: process.env.EXAMPLE_BRANCH }
-        : {}),
-    });
-  }
-  if (choice === 'webdav') {
-    const baseUrl = process.env.EXAMPLE_URL;
-    const root = process.env.EXAMPLE_ROOT;
-    const folder = process.env.EXAMPLE_FOLDER;
-    if (!baseUrl || !root || !folder) {
-      throw new Error(
-        'EXAMPLE_URL, EXAMPLE_ROOT, and EXAMPLE_FOLDER are required for EXAMPLE_ADAPTER=webdav'
-      );
-    }
-    return webdav({
-      baseUrl,
-      root,
-      folder,
-      ...(process.env.EXAMPLE_USERNAME !== undefined
-        ? { username: process.env.EXAMPLE_USERNAME }
-        : {}),
-      ...(process.env.EXAMPLE_PASSWORD !== undefined
-        ? { password: process.env.EXAMPLE_PASSWORD }
-        : {}),
-      ...(process.env.EXAMPLE_TOKEN !== undefined
-        ? { token: process.env.EXAMPLE_TOKEN }
-        : {}),
-    });
-  }
-  throw new Error(
-    `Unknown EXAMPLE_ADAPTER '${choice}'. Expected one of: fs, s3, r2, minio, tigris, azure, gcs, vercel, github, webdav, backblaze, spaces, wasabi, supabase, linode.`
-  );
+  return buildAdapter(choice);
+}
+
+function isAdapterName(name: string): name is AdapterName {
+  return (ADAPTERS as readonly string[]).includes(name);
 }

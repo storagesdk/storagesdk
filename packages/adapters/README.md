@@ -27,6 +27,42 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 
 For the full, up-to-date list see **[storagesdk.dev/adapters](https://storagesdk.dev/adapters)**.
 
+## Runtime adapter selection
+
+For CLIs, scripts, and anywhere the adapter is picked from a string at runtime, the package's root export ships a small registry: enumerate every shipped adapter, introspect its env-var spec, build the adapter.
+
+```ts
+import {
+  ADAPTERS,
+  type AdapterName,
+  type AdapterEnvVar,
+  buildAdapter,
+  getAdapterEnvVars,
+} from '@storagesdk/adapters';
+
+// Enumerate
+ADAPTERS
+// → readonly ['fs', 's3', 'r2', 'minio', 'tigris', 'azure', 'gcs',
+//             'vercel', 'github', 'webdav', 'backblaze', 'spaces',
+//             'wasabi', 'supabase', 'linode', 'fly', 'railway']
+
+// What env vars does this adapter read?
+getAdapterEnvVars('tigris')
+// → [{ name: 'TIGRIS_BUCKET', required: true }, ...]
+
+// Read env config + dynamically import the factory + construct.
+const adapter = await buildAdapter('tigris');
+const storage = new Storage({ adapter });
+```
+
+Each adapter reads `<NAME>_*` env vars matching its config shape, with backend-native fallbacks where they exist (S3 falls back to `AWS_*`, GCS to `GOOGLE_CLOUD_PROJECT` / `GOOGLE_APPLICATION_CREDENTIALS`, Vercel Blob to `BLOB_READ_WRITE_TOKEN`, Azure to `AZURE_STORAGE_ACCOUNT` / `AZURE_STORAGE_KEY`).
+
+`buildAdapter` is async because it `import()`s only the adapter you request — peer-SDK code (`@aws-sdk/client-s3`, `@azure/storage-blob`, etc.) stays out of the static bundle until needed. `ADAPTERS` and `getAdapterEnvVars` are sync.
+
+Library consumers using a single adapter via the subpath import (`@storagesdk/adapters/tigris`) are unaffected — the registry is purely additive for runtime-driven use cases.
+
+See [storagesdk.dev/adapters/registry](https://storagesdk.dev/adapters/registry) for the full env-var reference.
+
 ## Snapshots and forks
 
 Every adapter implements `snapshots` and `forks` against the same contract. Backends that don't offer native primitives use a sibling-bucket / sibling-container convention (server-side copy + a per-bucket manifest); Tigris uses its native snapshot/fork APIs.

@@ -1,7 +1,7 @@
 import { Storage } from '@storagesdk/core';
 import { getAdapter } from '../adapter.js';
 
-const storage = new Storage({ adapter: getAdapter() });
+const storage = new Storage({ adapter: await getAdapter() });
 
 // upload — any body shape works (string, Uint8Array, Blob, ReadableStream).
 await storage.upload('hello.txt', 'Hello, storage SDK!', {

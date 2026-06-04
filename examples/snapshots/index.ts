@@ -5,7 +5,7 @@ import { getAdapter } from '../adapter.js';
 // We do this inside a throwaway fork so the demo never touches the parent
 // bucket — at the end the fork (and all its snapshots) get cleaned up.
 
-const storage = new Storage({ adapter: getAdapter() });
+const storage = new Storage({ adapter: await getAdapter() });
 
 const suffix = Date.now().toString(36);
 const sandboxName = `snap-demo-${suffix}`;
