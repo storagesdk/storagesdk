@@ -173,6 +173,9 @@ function prefixedAdapter<Raw>(
   };
 }
 
+const waitForTimestampTick = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, 20));
+
 /**
  * Wire per-test isolation onto a Storage built from `adapter`. Returns a
  * `TestStorage` — a Storage that auto-prefixes keys with a fresh per-test
@@ -781,6 +784,189 @@ export function storageAdapterTestSuite<Raw = unknown>(
 
         // Clean nested snapshot up so dispose can remove the fork.
         await fork.snapshots.delete(childSnap.id);
+      });
+
+      it('forks.merge adds fork-only keys to parent', async () => {
+        await ctx.upload('base.txt', 'base');
+        const name = ctx.forkName('merge-add');
+        await ctx.forks.create({ name });
+        const fork = ctx.forks.get(name);
+        await fork.upload('added.txt', 'added');
+
+        const result = await ctx.forks.merge(name);
+
+        expect(result).toMatchObject({
+          added: 1,
+          updated: 0,
+          deleted: 0,
+          skipped: 1,
+        });
+        expect(bodyText(await ctx.download('added.txt'))).toBe('added');
+      });
+
+      it('forks.merge skips unchanged keys with the same etag', async () => {
+        await ctx.upload('same.txt', 'same');
+        const name = ctx.forkName('merge-skip');
+        await ctx.forks.create({ name });
+
+        const result = await ctx.forks.merge(name);
+
+        expect(result).toMatchObject({
+          added: 0,
+          updated: 0,
+          deleted: 0,
+          skipped: 1,
+        });
+        expect(bodyText(await ctx.download('same.txt'))).toBe('same');
+      });
+
+      it("forks.merge onConflict: 'source' lets the fork win", async () => {
+        await ctx.upload('conflict.txt', 'parent');
+        const name = ctx.forkName('merge-source');
+        await ctx.forks.create({ name });
+        const fork = ctx.forks.get(name);
+        await fork.upload('conflict.txt', 'fork');
+
+        const result = await ctx.forks.merge(name, { onConflict: 'source' });
+
+        expect(result).toMatchObject({ updated: 1, skipped: 0 });
+        expect(bodyText(await ctx.download('conflict.txt'))).toBe('fork');
+      });
+
+      it("forks.merge onConflict: 'destination' lets the parent win", async () => {
+        await ctx.upload('conflict.txt', 'parent');
+        const name = ctx.forkName('merge-destination');
+        await ctx.forks.create({ name });
+        const fork = ctx.forks.get(name);
+        await fork.upload('conflict.txt', 'fork');
+
+        const result = await ctx.forks.merge(name, {
+          onConflict: 'destination',
+        });
+
+        expect(result).toMatchObject({ updated: 0, skipped: 1 });
+        expect(bodyText(await ctx.download('conflict.txt'))).toBe('parent');
+      });
+
+      it("forks.merge onConflict: 'newer' keeps the newest object", async () => {
+        await ctx.upload('fork-newer.txt', 'parent');
+        const forkNewerName = ctx.forkName('merge-newer-fork');
+        await ctx.forks.create({ name: forkNewerName });
+        await waitForTimestampTick();
+        await ctx.forks.get(forkNewerName).upload('fork-newer.txt', 'fork');
+
+        await ctx.forks.merge(forkNewerName, { onConflict: 'newer' });
+        expect(bodyText(await ctx.download('fork-newer.txt'))).toBe('fork');
+
+        await ctx.upload('parent-newer.txt', 'parent-old');
+        const parentNewerName = ctx.forkName('merge-newer-parent');
+        await ctx.forks.create({ name: parentNewerName });
+        await ctx.forks.get(parentNewerName).upload('parent-newer.txt', 'fork');
+        await waitForTimestampTick();
+        await ctx.upload('parent-newer.txt', 'parent-new');
+
+        await ctx.forks.merge(parentNewerName, { onConflict: 'newer' });
+        expect(bodyText(await ctx.download('parent-newer.txt'))).toBe(
+          'parent-new'
+        );
+      });
+
+      it('forks.merge dryRun returns a plan without mutating parent', async () => {
+        await ctx.upload('same.txt', 'same');
+        await ctx.upload('changed.txt', 'parent');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-dry-run');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+        const fork = ctx.forks.get(name);
+        await fork.upload('changed.txt', 'fork');
+        await fork.upload('added.txt', 'added');
+        await fork.delete('same.txt');
+
+        const result = await ctx.forks.merge(name, {
+          deletions: true,
+          dryRun: true,
+        });
+
+        expect(result).toMatchObject({
+          added: 1,
+          updated: 1,
+          deleted: 1,
+          skipped: 0,
+        });
+        expect(result.plan).toEqual({
+          toAdd: ['added.txt'],
+          toUpdate: ['changed.txt'],
+          toDelete: ['same.txt'],
+          toSkip: [],
+        });
+        expect(bodyText(await ctx.download('changed.txt'))).toBe('parent');
+        await expect(ctx.head('added.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+        expect(bodyText(await ctx.download('same.txt'))).toBe('same');
+      });
+
+      it('forks.merge deleteAfterMerge removes fork after success', async () => {
+        await ctx.upload('a.txt', 'a');
+        const name = ctx.forkName('merge-delete-fork');
+        await ctx.forks.create({ name });
+
+        await ctx.forks.merge(name, { deleteAfterMerge: true });
+
+        await expect(ctx.forks.head(name)).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+      });
+
+      it('forks.merge propagates deletions from a snapshot fork', async () => {
+        await ctx.upload('deleted.txt', 'delete me');
+        await ctx.upload('kept.txt', 'keep me');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-deletions');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+        const fork = ctx.forks.get(name);
+        await fork.delete('deleted.txt');
+
+        const result = await ctx.forks.merge(name, { deletions: true });
+
+        expect(result).toMatchObject({ deleted: 1 });
+        await expect(ctx.head('deleted.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+        expect(bodyText(await ctx.download('kept.txt'))).toBe('keep me');
+      });
+
+      it('forks.merge deletions without fromSnapshot throws InvalidArgument', async () => {
+        await ctx.upload('a.txt', 'a');
+        const name = ctx.forkName('merge-deletions-invalid');
+        await ctx.forks.create({ name });
+
+        await expect(
+          ctx.forks.merge(name, { deletions: true })
+        ).rejects.toMatchObject({ code: 'InvalidArgument' });
+      });
+
+      it('forks.merge honors AbortSignal without partial parent writes', async () => {
+        await ctx.upload('a.txt', 'parent');
+        const name = ctx.forkName('merge-abort');
+        await ctx.forks.create({ name });
+        const fork = ctx.forks.get(name);
+        await fork.upload('a.txt', 'fork');
+        await fork.upload('b.txt', 'fork-only');
+        const ctrl = new AbortController();
+
+        await expect(
+          ctx.forks.merge(name, {
+            signal: ctrl.signal,
+            onProgress: ({ processed }) => {
+              if (processed === 1) ctrl.abort();
+            },
+          })
+        ).rejects.toMatchObject({ code: 'Aborted' });
+        expect(bodyText(await ctx.download('a.txt'))).toBe('parent');
+        await expect(ctx.head('b.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
       });
     });
 

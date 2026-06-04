@@ -173,3 +173,32 @@ export interface ForkProgress {
   total: number;
   bytes?: number;
 }
+
+export type MergeConflictStrategy = 'source' | 'destination' | 'newer';
+
+export interface MergeOptions {
+  /** How to resolve keys changed in both parent and fork. Default: `source`. */
+  onConflict?: MergeConflictStrategy;
+  /** Propagate fork deletions back to the parent. Requires a fork snapshot ancestor. */
+  deletions?: boolean;
+  /** Build and return the merge plan without mutating storage. */
+  dryRun?: boolean;
+  /** Delete the fork after a successful merge. */
+  deleteAfterMerge?: boolean;
+  onProgress?: (event: { processed: number; total: number }) => void;
+  signal?: AbortSignal;
+}
+
+export interface MergeResult {
+  added: number;
+  updated: number;
+  deleted: number;
+  skipped: number;
+  /** Populated when `dryRun: true`. */
+  plan?: {
+    toAdd: string[];
+    toUpdate: string[];
+    toDelete: string[];
+    toSkip: string[];
+  };
+}

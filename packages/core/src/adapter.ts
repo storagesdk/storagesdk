@@ -8,6 +8,8 @@ import type {
   ForkOptions,
   ListOptions,
   ListResult,
+  MergeOptions,
+  MergeResult,
   SnapshotInfo,
   StorageItem,
   StorageItemMeta,
@@ -52,6 +54,7 @@ export interface AdapterForks<Raw = unknown> {
   head(name: string, opts?: { signal?: AbortSignal }): Promise<ForkInfo>;
   delete(name: string, opts?: { signal?: AbortSignal }): Promise<void>;
   get(name: string): Adapter<Raw>;
+  merge?(name: string, opts?: MergeOptions): Promise<MergeResult>;
 }
 
 /**
@@ -139,6 +142,17 @@ function normalizeReadOnly(adapter: ReadOnlyAdapter): ReadOnlyAdapter {
  * — adapter authors don't usually need to specify it explicitly.
  */
 export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
+  const forks: AdapterForks<Raw> = {
+    create: (opts) => impl.forks.create(opts),
+    list: () => impl.forks.list(),
+    head: (name, opts) => impl.forks.head(name, opts),
+    delete: (name, opts) => impl.forks.delete(name, opts),
+    get: (name) => defineAdapter<Raw>(impl.forks.get(name)),
+  };
+  if (impl.forks.merge) {
+    forks.merge = (name, opts) => impl.forks.merge!(name, opts);
+  }
+
   return {
     name: impl.name,
     raw: impl.raw,
@@ -167,12 +181,6 @@ export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
       get: (id) => normalizeReadOnly(impl.snapshots.get(id)),
     },
 
-    forks: {
-      create: (opts) => impl.forks.create(opts),
-      list: () => impl.forks.list(),
-      head: (name, opts) => impl.forks.head(name, opts),
-      delete: (name, opts) => impl.forks.delete(name, opts),
-      get: (name) => defineAdapter<Raw>(impl.forks.get(name)),
-    },
+    forks,
   };
 }

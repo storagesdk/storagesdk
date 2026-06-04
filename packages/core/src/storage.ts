@@ -1,4 +1,5 @@
 import type { Adapter, ReadOnlyAdapter } from './adapter.js';
+import { emulatedMerge } from './merge.js';
 import { toWebStream } from './streams.js';
 import type {
   BodyInput,
@@ -8,6 +9,8 @@ import type {
   ForkOptions,
   ListOptions,
   ListResult,
+  MergeOptions,
+  MergeResult,
   SnapshotInfo,
   StorageItem,
   StorageItemMeta,
@@ -131,6 +134,7 @@ export class Storage<Raw = unknown> extends ReadOnlyStorage {
     head(name: string, opts?: { signal?: AbortSignal }): Promise<ForkInfo>;
     delete(name: string, opts?: { signal?: AbortSignal }): Promise<void>;
     get(name: string): Storage<Raw>;
+    merge(name: string, opts?: MergeOptions): Promise<MergeResult>;
   };
 
   constructor(opts: StorageOptions<Raw>) {
@@ -153,6 +157,10 @@ export class Storage<Raw = unknown> extends ReadOnlyStorage {
       head: (name, headOpts) => adapter.forks.head(name, headOpts),
       delete: (name, deleteOpts) => adapter.forks.delete(name, deleteOpts),
       get: (name) => new Storage<Raw>({ adapter: adapter.forks.get(name) }),
+      merge: (name, mergeOpts) =>
+        adapter.forks.merge
+          ? adapter.forks.merge(name, mergeOpts)
+          : emulatedMerge(this, name, mergeOpts),
     };
   }
 

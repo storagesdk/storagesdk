@@ -445,6 +445,8 @@ function impl(
         // `forks.get`, so the result is a single-wrapped adapter.
         return impl({ ...config, bucket: name }, getSourceLocations);
       },
+      // TODO: implement native merge via the Tigris API when available.
+      // Core emulates forks.merge correctly until then.
     },
   };
 }
