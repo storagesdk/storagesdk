@@ -1,10 +1,12 @@
-import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { createWriteStream, existsSync } from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { pathToFileURL } from 'node:url';
 import {
   type Adapter,
-  bodyToBytes,
   checkSignal,
   defineAdapter,
   emptyManifest,
@@ -19,6 +21,7 @@ import {
   StorageError,
   type StorageItem,
   type StorageItemMeta,
+  toWebStream,
   type UploadOptions,
   type UploadUrlOptions,
   type UploadUrlResult,
@@ -31,6 +34,7 @@ import {
   resolveSafe,
   resolveSiblingSafe,
   SIDECAR_SUFFIX,
+  TMP_SUFFIX,
   toKey,
 } from './paths.js';
 import {
@@ -170,24 +174,42 @@ function createImpl(config: FsConfig): Adapter {
     async upload(key, body, opts?: UploadOptions): Promise<StorageItemMeta> {
       checkSignal(opts?.signal);
       // The manifest path flows through `upload` from the SDK's own
-      // `writeManifest` helper, so we can't reject it. The sidecar suffix
-      // IS rejected — only the adapter's own logic writes sidecars.
+      // `writeManifest` helper, so we can't reject it. The sidecar and temp
+      // suffixes ARE rejected — only the adapter's own logic writes those.
       if (key.endsWith(SIDECAR_SUFFIX)) {
         throw new StorageError({
           code: 'InvalidArgument',
           message: `key "${key}" uses the reserved sidecar suffix`,
         });
       }
+      if (key.endsWith(TMP_SUFFIX)) {
+        throw new StorageError({
+          code: 'InvalidArgument',
+          message: `key "${key}" uses the reserved temp suffix`,
+        });
+      }
       const fullPath = resolveSafe(folderPath, key);
-      const bytes = await bodyToBytes(body);
+      // Stream the body to a temp sibling in the destination directory, then
+      // atomically rename it into place. Streaming keeps memory bounded for
+      // large bodies; the sibling temp keeps the rename on one filesystem
+      // (no EXDEV) and atomic. The UUID avoids collisions under concurrent
+      // uploads of the same key.
+      const tmpPath = path.join(
+        path.dirname(fullPath),
+        `${path.basename(fullPath)}.${randomUUID()}${TMP_SUFFIX}`
+      );
       try {
         await fsp.mkdir(path.dirname(fullPath), { recursive: true });
-        await fsp.writeFile(
-          fullPath,
-          bytes,
-          opts?.signal ? { signal: opts.signal } : undefined
+        await pipeline(
+          Readable.fromWeb(toWebStream(body)),
+          createWriteStream(tmpPath),
+          opts?.signal ? { signal: opts.signal } : {}
         );
+        await fsp.rename(tmpPath, fullPath);
       } catch (err) {
+        // Best-effort cleanup of the temp file on any failure (write, abort,
+        // or rename) so a failed upload doesn't leave orphan state on disk.
+        await fsp.rm(tmpPath, { force: true }).catch(() => {});
         throw asStorageError(err);
       }
       await writeSidecar(fullPath, {
