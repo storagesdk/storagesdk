@@ -12,7 +12,7 @@ class Storage<Raw = unknown> extends ReadOnlyStorage {
 
   readonly raw: Raw;
   readonly snapshots: { create, list, head, delete, get };
-  readonly forks:     { create, list, head, delete, get };
+  readonly forks:     { create, list, head, delete, get, merge };
 
   // Reads — inherited from ReadOnlyStorage
   download(path, opts?): Promise<StorageItem | …>;
@@ -453,3 +453,43 @@ nested.raw; // same Raw type as storage.raw
 ```
 
 Returns a full `Storage<Raw>` bound to the fork — every read and write method, plus `snapshots` and `forks` of its own. The `Raw` generic survives navigation, so `storage.raw` and `storage.forks.get('x').raw` are the same client type without a cast.
+
+<h3 id="forks-merge">forks.merge()</h3>
+
+```ts
+storage.forks.merge(name: string, opts?: MergeOptions): Promise<MergeResult>;
+
+type MergeConflictStrategy = 'source' | 'destination' | 'newer';
+
+type MergeResult = {
+  added: number;
+  updated: number;
+  deleted: number;
+  skipped: number;
+  plan?: {
+    toAdd: string[];
+    toUpdate: string[];
+    toDelete: string[];
+    toSkip: string[];
+  };
+};
+```
+
+```ts
+const result = await storage.forks.merge('experiment-42', {
+  onConflict: 'source',
+  deletions: true,
+  deleteAfterMerge: true,
+});
+```
+
+Merges a fork back into its parent. Adapters can provide a native merge hook; otherwise core emulates the merge by listing parent and fork objects, copying changed fork objects to the parent, and optionally deleting parent objects that were removed in the fork.
+
+| Option | Type | Notes |
+| --- | --- | --- |
+| `onConflict` | `'source' \| 'destination' \| 'newer'` | Default `source`, meaning the fork wins. `destination` keeps the parent. `newer` compares `lastModified`. |
+| `deletions` | `boolean` | Propagate fork deletions to the parent. Requires a fork created with `fromSnapshot`; otherwise throws `InvalidArgument`. |
+| `dryRun` | `boolean` | Return the merge plan without mutating the parent. |
+| `deleteAfterMerge` | `boolean` | Delete the fork after a successful merge. |
+| `onProgress` | `(e: { processed, total }) => void` | Fires while executing the plan. |
+| `signal` | `AbortSignal` | Cancels the merge. Core emulation rolls back parent writes when cancellation happens during execution. |

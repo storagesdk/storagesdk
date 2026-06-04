@@ -66,7 +66,7 @@ class Storage<Raw = unknown> {
 
   readonly raw: Raw;
   readonly snapshots: { create, list, head, delete, get };
-  readonly forks:     { create, list, head, delete, get };
+  readonly forks:     { create, list, head, delete, get, merge };
 
   upload(path: string, body: BodyInput, opts?: UploadOptions): Promise<StorageItemMeta>;
 
@@ -102,6 +102,7 @@ storage.forks.list():                                         Promise<ForkInfo[]
 storage.forks.head(name: string, opts?: { signal? }):         Promise<ForkInfo>;
 storage.forks.delete(name: string, opts?: { signal? }):       Promise<void>;
 storage.forks.get(name: string):                              Storage<Raw>;    // full read/write
+storage.forks.merge(name: string, opts?: MergeOptions):       Promise<MergeResult>;
 ```
 
 ### `uploadUrl` — PUT vs POST
@@ -159,6 +160,23 @@ await fork.upload('config.json', JSON.stringify({ flag: true }));
 ```
 
 `forks.create` also accepts no `fromSnapshot` — the fork starts at the parent's live state at creation time.
+
+### Merge a fork back
+
+```ts
+const result = await storage.forks.merge('experiment', {
+  onConflict: 'source',    // default: fork wins
+  deletions: true,         // requires a fork created fromSnapshot
+  deleteAfterMerge: true,
+});
+
+result.added;
+result.updated;
+result.deleted;
+result.skipped;
+```
+
+`dryRun: true` returns a plan without changing the parent. `onConflict` can be `'source'`, `'destination'`, or `'newer'`. Deletion propagation needs the fork's `fromSnapshot` ancestor so the SDK can distinguish deleted keys from keys that were never in the fork.
 
 ### Signed URLs
 
@@ -251,7 +269,7 @@ export function myAdapter(config: MyConfig): Adapter {
     async url(path, opts) { /* ... */ },
     async uploadUrl(path, opts) { /* ... */ },
     snapshots: { /* create, list, head, delete, get */ },
-    forks:     { /* create, list, head, delete, get */ },
+    forks:     { /* create, list, head, delete, get, merge? */ },
   });
 }
 ```

@@ -30,12 +30,12 @@ export function myAdapter(config: MyConfig): Adapter {
     async url(path, opts)          { /* ... */ },
     async uploadUrl(path, opts)    { /* ... */ },
     snapshots: { /* create, list, head, delete, get */ },
-    forks:     { /* create, list, head, delete, get */ },
+    forks:     { /* create, list, head, delete, get, merge? */ },
   });
 }
 ```
 
-`defineAdapter` wraps your implementation with path normalization (leading slashes stripped, empty paths throw `InvalidArgument`) and recursive wrapping for `snapshots.get` and `forks.get` return values.
+`defineAdapter` wraps your implementation with path normalization (leading slashes stripped, empty paths throw `InvalidArgument`) and recursive wrapping for `snapshots.get` and `forks.get` return values. `forks.merge` is optional for adapter authors; `Storage` falls back to core emulation when it is absent.
 
 ## Helpers
 

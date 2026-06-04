@@ -27,7 +27,7 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 
 ## Snapshots and forks
 
-Every adapter implements `snapshots` and `forks` against the same contract. Backends that don't offer native primitives use a sibling-bucket / sibling-container convention (server-side copy + a per-bucket manifest); Tigris uses its native snapshot/fork APIs.
+Every adapter implements `snapshots` and `forks` against the same contract. Backends that don't offer native primitives use a sibling-bucket / sibling-container convention (server-side copy + a per-bucket manifest); Tigris uses its native snapshot/fork APIs. `storage.forks.merge(name, opts?)` is available to consumers through core emulation unless an adapter provides a native merge hook.
 
 See each adapter's README for the specifics — naming convention, what the manifest contains, and what's enforced server-side vs in the SDK.
 
