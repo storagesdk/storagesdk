@@ -46,7 +46,14 @@ export async function emulatedMerge<Raw = unknown>(
       continue;
     }
     if (
-      await sameObject(storage, fork, path, parentObject, forkObject, opts?.signal)
+      await sameObject(
+        storage,
+        fork,
+        path,
+        parentObject,
+        forkObject,
+        opts?.signal
+      )
     ) {
       plan.toSkip.push(path);
       continue;
@@ -70,8 +77,7 @@ export async function emulatedMerge<Raw = unknown>(
     if (!forkInfo.fromSnapshot) {
       throw new StorageError({
         code: 'InvalidArgument',
-        message:
-          'deletions: true requires a fork created with fromSnapshot',
+        message: 'deletions: true requires a fork created with fromSnapshot',
       });
     }
     const ancestorObjects = await listAll(
@@ -215,9 +221,9 @@ async function rollback<Raw>(
     await storage.delete(path).catch(() => {});
   }
   for (const [path, item] of backups) {
-    await storage.upload(path, item.body, uploadOpts(item, undefined)).catch(() =>
-      {}
-    );
+    await storage
+      .upload(path, item.body, uploadOpts(item, undefined))
+      .catch(() => {});
   }
 }
 
