@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { azure } from '@storagesdk/adapters/azure';
 import { backblaze } from '@storagesdk/adapters/backblaze';
 import { fs } from '@storagesdk/adapters/fs';
+import { fsCas } from '@storagesdk/adapters/fs-cas';
 import { gcs } from '@storagesdk/adapters/gcs';
 import { github } from '@storagesdk/adapters/github';
 import { linode } from '@storagesdk/adapters/linode';
@@ -53,6 +54,10 @@ export function getAdapter(): Adapter {
   if (choice === 'fs') {
     const root = path.join(os.tmpdir(), `storagesdk-example-${Date.now()}`);
     return fs({ root, folder: 'demo' });
+  }
+  if (choice === 'fs-cas') {
+    const root = path.join(os.tmpdir(), `storagesdk-example-${Date.now()}`);
+    return fsCas({ root, bucket: 'demo' });
   }
   if (choice === 's3') {
     const bucket = process.env.EXAMPLE_BUCKET;
