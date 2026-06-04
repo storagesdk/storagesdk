@@ -39,6 +39,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 
 - **Snapshots and forks as primitives.** Take a snapshot of a bucket, get a read-only handle, fork from it as a writable branch. Native APIs where available (Tigris); sibling buckets/folders otherwise.
 - **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for provider-specific operations storagesdk doesn't surface.
+- **Agent-ready.** [`@storagesdk/ai`](./packages/ai/README.md) wraps every verb (plus the full snapshot and fork roster) as AI tool definitions for the Vercel AI SDK — hand a `Storage` to your agent runtime and get a ready-to-register tool set back.
 - **ESM-only, Node 20+.** Plain `tsc` build, no bundler.
 
 ## Adapters
@@ -222,6 +223,7 @@ pnpm install
 pnpm --filter @storagesdk/examples quickstart
 pnpm --filter @storagesdk/examples snapshots
 pnpm --filter @storagesdk/examples forks
+pnpm --filter @storagesdk/examples agent-with-snapshots  # needs ANTHROPIC_API_KEY for the live agent run
 ```
 
 ## Authoring adapters

@@ -1,0 +1,75 @@
+{
+  "name": "@storagesdk/ai",
+  "version": "0.1.0",
+  "description": "AI tool definitions for storagesdk. Hand a Storage instance to your agent runtime; get a roster of upload, download, snapshot, and fork tools back.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./vercel": {
+      "types": "./dist/vercel/index.d.ts",
+      "default": "./dist/vercel/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "publint": "publint",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "storage",
+    "storagesdk",
+    "ai",
+    "tools",
+    "agent",
+    "vercel-ai-sdk",
+    "snapshot",
+    "fork"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/storagesdk/storagesdk.git",
+    "directory": "packages/ai"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@storagesdk/core": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "peerDependencies": {
+    "ai": "^6.0.0",
+    "vitest": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@storagesdk/adapters": "workspace:*",
+    "ai": "^6.0.0"
+  }
+}

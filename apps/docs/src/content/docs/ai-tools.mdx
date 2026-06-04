@@ -1,0 +1,82 @@
+---
+title: AI tools for storagesdk.
+eyebrow: AI tools
+description: '@storagesdk/ai wraps every storagesdk verb as AI tool definitions — hand a Storage to your agent runtime and get a ready-to-register tool set back.'
+section: ai-tools
+---
+
+## Overview
+
+`@storagesdk/ai` ships AI tool definitions that wrap every storagesdk verb — including the full snapshot and fork roster — in your agent framework's expected `tool({...})` shape. Each per-framework integration lives at its own subpath: `@storagesdk/ai/vercel` for the Vercel AI SDK, with more on the way.
+
+The differentiator: tool descriptions teach the model to **snapshot before risky edits** and **fork to try variants**, turning storagesdk's primitives into the agent's undo/branch story.
+
+```sh
+npm install @storagesdk/core @storagesdk/adapters @storagesdk/ai
+```
+
+## The 18 tools
+
+Each tool wraps a single storagesdk verb. Schemas are Zod; descriptions are tuned for model behavior. Names are snake_case to match what models have seen most in training.
+
+| Group | Tools |
+| --- | --- |
+| Read | `download`, `download_range`, `head`, `list`, `url` |
+| Write | `upload`, `delete`, `copy`, `move`, `upload_url` |
+| Snapshots | `snapshot_create`, `snapshot_list`, `snapshot_head`, `snapshot_delete` |
+| Forks | `fork_create`, `fork_list`, `fork_head`, `fork_delete` |
+
+Notable behaviors:
+
+- **`download`** returns text inline below 256 KB; otherwise returns a short-lived presigned URL with size + content type. Avoids passing multi-MB base64 back to the model.
+- **`download_range`** echoes the requested `range` when the result falls back to a URL — fetch the URL with `Range: bytes=<offset>-<offset+length-1>` to honor the slice.
+- **`upload`** takes a UTF-8 string body. For binary content, the agent calls **`upload_url`** to get a presigned PUT URL and hands it to a client that uploads directly.
+- **`url`** is for handoff to other tools — image understanding, OCR, anything that takes a URL.
+- **`snapshot_create`** is the agent's undo button. The default system prompt of every example tells the model to call it before any irreversible operation.
+
+## Snapshots and forks
+
+Read tools accept optional `snapshot` and `fork` fields. Both, either, or neither — the tool walks `forks.get(fork).snapshots.get(snapshot)` as needed:
+
+```ts
+// Live state of the parent
+await download({ path: 'utils.ts' });
+
+// From a snapshot
+await download({ path: 'utils.ts', snapshot: 'snap-…' });
+
+// From a fork
+await download({ path: 'utils.ts', fork: 'experiment' });
+
+// From a snapshot of a fork
+await download({ path: 'utils.ts', fork: 'experiment', snapshot: 'snap-…' });
+```
+
+Write, snapshot, and fork tools accept only `fork` — snapshots are immutable, so there's no equivalent navigation for them.
+
+## Options
+
+```ts
+interface ToolsOptions {
+  readOnly: boolean;        // strip mutators only; reads survive (default false)
+  scope: string;            // path-prefix guard, strict-validated (default '')
+  maxInlineBytes: number;   // cap on inline text in download (default 256 KB)
+  urlExpiresIn: number;     // TTL for presigned URLs in seconds (default 600)
+  signal?: AbortSignal;     // plumbed through every storage operation
+}
+```
+
+Callers pass `Partial<ToolsOptions>`; the factory fills defaults so the underlying handlers always read populated values.
+
+```ts
+// Browse-only agent that can't escape the agents/ subtree
+tools(storage, { readOnly: true, scope: 'agents/' });
+```
+
+Under `readOnly`: every read tool survives — including the non-mutating snapshot/fork tools (`snapshot_list`, `snapshot_head`, `fork_list`, `fork_head`). Stripped: `upload`, `delete`, `copy`, `move`, `upload_url`, `snapshot_create`, `snapshot_delete`, `fork_create`, `fork_delete`.
+
+When `scope` is set, every path argument is strict-validated against the prefix. Out-of-scope paths throw `StorageError({ code: 'InvalidArgument' })` — the model sees full prefixed paths and gets a clear error if it strays.
+
+## Integrations
+
+- [Vercel AI SDK](/ai-tools/vercel) — `@storagesdk/ai/vercel`

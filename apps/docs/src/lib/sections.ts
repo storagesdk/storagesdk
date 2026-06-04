@@ -2,7 +2,7 @@
 // `<DocsLayout>` to look up the matching entry and render the sidebar.
 // The right-rail TOC is built from the live DOM headings.
 
-export type SectionId = 'get-started' | 'api' | 'adapters' | 'cli';
+export type SectionId = 'get-started' | 'api' | 'adapters' | 'ai-tools' | 'cli';
 
 interface SidebarItem {
   /** DOM id of the heading this entry jumps to (anchor-based nav), or
@@ -119,6 +119,18 @@ export const SECTIONS: Record<SectionId, Section> = {
           label: 'Write your own',
           href: '/adapters/write-your-own',
         },
+      ],
+    },
+  },
+  'ai-tools': {
+    id: 'ai-tools',
+    label: 'AI tools',
+    href: '/ai-tools',
+    sidebar: {
+      label: 'AI tools',
+      items: [
+        { id: 'overview', label: 'Overview', href: '/ai-tools' },
+        { id: 'vercel', label: 'Vercel AI SDK', href: '/ai-tools/vercel' },
       ],
     },
   },
