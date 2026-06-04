@@ -1,5 +1,12 @@
 # @storagesdk/examples
 
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [bb05742]
+  - @storagesdk/ai@0.2.0
+
 ## 0.0.7
 
 ### Patch Changes
