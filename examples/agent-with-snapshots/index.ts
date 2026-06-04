@@ -25,7 +25,7 @@ A handful of arithmetic helpers. Add more as needed.
 `,
 };
 
-const storage = new Storage({ adapter: getAdapter() });
+const storage = new Storage({ adapter: await getAdapter() });
 
 // Run the demo in a fork so the parent storage stays untouched.
 const forkName = `storagesdk-agent-demo-${Date.now().toString(36)}`;

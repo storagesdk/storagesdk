@@ -25,7 +25,7 @@ import { getAdapter } from '../adapter.js';
 const PORT = Number(process.env.PORT ?? 3000);
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB upload cap
 
-const storage = new Storage({ adapter: getAdapter() });
+const storage = new Storage({ adapter: await getAdapter() });
 const indexHtml = readFileSync(path.join(import.meta.dirname, 'index.html'));
 
 const server = createServer(async (req, res) => {
