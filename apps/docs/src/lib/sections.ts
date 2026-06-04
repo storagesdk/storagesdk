@@ -71,6 +71,7 @@ export const SECTIONS: Record<SectionId, Section> = {
       label: 'Adapters',
       items: [
         { id: 'overview', label: 'Overview', href: '/adapters' },
+        { id: 'registry', label: 'Registry', href: '/adapters/registry' },
         {
           id: 'tigris',
           label: 'Tigris',
