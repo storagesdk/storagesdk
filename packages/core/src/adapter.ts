@@ -149,8 +149,9 @@ export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
     delete: (name, opts) => impl.forks.delete(name, opts),
     get: (name) => defineAdapter<Raw>(impl.forks.get(name)),
   };
-  if (impl.forks.merge) {
-    forks.merge = (name, opts) => impl.forks.merge!(name, opts);
+  const merge = impl.forks.merge;
+  if (merge) {
+    forks.merge = (name, opts) => merge(name, opts);
   }
 
   return {
