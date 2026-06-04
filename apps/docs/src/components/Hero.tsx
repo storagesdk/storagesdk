@@ -9,7 +9,7 @@ const TICKER_WORDS = [
   'snapshot',
   'download',
   'upload',
-  'and more',
+  'storage',
 ] as const;
 const TICKER_INTERVAL_MS = 2000;
 
