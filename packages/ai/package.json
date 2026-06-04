@@ -1,6 +1,6 @@
 {
   "name": "@storagesdk/ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI tool definitions for storagesdk. Hand a Storage instance to your agent runtime; get a roster of upload, download, snapshot, and fork tools back.",
   "type": "module",
   "exports": {
