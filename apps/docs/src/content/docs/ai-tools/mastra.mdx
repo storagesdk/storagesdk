@@ -1,0 +1,101 @@
+---
+title: Mastra
+eyebrow: AI tools
+description: Use @storagesdk/ai/mastra to register storagesdk verbs as Mastra Agent tools.
+section: ai-tools
+---
+
+import Note from '../../../components/docs/Note.astro';
+
+## Install
+
+```sh
+npm install @storagesdk/core @storagesdk/adapters @storagesdk/ai @mastra/core
+```
+
+`@mastra/core` is the [Mastra](https://mastra.ai/) agent framework. Pick whichever model provider your Mastra app already uses — Mastra resolves model strings like `anthropic/claude-sonnet-4-5` against its own provider config.
+
+## Quickstart
+
+```ts
+import { Agent } from '@mastra/core/agent';
+import { tigris } from '@storagesdk/adapters/tigris';
+import { tools } from '@storagesdk/ai/mastra';
+import { Storage } from '@storagesdk/core';
+
+const storage = new Storage({
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY!,
+  }),
+});
+
+const agent = new Agent({
+  name: 'codeReviewer',
+  instructions:
+    'Snapshot before any risky edit so the user can revert. After making changes, list the snapshots so the user can see what is available.',
+  model: 'anthropic/claude-sonnet-4-5',
+  tools: tools(storage),
+});
+
+const result = await agent.generate([
+  { role: 'user', content: 'Snapshot the README, then add a new section.' },
+]);
+```
+
+`tools(storage)` returns a `Record<string, Tool>` keyed by verb name, ready to drop into an `Agent`'s `tools` field. Each tool's `id` matches the verb name (`download`, `snapshot_create`, etc.) so it's recognizable in Mastra traces and observability.
+
+## With options
+
+```ts
+import { tools } from '@storagesdk/ai/mastra';
+
+const restricted = tools(storage, {
+  readOnly: true,
+  scope: 'agents/',
+});
+```
+
+See the [AI tools overview](/ai-tools) for the full options reference.
+
+## Targeting a fork
+
+Pass the fork itself (a `Storage` instance) to `tools()`:
+
+```ts
+await storage.forks.create({ name: 'experiment' });
+const sandbox = storage.forks.get('experiment');
+
+const agent = new Agent({
+  name: 'experimenter',
+  instructions: '…',
+  model: 'anthropic/claude-sonnet-4-5',
+  tools: tools(sandbox),
+});
+```
+
+The agent operates entirely within `experiment` — tool calls touch only that fork, and snapshots taken by the agent are inside the fork too. Cleanup is a single `storage.forks.delete('experiment')`.
+
+## Combining with your own Mastra tools
+
+The factory result is a plain object, so spread it alongside any existing tools your agent already has:
+
+```ts
+import { weatherTool } from './tools/weather.js';
+import { tools as storageTools } from '@storagesdk/ai/mastra';
+
+const agent = new Agent({
+  name: 'general',
+  instructions: '…',
+  model: 'anthropic/claude-sonnet-4-5',
+  tools: {
+    weather: weatherTool,
+    ...storageTools(storage),
+  },
+});
+```
+
+## Under the hood
+
+`tools()` builds a Mastra [`Tool`](https://mastra.ai/reference/tools/create-tool) for each storagesdk verb via `createTool` from `@mastra/core/tools`. Mastra accepts Zod schemas directly — no JSON Schema conversion. Handlers return the underlying `@storagesdk/core` types directly (`StorageItemMeta`, `SnapshotInfo`, `ForkInfo`, etc.); Mastra serializes them for the model as part of its tool-result protocol.

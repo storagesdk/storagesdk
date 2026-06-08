@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -246,6 +246,82 @@ describe('fs adapter (implementation)', () => {
       await ctx.forks.create({ name, fromSnapshot: snap.id });
       await ctx.forks.delete(name);
       expect(existsSync(path.join(FS_TEST_ROOT, name))).toBe(false);
+    });
+  });
+
+  describe('streaming upload', () => {
+    // Build a ReadableStream that emits each chunk on a separate `pull` so
+    // the adapter genuinely streams rather than seeing one buffer.
+    function multiChunkStream(
+      chunks: Uint8Array[]
+    ): ReadableStream<Uint8Array> {
+      let i = 0;
+      return new ReadableStream({
+        pull(controller) {
+          const chunk = chunks[i++];
+          if (chunk !== undefined) {
+            controller.enqueue(chunk);
+          } else {
+            controller.close();
+          }
+        },
+      });
+    }
+
+    const enc = new TextEncoder();
+
+    it('streams a multi-chunk ReadableStream to disk and round-trips bytes', async () => {
+      const chunks = ['chunk-one-', 'chunk-two-', 'chunk-three'].map((s) =>
+        enc.encode(s)
+      );
+      const expected = enc.encode('chunk-one-chunk-two-chunk-three');
+
+      await ctx.upload('streamed.bin', multiChunkStream(chunks));
+
+      const bytes = await ctx.download('streamed.bin', { as: 'bytes' });
+      expect(bytes).toEqual(expected);
+      const meta = await ctx.head('streamed.bin');
+      expect(meta.size).toBe(expected.byteLength);
+    });
+
+    it('leaves no temp file behind and never surfaces one in list', async () => {
+      await ctx.upload('clean.bin', multiChunkStream([enc.encode('payload')]));
+
+      const dir = path.join(FS_TEST_ROOT, FS_TEST_FOLDER, ctx.prefix);
+      const onDisk = readdirSync(dir);
+      expect(onDisk.some((n) => n.endsWith('.storagesdk.tmp'))).toBe(false);
+
+      const { items } = await ctx.list();
+      expect(items.map((i) => i.path)).toEqual(['clean.bin']);
+    });
+
+    it('rejects upload to the temp suffix', async () => {
+      await expect(ctx.upload('foo.storagesdk.tmp', 'x')).rejects.toMatchObject(
+        { code: 'InvalidArgument' }
+      );
+    });
+
+    it('cleans up the temp file when the upload is aborted mid-stream', async () => {
+      const ctrl = new AbortController();
+      // A stream whose second pull never resolves; abort fires while the
+      // write is in flight, so the temp file exists but the rename never runs.
+      const stalling = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(enc.encode('first-chunk'));
+          ctrl.abort();
+          return new Promise<void>(() => {});
+        },
+      });
+
+      await expect(
+        ctx.upload('aborted.bin', stalling, { signal: ctrl.signal })
+      ).rejects.toMatchObject({ code: 'Aborted' });
+
+      const dir = path.join(FS_TEST_ROOT, FS_TEST_FOLDER, ctx.prefix);
+      const leftovers = existsSync(dir)
+        ? readdirSync(dir).filter((n) => n.endsWith('.storagesdk.tmp'))
+        : [];
+      expect(leftovers).toEqual([]);
     });
   });
 });

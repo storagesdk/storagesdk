@@ -1,6 +1,6 @@
 {
   "name": "@storagesdk/examples",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,8 @@
     "snapshots": "tsx snapshots/index.ts",
     "forks": "tsx forks/index.ts",
     "browser-upload": "tsx browser-upload/index.ts",
-    "agent-with-snapshots": "tsx agent-with-snapshots/index.ts"
+    "agent-with-snapshots": "tsx agent-with-snapshots/index.ts",
+    "adapters": "tsx adapters/index.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.0",

@@ -71,6 +71,7 @@ export const SECTIONS: Record<SectionId, Section> = {
       label: 'Adapters',
       items: [
         { id: 'overview', label: 'Overview', href: '/adapters' },
+        { id: 'registry', label: 'Registry', href: '/adapters/registry' },
         {
           id: 'tigris',
           label: 'Tigris',
@@ -136,6 +137,7 @@ export const SECTIONS: Record<SectionId, Section> = {
       items: [
         { id: 'overview', label: 'Overview', href: '/ai-tools' },
         { id: 'vercel', label: 'Vercel AI SDK', href: '/ai-tools/vercel' },
+        { id: 'mastra', label: 'Mastra', href: '/ai-tools/mastra' },
       ],
     },
   },

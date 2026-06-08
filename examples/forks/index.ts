@@ -6,7 +6,7 @@ import { getAdapter } from '../adapter.js';
 // variant — at the end we read that one file across the parent and all
 // three forks to show the divergence.
 
-const storage = new Storage({ adapter: getAdapter() });
+const storage = new Storage({ adapter: await getAdapter() });
 
 // Parent has the current live pricing.
 await storage.upload(

@@ -97,6 +97,40 @@ const result = await generateText({
 
 `tools(storage)` returns a `Record<string, Tool>` ready to pass to `generateText` / `streamText`.
 
+## Mastra
+
+```sh
+npm install @mastra/core
+```
+
+```ts
+import { Agent } from '@mastra/core/agent';
+import { tigris } from '@storagesdk/adapters/tigris';
+import { tools } from '@storagesdk/ai/mastra';
+import { Storage } from '@storagesdk/core';
+
+const storage = new Storage({
+  adapter: tigris({
+    bucket: 'agent-runs',
+    accessKeyId: process.env.TIGRIS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.TIGRIS_SECRET_ACCESS_KEY!,
+  }),
+});
+
+const agent = new Agent({
+  name: 'codeReviewer',
+  instructions: 'Snapshot before any risky edit so the user can revert.',
+  model: 'anthropic/claude-sonnet-4-5',
+  tools: tools(storage),
+});
+
+const result = await agent.generate([
+  { role: 'user', content: 'Snapshot the README, then add a new section.' },
+]);
+```
+
+`tools(storage)` returns a `Record<string, Tool>` whose values are Mastra `Tool` instances built via `createTool` from `@mastra/core/tools`. Each tool's `id` matches the verb name (`download`, `snapshot_create`, etc.) so it's recognizable in Mastra traces.
+
 ## Example
 
 [`examples/agent-with-snapshots`](../../examples/agent-with-snapshots) walks an Anthropic-backed Vercel AI SDK agent through editing a tiny "codebase" with snapshot-before-edit. Defaults to the filesystem adapter; swap with `EXAMPLE_ADAPTER`.

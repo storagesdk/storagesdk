@@ -4,6 +4,13 @@ import { StorageError } from '@storagesdk/core';
 export const SIDECAR_SUFFIX = '.storagesdk.meta.json';
 
 /**
+ * Suffix for the temp files `upload` streams to before atomically renaming
+ * them into place. A crash between write and rename can leave one behind;
+ * `isReservedKey` hides those from listings.
+ */
+export const TMP_SUFFIX = '.storagesdk.tmp';
+
+/**
  * Resolve a key against the folder, rejecting any path that escapes via `..`.
  * Returns the absolute path on disk.
  */
@@ -44,11 +51,12 @@ export function resolveSiblingSafe(root: string, name: string): string {
 
 /**
  * True for keys the FS adapter reserves for its own bookkeeping (per-object
- * sidecars). The SDK manifest is filtered by the adapter kit; this is the
- * FS-specific layer. Used in the directory walk to skip sidecar files.
+ * sidecars and leftover upload temp files). The SDK manifest is filtered by
+ * the adapter kit; this is the FS-specific layer. Used in the directory walk
+ * to skip those files.
  */
 export function isReservedKey(key: string): boolean {
-  return key.endsWith(SIDECAR_SUFFIX);
+  return key.endsWith(SIDECAR_SUFFIX) || key.endsWith(TMP_SUFFIX);
 }
 
 /** Convert an OS-specific relative path to a forward-slash key. */

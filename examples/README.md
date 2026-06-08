@@ -1,6 +1,6 @@
 # storagesdk examples
 
-Runnable examples for each feature of [storagesdk](https://github.com/storagesdk/storagesdk). All examples live under a single `@storagesdk/examples` workspace package and share a single shared `adapter.ts` helper — the examples themselves are pure feature demos, the adapter is picked at runtime via env vars.
+Runnable examples for each feature of [storagesdk](https://github.com/storagesdk/storagesdk). All examples live under a single `@storagesdk/examples` workspace package and share a single shared `adapter.ts` helper — the examples themselves are pure feature demos, the adapter is picked at runtime via `EXAMPLE_ADAPTER` and adapter-native env vars (`TIGRIS_BUCKET`, `S3_BUCKET`, etc.).
 
 ## Run an example
 
@@ -25,121 +25,141 @@ pnpm --filter @storagesdk/examples quickstart
 | [`snapshots`](./snapshots) | Capture multiple snapshots, list them, and print a git-log-style graph showing the keys at each point in time. |
 | [`forks`](./forks) | Spin up multiple forks of the live parent in parallel, mutate them independently, list them, show the divergence side-by-side. |
 | [`browser-upload`](./browser-upload) | End-to-end POST-policy flow — Node server mints a presigned POST URL via storagesdk, browser submits the file directly to the storage provider. Requires a non-fs adapter and bucket CORS. |
+| [`agent-with-snapshots`](./agent-with-snapshots) | Vercel AI SDK agent that snapshots before editing — demonstrates `@storagesdk/ai/vercel`. Set `ANTHROPIC_API_KEY` to run live; without it the script prints the tool roster. |
+| [`adapters`](./adapters) | Discovery — prints every adapter shipped in `@storagesdk/adapters` with its required/optional env vars (and backend-native fallbacks) and URL scheme. |
 
 ## Picking an adapter
 
-`EXAMPLE_ADAPTER` chooses which provider the example talks to. Defaults to `fs`. The per-adapter env vars use the same `EXAMPLE_*` namespace so they don't change between examples.
+`EXAMPLE_ADAPTER` selects which provider the example talks to (defaults to `fs`). The actual configuration comes from adapter-native env vars matching each adapter's config shape — the same vars you'd use in a CLI, MCP server, or any other consumer of `@storagesdk/adapters`'s runtime registry.
+
+Run the `adapters` example any time to see the full list with required/optional flags:
 
 ```sh
-# Tigris — bucket must already exist. EXAMPLE_ENDPOINT is optional; the
-# Tigris client defaults to its production endpoint when unset.
+pnpm --filter @storagesdk/examples adapters
+```
+
+```sh
+# Tigris — bucket must already exist.
 EXAMPLE_ADAPTER=tigris \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+TIGRIS_BUCKET=my-bucket \
+TIGRIS_ACCESS_KEY_ID=... \
+TIGRIS_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # S3 (and any S3-compatible provider) — bucket must already exist.
+# Credentials fall back to AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY,
+# region falls back to AWS_REGION.
 EXAMPLE_ADAPTER=s3 \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_REGION=us-east-1 \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+S3_BUCKET=my-bucket \
+S3_REGION=us-east-1 \
+S3_ACCESS_KEY_ID=... \
+S3_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # Cloudflare R2 — bucket must already exist.
 EXAMPLE_ADAPTER=r2 \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_ACCOUNT_ID=... \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+R2_BUCKET=my-bucket \
+R2_ACCOUNT_ID=... \
+R2_ACCESS_KEY_ID=... \
+R2_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # MinIO locally — bucket must already exist.
 docker compose up -d minio
 EXAMPLE_ADAPTER=minio \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_ENDPOINT=http://localhost:9000 \
-EXAMPLE_ACCESS_KEY_ID=minioadmin \
-EXAMPLE_SECRET_ACCESS_KEY=minioadmin \
+MINIO_BUCKET=my-bucket \
+MINIO_ENDPOINT=http://localhost:9000 \
+MINIO_ACCESS_KEY_ID=minioadmin \
+MINIO_SECRET_ACCESS_KEY=minioadmin \
 pnpm --filter @storagesdk/examples quickstart
 
-# GitHub — token reads from GITHUB_TOKEN. Snapshots are tags, forks
-# are branches; use a throwaway test repo, each run mutates the
-# working branch.
+# GCS — service-account JSON key file. Project ID falls back to
+# GOOGLE_CLOUD_PROJECT; key file falls back to GOOGLE_APPLICATION_CREDENTIALS.
+EXAMPLE_ADAPTER=gcs \
+GCS_BUCKET=my-bucket \
+GCS_PROJECT_ID=my-project \
+GCS_KEY_FILENAME=/path/to/key.json \
+pnpm --filter @storagesdk/examples quickstart
+
+# Azure Blob. Account name/key fall back to AZURE_STORAGE_ACCOUNT /
+# AZURE_STORAGE_KEY.
+EXAMPLE_ADAPTER=azure \
+AZURE_BUCKET=my-container \
+AZURE_ACCOUNT_NAME=mystorageaccount \
+AZURE_ACCOUNT_KEY=... \
+pnpm --filter @storagesdk/examples quickstart
+
+# Vercel Blob. Token falls back to BLOB_READ_WRITE_TOKEN (Vercel SDK
+# convention).
+EXAMPLE_ADAPTER=vercel \
+VERCEL_BLOB_BUCKET=my-prefix \
+VERCEL_BLOB_TOKEN=vercel_blob_rw_... \
+pnpm --filter @storagesdk/examples quickstart
+
+# GitHub — snapshots are tags, forks are branches. Use a throwaway test
+# repo; each run mutates the working branch.
 EXAMPLE_ADAPTER=github \
-EXAMPLE_OWNER=storagesdk \
-EXAMPLE_REPO=sdk-test-fixture \
+GITHUB_OWNER=storagesdk \
+GITHUB_REPO=sdk-test-fixture \
 GITHUB_TOKEN=ghp_... \
 pnpm --filter @storagesdk/examples quickstart
 
 # WebDAV — `docker compose up webdav` runs a local Apache mod_dav
-# container on port 8080 with user/pass credentials. Any WebDAV server
-# (Nextcloud, ownCloud, Box, self-hosted Apache/nginx) plugs in here.
+# container on port 8080. Any WebDAV server (Nextcloud, ownCloud,
+# self-hosted Apache/nginx) plugs in here.
 EXAMPLE_ADAPTER=webdav \
-EXAMPLE_URL=http://localhost:8080 \
-EXAMPLE_USERNAME=user \
-EXAMPLE_PASSWORD=pass \
-EXAMPLE_ROOT=/storagesdk \
-EXAMPLE_FOLDER=demo \
+WEBDAV_URL=http://localhost:8080 \
+WEBDAV_ROOT=/storagesdk \
+WEBDAV_FOLDER=demo \
+WEBDAV_USERNAME=user \
+WEBDAV_PASSWORD=pass \
 pnpm --filter @storagesdk/examples quickstart
 
 # Backblaze B2 — bucket must already exist.
 EXAMPLE_ADAPTER=backblaze \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_REGION=us-west-004 \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+B2_BUCKET=my-bucket \
+B2_REGION=us-west-004 \
+B2_ACCESS_KEY_ID=... \
+B2_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # DigitalOcean Spaces — Space must already exist.
 EXAMPLE_ADAPTER=spaces \
-EXAMPLE_BUCKET=my-space \
-EXAMPLE_REGION=nyc3 \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+SPACES_BUCKET=my-space \
+SPACES_REGION=nyc3 \
+SPACES_ACCESS_KEY_ID=... \
+SPACES_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # Wasabi — bucket must already exist.
 EXAMPLE_ADAPTER=wasabi \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_REGION=us-east-1 \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+WASABI_BUCKET=my-bucket \
+WASABI_REGION=us-east-1 \
+WASABI_ACCESS_KEY_ID=... \
+WASABI_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # Supabase Storage — generate S3 credentials in the project dashboard.
 EXAMPLE_ADAPTER=supabase \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_PROJECT_REF=abcdefghijklmnop \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+SUPABASE_BUCKET=my-bucket \
+SUPABASE_PROJECT_REF=abcdefghijklmnop \
+SUPABASE_ACCESS_KEY_ID=... \
+SUPABASE_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # Linode Object Storage — bucket must already exist.
 EXAMPLE_ADAPTER=linode \
-EXAMPLE_BUCKET=my-bucket \
-EXAMPLE_REGION=us-east-1 \
-EXAMPLE_ACCESS_KEY_ID=... \
-EXAMPLE_SECRET_ACCESS_KEY=... \
+LINODE_BUCKET=my-bucket \
+LINODE_REGION=us-east-1 \
+LINODE_ACCESS_KEY_ID=... \
+LINODE_SECRET_ACCESS_KEY=... \
 pnpm --filter @storagesdk/examples quickstart
 
 # Filesystem (default) — no env needed, uses a fresh tmpdir per run.
 pnpm --filter @storagesdk/examples quickstart
 ```
 
-### Env vars
-
-| Var | `tigris` | `s3` | `r2` | `minio` | `fs` | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| `EXAMPLE_ADAPTER` | ✓ | ✓ | ✓ | ✓ | (default) | One of `tigris`, `s3`, `r2`, `minio`, `fs`. |
-| `EXAMPLE_BUCKET` | required | required | required | required | — | Bucket / location name; must already exist for cloud adapters. |
-| `EXAMPLE_ENDPOINT` | optional | optional | optional | **required** | — | S3-compatible endpoint URL. Tigris defaults to its production endpoint; R2 builds it from `EXAMPLE_ACCOUNT_ID`. |
-| `EXAMPLE_REGION` | — | optional | — | optional | — | AWS region. |
-| `EXAMPLE_ACCESS_KEY_ID` | required | required | required | required | — | |
-| `EXAMPLE_SECRET_ACCESS_KEY` | required | required | required | required | — | |
-| `EXAMPLE_FORCE_PATH_STYLE` | optional | optional | — | (on by default) | — | Set to `'true'` for path-style addressing. |
-| `EXAMPLE_ACCOUNT_ID` | — | — | required | — | — | Cloudflare account ID; used to build the R2 endpoint. |
+For the full list of env vars per adapter, run [`pnpm --filter @storagesdk/examples adapters`](./adapters) or see [`@storagesdk/adapters`'s runtime selection docs](https://storagesdk.dev/adapters/registry).
 
 ## Copying an example out
 
