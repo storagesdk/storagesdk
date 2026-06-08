@@ -12,6 +12,10 @@
       "types": "./dist/vercel/index.d.ts",
       "default": "./dist/vercel/index.js"
     },
+    "./mastra": {
+      "types": "./dist/mastra/index.d.ts",
+      "default": "./dist/mastra/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -39,6 +43,7 @@
     "tools",
     "agent",
     "vercel-ai-sdk",
+    "mastra",
     "snapshot",
     "fork"
   ],
@@ -57,10 +62,14 @@
     "zod": "^4.0.0"
   },
   "peerDependencies": {
+    "@mastra/core": "^1.41.0",
     "ai": "^6.0.0",
     "vitest": "^4.0.0"
   },
   "peerDependenciesMeta": {
+    "@mastra/core": {
+      "optional": true
+    },
     "ai": {
       "optional": true
     },
@@ -69,6 +78,7 @@
     }
   },
   "devDependencies": {
+    "@mastra/core": "^1.41.0",
     "@storagesdk/adapters": "workspace:*",
     "ai": "^6.0.0"
   }
