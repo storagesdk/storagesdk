@@ -1,5 +1,14 @@
 # @storagesdk/examples
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [9ee71b9]
+- Updated dependencies [c30e8da]
+  - @storagesdk/ai@0.3.0
+  - @storagesdk/adapters@0.7.1
+
 ## 0.0.9
 
 ### Patch Changes
