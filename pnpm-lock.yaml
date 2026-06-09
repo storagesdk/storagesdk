@@ -91,6 +91,9 @@ importers:
       '@storagesdk/core':
         specifier: workspace:*
         version: link:../core
+      uuidv7:
+        specifier: ^1.0.2
+        version: 1.2.1
       vitest:
         specifier: ^4.0.0
         version: 4.1.6(@opentelemetry/api@1.9.0)(@types/node@25.8.0)(@vitest/coverage-v8@4.1.6)(vite@8.0.12(@types/node@25.8.0)(esbuild@0.28.0)(tsx@4.22.1)(yaml@2.9.0))
@@ -4132,6 +4135,9 @@ packages:
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
+  uuidv7@1.2.1:
+    resolution: {integrity: sha512-4kPkK3/XTQW9Hbm4CaqfICn+kY9LJtDVEOfgsRRra/+n2Ofg4NqzRFceAkxvQ/Ud/6BpHOPzj8cirqM7TzTN5Q==}
+    hasBin: true
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
     engines: {node: '>= 0.8'}
@@ -9220,6 +9226,7 @@ snapshots:
 
   uuid@9.0.1: {}
 
+  uuidv7@1.2.1: {}
   vary@1.1.2: {}
 
   vfile-location@5.0.3:

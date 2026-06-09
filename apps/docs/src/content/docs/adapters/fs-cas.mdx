@@ -1,0 +1,74 @@
+---
+title: Content-addressed Storage
+eyebrow: Adapter
+description: Filesystem adapter for storagesdk — stores files in a content-addressed manner to avoid copying data when forking and snapshotting.
+section: adapters
+---
+
+## Overview
+
+The Content-addressed Storage adapter targets a normal filesystem, but stores data in a [content-addressed](https://en.wikipedia.org/wiki/Content-addressable_storage) manner. In essence, this means that any given object is stored _once_ and then its metadata belongs to bucket metadata. Creating a fork or snapshot of a bucket merely copies that metadata to the new bucket rather than copying all of the data.
+
+The main downside of this adapter over the [fs adapter](./fs) is that you lose the ability to investigate files using normal Unix filesystem tools.
+
+This adapter is intended for running on a normal VPS or homelab server with a large amount of rotational storage and tests where you don't want to spin up a real storage provider.
+
+## Configuration
+
+```ts
+import { Storage } from "@storagesdk/core";
+import { fsCas } from "@storagesdk/adapters/fs-cas";
+
+const storage = new Storage({
+  adapter: fsCas({
+    root: "./.storage",
+    bucket: "agent-runs",
+  }),
+});
+```
+
+```ts
+fsCas({
+  // parent directory under which all data and metadata will live
+  root: string;
+  // the bucket this adapter operates on
+  bucket: string;
+});
+```
+
+For the call above, layout on disk:
+
+```
+./.storage/
+├── buckets/
+│   └── agent-runs/
+│       ├── bucket.json          ← key → hash map, object metadata, snapshot/fork lists
+│       └── snapshots/
+│           └── <uuidv7>.json    ← a snapshot: a frozen copy of the key → hash map
+├── data/
+│   └── ab/cdef012…              ← a blob, named by its BLAKE2b-512 hash (2-char fan-out)
+└── tmp/                         ← staging for atomic writes
+```
+
+## Notes
+
+- No peer dependencies — Node.js built-ins plus the dependency-free `uuidv7` package.
+- Content type and user metadata are stored in `bucket.json` files. `head()`, `list()`, and `download()` read them.
+- `url()` returns a `file://` URL pointing at the immutable blob, with an `?expires=…` parameter — explicitly **not signed**. Local dev only.
+- `uploadUrl()` is not supported as the checksum of an object is not known until consumed.
+- A blob is reclaimed from `data/` only when no bucket or snapshot anywhere in the store references it anymore.
+- Streaming downloads buffer the full blob in memory before returning. Uploads stream to a temp file while hashing — constant memory — but multipart options are accepted and ignored; every upload lands as one blob.
+- Single-process only: concurrent writers in one process are serialized, but nothing coordinates across processes.
+- Deletes trigger garbage collection: this is expensive but can't really be done anywhere else sensibly.
+
+## Compatibility
+
+| Capability             | Support |
+| ---------------------- | ------- |
+| Snapshots              | ✓       |
+| Forks                  | ✓       |
+| Byte-range reads       | ✓       |
+| Multipart upload       | ✓       |
+| Enforced upload limits | n/a     |
+| User metadata          | ✓       |
+| Signed URLs            | n/a     |

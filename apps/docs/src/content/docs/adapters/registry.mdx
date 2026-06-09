@@ -65,7 +65,7 @@ for (const name of ADAPTERS) {
 
 ## Each adapter's dependencies load on demand
 
-`buildAdapter('tigris')` is the only call that pulls `@tigrisdata/storage` into your runtime. The other 16 adapters' peer-SDK packages — `@aws-sdk/client-s3`, `@azure/storage-blob`, `@google-cloud/storage`, `@octokit/rest`, and so on — are never imported.
+`buildAdapter('tigris')` is the only call that pulls `@tigrisdata/storage` into your runtime. The other 17 adapters' peer-SDK packages — `@aws-sdk/client-s3`, `@azure/storage-blob`, `@google-cloud/storage`, `@octokit/rest`, and so on — are never imported.
 
 That's why `buildAdapter` is async: it `import()`s the requested adapter's implementation lazily. Modern bundlers code-split each dynamic import into its own chunk; runtimes execute only the one that gets called.
 
@@ -80,7 +80,7 @@ import { tigris } from '@storagesdk/adapters/tigris';
 const storage = new Storage({ adapter: tigris({ ... }) });
 ```
 
-Only the one adapter and its peer SDK end up in your bundle — the registry adds nothing, the other 16 adapters tree-shake out.
+Only the one adapter and its peer SDK end up in your bundle — the registry adds nothing, the other 17 adapters tree-shake out.
 
 ## Discovery example
 

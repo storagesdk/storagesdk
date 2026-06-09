@@ -116,6 +116,11 @@ export const SECTIONS: Record<SectionId, Section> = {
         { id: 'railway', label: 'Railway', href: '/adapters/railway' },
         { id: 'fs', label: 'Filesystem', href: '/adapters/fs' },
         {
+          id: 'fs-cas',
+          label: 'Content-addressed Storage',
+          href: '/adapters/fs-cas',
+        },
+        {
           id: 'write-your-own',
           label: 'Write your own',
           href: '/adapters/write-your-own',

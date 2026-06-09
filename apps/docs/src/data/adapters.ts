@@ -117,6 +117,12 @@ export const ADAPTERS: AdapterEntry[] = [
     key: 'fs',
     sub: '@storagesdk/adapters/fs',
   },
+  {
+    name: 'Content-addressed Storage',
+    short: 'FS-CAS',
+    key: 'fs-cas',
+    sub: '@storagesdk/adapters/fs-cas',
+  },
 ];
 
 // Subset shown in the landing-page switcher and the Get Started page —

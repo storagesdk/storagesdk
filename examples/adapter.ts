@@ -1,4 +1,5 @@
 import * as os from 'node:os';
+import * as path from 'node:path';
 import { ADAPTERS, type AdapterName, buildAdapter } from '@storagesdk/adapters';
 import type { Adapter } from '@storagesdk/core/adapter';
 
@@ -27,6 +28,15 @@ export async function getAdapter(): Promise<Adapter> {
     if (!process.env.FS_FOLDER) {
       process.env.FS_FOLDER = `storagesdk-example-${Date.now().toString(36)}`;
     }
+  }
+  if (choice === 'fs-cas') {
+    if (!process.env.FS_CAS_ROOT) {
+      process.env.FS_CAS_ROOT = path.join(
+        os.tmpdir(),
+        `storagesdk-example-${Date.now().toString(36)}`
+      );
+    }
+    if (!process.env.FS_CAS_BUCKET) process.env.FS_CAS_BUCKET = 'demo';
   }
   return buildAdapter(choice);
 }

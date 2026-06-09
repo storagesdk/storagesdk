@@ -16,6 +16,7 @@ describe('ADAPTERS', () => {
   it('lists every shipped adapter', () => {
     expect(ADAPTERS).toEqual([
       'fs',
+      'fs-cas',
       's3',
       'r2',
       'minio',
@@ -71,6 +72,14 @@ describe('buildAdapter (fs, no peer deps)', () => {
     delete process.env.FS_ROOT;
     delete process.env.FS_FOLDER;
     await expect(buildAdapter('fs')).rejects.toThrow(/FS_ROOT/);
+  });
+
+  it('builds fs-cas from env', async () => {
+    process.env.FS_CAS_ROOT = os.tmpdir();
+    process.env.FS_CAS_BUCKET = `storagesdk-registry-test-${Date.now().toString(36)}`;
+    const adapter = await buildAdapter('fs-cas');
+    expect(adapter).toBeTruthy();
+    expect(typeof adapter.list).toBe('function');
   });
 
   it('honors backend-native fallback (S3 → AWS_*)', async () => {
