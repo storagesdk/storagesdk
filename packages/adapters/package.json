@@ -1,6 +1,6 @@
 {
   "name": "@storagesdk/adapters",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Storage backend adapters for storagesdk. Import the adapter you need via a subpath, e.g. `@storagesdk/adapters/fs`.",
   "type": "module",
   "exports": {

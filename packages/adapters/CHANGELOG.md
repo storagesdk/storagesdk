@@ -1,5 +1,11 @@
 # @storagesdk/adapters
 
+## 0.7.1
+
+### Patch Changes
+
+- c30e8da: fs: stream uploads to a temp file and atomically rename into place instead of buffering the whole body in memory, so large files and `ReadableStream` bodies no longer risk OOMing the process
+
 ## 0.7.0
 
 ### Minor Changes
