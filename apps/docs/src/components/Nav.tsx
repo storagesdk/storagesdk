@@ -15,8 +15,7 @@ const LINKS: { id: Section; label: string; href: string }[] = [
   { id: 'api', label: 'API', href: '/api' },
   { id: 'adapters', label: 'Adapters', href: '/adapters' },
   { id: 'ai-tools', label: 'AI tools', href: '/ai-tools' },
-  // CLI page hidden from nav until the @storagesdk/cli package ships.
-  // { id: 'cli', label: 'CLI', href: '/cli' },
+  { id: 'cli', label: 'CLI', href: '/cli' },
 ];
 
 function deriveSection(pathname: string): Section | undefined {

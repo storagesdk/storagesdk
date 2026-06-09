@@ -1,16 +1,118 @@
 ---
-title: The same surface, from your shell.
+title: CLI
 eyebrow: CLI
-description: '@storagesdk/cli — the same surface, from your shell.'
+description: '@storagesdk/cli — talk to any storagesdk backend from your shell. Discover adapters with their env-var spec; the full verb surface and an MCP server subcommand follow.'
 section: cli
 ---
 
 import Note from '../../components/docs/Note.astro';
 
-`@storagesdk/cli` wraps every method as a command. Pipe with stdin/stdout, switch
-adapters with `--adapter`, get JSON by default.
+## Overview
+
+`@storagesdk/cli` ships two binary aliases — **`storage`** (primary) and **`storagesdk`** (for searchability) — both pointing at the same script. After install, both are on your PATH and resolve to the same binary.
+
+The CLI is built on the same `@storagesdk/adapters` registry the library uses, so any adapter that works in code works from the shell with no extra wiring — just set the adapter-native env vars and pick it with `--adapter <name>`.
 
 <Note>
-  This page is a placeholder while the docs are being written. The sidebar on the
-  left shows the structure that will be filled in.
+  This first release scaffolds the binary and ships the `adapters` discovery subcommand. The read/write verbs (`ls`, `stat`, `get`, `put`, `cp`, `mv`, `rm`, `sign`), snapshot/fork subcommands, and the `mcp` server subcommand land in follow-up releases.
 </Note>
+
+## Install
+
+```sh
+# global
+npm install -g @storagesdk/cli
+
+# or one-shot via npx (no install)
+npx @storagesdk/cli adapters
+
+# or pin to a project
+npm install --save-dev @storagesdk/cli
+```
+
+Use `storage` or `storagesdk` — both work; `storage` is shorter, `storagesdk` is unambiguous for shell history or grep.
+
+## Adapters
+
+`storage adapters` is the discovery surface for runtime adapter selection. Lists names with no argument; shows env vars (with required/optional flags + backend-native fallbacks) for a specific one.
+
+```sh
+storage adapters
+```
+
+```
+fs
+s3
+r2
+minio
+tigris
+azure
+gcs
+vercel
+github
+webdav
+backblaze
+spaces
+wasabi
+supabase
+linode
+fly
+railway
+
+Run `storage adapters <name>` to see env vars.
+```
+
+```sh
+storage adapters tigris
+```
+
+```
+Env vars for tigris:
+
+  TIGRIS_BUCKET             required
+  TIGRIS_ACCESS_KEY_ID      required
+  TIGRIS_SECRET_ACCESS_KEY  required
+  TIGRIS_ENDPOINT           optional
+  TIGRIS_FORCE_PATH_STYLE   optional
+```
+
+Backend-native fallbacks show up next to the adapter-prefixed var:
+
+```sh
+storage adapters s3
+```
+
+```
+Env vars for s3:
+
+  S3_BUCKET             required
+  S3_ACCESS_KEY_ID      optional  fallback: AWS_ACCESS_KEY_ID
+  S3_SECRET_ACCESS_KEY  optional  fallback: AWS_SECRET_ACCESS_KEY
+  S3_REGION             optional  fallback: AWS_REGION
+  S3_ENDPOINT           optional
+  S3_FORCE_PATH_STYLE   optional
+```
+
+If you already have `AWS_*` set in your environment, the S3 adapter picks them up automatically — no duplication.
+
+## Output: JSON when piped, human when in a TTY
+
+The CLI detects whether stdout is a terminal and chooses the format. Piping always yields machine-readable JSON; in a terminal you get aligned text. Both can be forced via flags:
+
+```sh
+storage adapters             # human (in a terminal)
+storage adapters | jq        # JSON (piped to jq)
+storage adapters --json      # force JSON
+storage adapters --no-json   # force human
+```
+
+Errors go to stderr with a clear message and exit code; piped consumers get clean output on stdout.
+
+```sh
+storage adapters foo
+# ✗ Unknown adapter 'foo'.
+#   Available: fs, s3, r2, minio, tigris, azure, gcs, vercel,
+#              github, webdav, backblaze, spaces, wasabi, supabase,
+#              linode, fly, railway
+# (exit code 1)
+```

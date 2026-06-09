@@ -1,0 +1,57 @@
+{
+  "name": "@storagesdk/cli",
+  "version": "0.0.0",
+  "description": "Command-line interface for storagesdk — talk to any backend storagesdk supports via `storage <verb>`. Includes an `mcp` subcommand that boots a Model Context Protocol server.",
+  "type": "module",
+  "bin": {
+    "storage": "./dist/index.js",
+    "storagesdk": "./dist/index.js"
+  },
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "publint": "publint",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "storage",
+    "storagesdk",
+    "cli",
+    "mcp",
+    "tigris",
+    "s3",
+    "object-storage"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/storagesdk/storagesdk.git",
+    "directory": "packages/cli"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@storagesdk/adapters": "workspace:*",
+    "@storagesdk/core": "workspace:*",
+    "citty": "^0.2.2"
+  },
+  "devDependencies": {
+    "execa": "^9.6.1"
+  }
+}
