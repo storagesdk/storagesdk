@@ -145,9 +145,8 @@ export const SECTIONS: Record<SectionId, Section> = {
       items: [
         { id: 'overview', label: 'Overview' },
         { id: 'install', label: 'Install' },
-        { id: 'auth', label: 'Authentication' },
-        { id: 'commands', label: 'Commands' },
-        { id: 'pipes', label: 'Pipes & stdin/stdout' },
+        { id: 'adapters', label: 'Adapters' },
+        { id: 'output-json-when-piped-human-when-in-a-tty', label: 'Output' },
       ],
     },
   },
