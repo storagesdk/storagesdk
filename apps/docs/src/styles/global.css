@@ -2190,3 +2190,120 @@ h1.headline em::after {
   height: 1px;
   background: var(--accent);
 }
+
+/* Adapter marquee — continuous scroll of supported provider logos.
+   Vertical padding lives on `.adapter-marquee-mask` so tooltips have
+   room to render inside the overflow box. */
+.adapter-marquee {
+  border-bottom: 1px solid var(--border);
+}
+
+.adapter-marquee-mask {
+  /* Vertical padding leaves room for the tooltip pill above each logo
+     within the overflow box (overflow: hidden would otherwise clip it). */
+  padding: 3rem 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 10%,
+    black 90%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 10%,
+    black 90%,
+    transparent 100%
+  );
+}
+
+.adapter-marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 5rem;
+  align-items: center;
+  animation: adapter-marquee-scroll 60s linear infinite;
+}
+
+.adapter-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+.adapter-marquee-logo {
+  flex: 0 0 auto;
+  height: 32px;
+  color: var(--fg-muted);
+  transition: color 200ms ease;
+}
+
+.adapter-marquee-logo:hover {
+  color: var(--fg);
+}
+
+.adapter-marquee-logo svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+@keyframes adapter-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adapter-marquee-track {
+    animation: none;
+  }
+}
+
+/* Marquee tooltip — appears above the hovered logo, pure CSS. */
+.adapter-marquee-logo {
+  position: relative;
+}
+
+.adapter-marquee-logo[data-name]::after,
+.adapter-marquee-logo[data-name]::before {
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.adapter-marquee-logo[data-name]::after {
+  content: attr(data-name);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.adapter-marquee-logo[data-name]::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--fg);
+  z-index: 2;
+}
+
+.adapter-marquee-logo:hover[data-name]::after,
+.adapter-marquee-logo:hover[data-name]::before {
+  opacity: 1;
+}
