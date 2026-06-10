@@ -7,8 +7,6 @@ section: cli
 
 import Note from '../../components/docs/Note.astro';
 
-## Overview
-
 `@storagesdk/cli` ships two binary aliases — **`storage`** (primary) and **`storagesdk`** (for searchability) — both pointing at the same script. After install, both are on your PATH and resolve to the same binary.
 
 The CLI is built on the same `@storagesdk/adapters` registry the library uses, so any adapter that works in code works from the shell with no extra wiring — just set the adapter-native env vars and pick it with `--adapter <name>`.

@@ -5,8 +5,6 @@ description: First-party storagesdk adapters and the runtime registry that ships
 section: adapters
 ---
 
-## Overview
-
 Every adapter implements the same `Adapter` contract: `upload`, `download`, `head`, `list`, `copy`, `move`, `delete`, `url`, `uploadUrl`, plus the `snapshots` and `forks` namespaces. Pick one based on your provider; the call site doesn't change.
 
 Snapshots and forks are **native** on Tigris (and its branded aliases Fly.io and Railway) and on GitHub — the adapter calls the provider's native APIs and no data is copied. On GitHub specifically, every snapshot is a git tag and every fork is a git branch. On every other provider they're **emulated** as sibling buckets, and the adapter does the bookkeeping via a small `.storagesdk.metadata.json` manifest.

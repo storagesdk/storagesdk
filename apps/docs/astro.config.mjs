@@ -4,6 +4,14 @@ import { defineConfig } from 'astro/config';
 
 export default defineConfig({
   site: 'https://storagesdk.dev',
+  // Static-HTML redirects for pages that moved during the docs restructure.
+  // Astro emits a small page per entry with a `<meta http-equiv="refresh">`
+  // and `<link rel="canonical">` so search engines follow the move and
+  // the destination anchor still resolves.
+  redirects: {
+    '/cli/adapters': '/cli#adapter-discovery',
+    '/adapters/registry': '/adapters#runtime-adapter-selection',
+  },
   integrations: [react(), mdx()],
   markdown: {
     // Dual Shiki themes — light/dark variants share the same DOM and

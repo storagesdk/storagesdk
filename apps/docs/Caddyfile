@@ -25,4 +25,14 @@
 	# (`/get-started`) by trying the index.html fallback.
 	try_files {path} {path}/ {path}.html {path}/index.html =404
 	file_server
+
+	# Friendly 404 — serve Astro's built /404.html with the proper
+	# 404 status, preserving the URL the visitor typed. Astro writes
+	# its special `pages/404.astro` to /404.html (not /404/index.html
+	# like other routes).
+	handle_errors {
+		@404 expression {http.error.status_code} == 404
+		rewrite @404 /404.html
+		file_server
+	}
 }

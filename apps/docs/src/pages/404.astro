@@ -1,0 +1,33 @@
+---
+import Footer from '../components/Footer';
+import Nav from '../components/Nav';
+import Base from '../layouts/Base.astro';
+---
+<Base
+  title="Page not found — storagesdk"
+  description="The page you're looking for doesn't exist on storagesdk.dev."
+>
+  <Nav client:load transition:persist="nav" />
+  <section class="hero">
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="shell hero-inner">
+      <span class="eyebrow">
+        <span class="eyebrow-tag">404</span>
+        <span>Page not found</span>
+      </span>
+      <h1 class="headline">This page doesn't exist.</h1>
+      <p class="subhead">
+        The URL might be stale, or you may have followed an outdated link.
+        Try one of the sections below:
+      </p>
+      <ul class="not-found-links">
+        <li><a href="/get-started">Get Started</a></li>
+        <li><a href="/api">API</a></li>
+        <li><a href="/adapters">Adapters</a></li>
+        <li><a href="/cli">CLI</a></li>
+        <li><a href="/ai-tools">AI tools</a></li>
+      </ul>
+    </div>
+  </section>
+  <Footer transition:persist="footer" />
+</Base>
