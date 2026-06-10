@@ -1,0 +1,26 @@
+---
+title: cat
+eyebrow: CLI
+description: '`storage cat <path>` — stream an object to stdout. Pipe with `>` to save, or chain with the usual unix tools.'
+section: cli
+---
+
+```sh
+storage cat <path>
+```
+
+Stream an object's bytes to stdout. No `--out` flag, no JSON mode — use shell redirection or pipes the same way you would with `cat(1)`.
+
+```sh
+storage cat photos/cat.jpg > local.jpg
+storage cat config.json | jq .
+storage cat logs/2026-06-10.log | grep ERROR
+```
+
+A broken downstream pipe (e.g. `storage cat foo | head`) is treated as a clean termination, not an error — exit 0.
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--snapshot <id>` — scope the read into a [snapshot](/cli/snapshots).
+- `--fork <name>` — scope the read into a [fork](/cli/forks).

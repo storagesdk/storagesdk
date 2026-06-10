@@ -1,7 +1,7 @@
 ---
-title: Adapters
-eyebrow: Introduction
-description: First-party storagesdk adapters and where to start for each provider.
+title: Overview
+eyebrow: Adapters
+description: First-party storagesdk adapters and the runtime registry that ships with them.
 section: adapters
 ---
 
@@ -13,23 +13,89 @@ Snapshots and forks are **native** on Tigris (and its branded aliases Fly.io and
 
 Each adapter's provider SDK is an optional peer dependency. Install only the SDKs for the adapters you actually import.
 
-## Adapters
+## Runtime adapter selection
 
-- [Tigris](/adapters/tigris) — native snapshots & forks via `@tigrisdata/storage`.
-- [Amazon S3](/adapters/s3) — and any S3-compatible provider.
-- [Cloudflare R2](/adapters/r2) — thin wrapper over S3 with R2-friendly defaults.
-- [Google Cloud Storage](/adapters/gcs) — sibling buckets via server-side copy.
-- [Azure Blob](/adapters/azure) — sibling containers via `Copy Blob`.
-- [Vercel Blob](/adapters/vercel) — sibling prefixes inside a single Blob store.
-- [MinIO](/adapters/minio) — S3-compatible self-hosted.
-- [Backblaze B2](/adapters/backblaze) — S3-compatible.
-- [DigitalOcean Spaces](/adapters/spaces) — S3-compatible.
-- [Wasabi](/adapters/wasabi) — S3-compatible.
-- [Supabase Storage](/adapters/supabase) — S3-compatible (the dedicated S3 endpoint).
-- [Linode Object Storage](/adapters/linode) — S3-compatible.
-- [GitHub](/adapters/github) — native: snapshots are tags, forks are branches.
-- [WebDAV](/adapters/webdav) — any WebDAV server (Nextcloud, ownCloud, Apache mod_dav, NAS, pCloud, mailbox.org, kDrive). Sibling collections via native server-side `COPY`.
-- [Fly.io](/adapters/fly) — branded alias of the Tigris adapter.
-- [Railway](/adapters/railway) — branded alias of the Tigris adapter.
-- [Filesystem](/adapters/fs) — `node:fs/promises` for local development and tests.
-- [Write your own](/adapters/write-your-own) — the adapter contract and the conformance suite.
+`@storagesdk/adapters`'s root export ships a small registry for runtime-driven adapter selection. CLIs, scripts, and any code that picks a backend from a string at runtime use it; library code that knows its one adapter at build time keeps using the subpath import.
+
+```ts
+import {
+  ADAPTERS,
+  type AdapterName,
+  type AdapterEnvVar,
+  buildAdapter,
+  getAdapterEnvVars,
+} from '@storagesdk/adapters';
+```
+
+## Quick use
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { buildAdapter } from '@storagesdk/adapters';
+
+const storage = new Storage({ adapter: await buildAdapter('tigris') });
+// reads TIGRIS_BUCKET, TIGRIS_ACCESS_KEY_ID, TIGRIS_SECRET_ACCESS_KEY
+// from process.env and dynamically imports just the tigris adapter
+```
+
+`buildAdapter(name)` does three things: dynamic-import the factory, read env vars into a config, call the factory. One async call at startup, fully-constructed adapter back.
+
+## Introspecting env vars
+
+```ts
+getAdapterEnvVars('tigris')
+// → readonly [
+//   { name: 'TIGRIS_BUCKET', required: true },
+//   { name: 'TIGRIS_ACCESS_KEY_ID', required: true },
+//   { name: 'TIGRIS_SECRET_ACCESS_KEY', required: true },
+//   { name: 'TIGRIS_ENDPOINT', required: false },
+//   { name: 'TIGRIS_FORCE_PATH_STYLE', required: false },
+// ]
+
+interface AdapterEnvVar {
+  readonly name: string;
+  readonly required: boolean;
+  readonly fallback?: readonly string[];
+}
+```
+
+`fallback` lists backend-native env vars that get consulted when the adapter-prefixed one isn't set — `S3_ACCESS_KEY_ID` falls back to `AWS_ACCESS_KEY_ID`, `GCS_PROJECT_ID` to `GOOGLE_CLOUD_PROJECT`, `VERCEL_BLOB_TOKEN` to `BLOB_READ_WRITE_TOKEN`, and so on.
+
+Iterate `ADAPTERS` to enumerate every adapter and its spec — useful for CLI help text, validation, or generating docs:
+
+```ts
+import { ADAPTERS, getAdapterEnvVars } from '@storagesdk/adapters';
+
+for (const name of ADAPTERS) {
+  console.log(name, getAdapterEnvVars(name));
+}
+```
+
+## Each adapter's dependencies load on demand
+
+`buildAdapter('tigris')` is the only call that pulls `@tigrisdata/storage` into your runtime. The other 16 adapters' peer-SDK packages — `@aws-sdk/client-s3`, `@azure/storage-blob`, `@google-cloud/storage`, `@octokit/rest`, and so on — are never imported.
+
+That's why `buildAdapter` is async: it `import()`s the requested adapter's implementation lazily. Modern bundlers code-split each dynamic import into its own chunk; runtimes execute only the one that gets called.
+
+`ADAPTERS` and `getAdapterEnvVars` are synchronous — they're just static data.
+
+## One adapter, tree-shakeable
+
+When you know your adapter at build time, import it directly:
+
+```ts
+import { tigris } from '@storagesdk/adapters/tigris';
+const storage = new Storage({ adapter: tigris({ ... }) });
+```
+
+Only the one adapter and its peer SDK end up in your bundle — the registry adds nothing, the other 16 adapters tree-shake out.
+
+## Discovery example
+
+Run the bundled discovery script to see every adapter with its env vars:
+
+```sh
+pnpm --filter @storagesdk/examples adapters
+```
+
+Source: [`examples/adapters/index.ts`](https://github.com/storagesdk/storagesdk/tree/main/examples/adapters).

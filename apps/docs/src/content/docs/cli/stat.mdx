@@ -1,0 +1,30 @@
+---
+title: stat
+eyebrow: CLI
+description: '`storage stat <path>` — show metadata (size, content type, etag, last modified) for one object.'
+section: cli
+---
+
+```sh
+storage stat <path>
+```
+
+Show metadata for one object — path, size, content type, etag, last modified, and any user metadata.
+
+```sh
+storage stat photos/cat.jpg
+```
+
+Human mode prints an aligned table; JSON mode emits the full `StorageItemMeta`:
+
+```sh
+storage stat photos/cat.jpg --json
+# { "path": "photos/cat.jpg", "size": 12345, "contentType": "image/jpeg", ... }
+```
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--snapshot <id>` — scope the read into a [snapshot](/cli/snapshots).
+- `--fork <name>` — scope the read into a [fork](/cli/forks).
+- `--json` / `--no-json` — force JSON or human output.

@@ -61,7 +61,7 @@ Each adapter reads `<NAME>_*` env vars matching its config shape, with backend-n
 
 Library consumers using a single adapter via the subpath import (`@storagesdk/adapters/tigris`) are unaffected — the registry is purely additive for runtime-driven use cases.
 
-See [storagesdk.dev/adapters/registry](https://storagesdk.dev/adapters/registry) for the full env-var reference.
+See [storagesdk.dev/adapters](https://storagesdk.dev/adapters) for the full env-var reference.
 
 ## Snapshots and forks
 

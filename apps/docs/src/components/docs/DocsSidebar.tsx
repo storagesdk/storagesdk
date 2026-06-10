@@ -9,16 +9,16 @@ interface Props {
 }
 
 export default function DocsSidebar({ section, currentPath }: Props) {
-  const items = section.sidebar.items;
+  const groups = section.sidebar.groups;
   // Page-based nav when any item carries an explicit href. Otherwise
   // fall back to in-page anchors + scroll-spy.
-  const pageBased = items.some((i) => i.href);
+  const pageBased = groups.some((g) => g.items.some((i) => i.href));
 
-  // Stable reference so the scroll-spy effect doesn't tear down its
-  // listener every render. Empty when page-based — the hook short-circuits.
+  // Flat ids list for the scroll-spy hook. Empty when page-based — the
+  // hook short-circuits.
   const ids = useMemo(
-    () => (pageBased ? [] : items.map((i) => i.id)),
-    [items, pageBased]
+    () => (pageBased ? [] : groups.flatMap((g) => g.items.map((i) => i.id))),
+    [groups, pageBased]
   );
   const scrollActive = useScrollSpy(ids);
 
@@ -36,24 +36,26 @@ export default function DocsSidebar({ section, currentPath }: Props) {
   return (
     <aside className="docs-sidebar">
       <div className="docs-sidebar-inner">
-        <div className="sb-group">
-          <div className="sb-group-label">{section.sidebar.label}</div>
-          <ul>
-            {items.map((it) => (
-              <li key={it.id}>
-                <a
-                  href={it.href ?? `#${it.id}`}
-                  className={`sb-link${isActive(it) ? ' is-active' : ''}`}
-                >
-                  <span>{it.label}</span>
-                  {it.badge ? (
-                    <span className="sb-badge">{it.badge}</span>
-                  ) : null}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {groups.map((group) => (
+          <div className="sb-group" key={group.label}>
+            <div className="sb-group-label">{group.label}</div>
+            <ul>
+              {group.items.map((it) => (
+                <li key={it.id}>
+                  <a
+                    href={it.href ?? `#${it.id}`}
+                    className={`sb-link${isActive(it) ? ' is-active' : ''}`}
+                  >
+                    <span>{it.label}</span>
+                    {it.badge ? (
+                      <span className="sb-badge">{it.badge}</span>
+                    ) : null}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </aside>
   );

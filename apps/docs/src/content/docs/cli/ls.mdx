@@ -1,0 +1,36 @@
+---
+title: ls
+eyebrow: CLI
+description: '`storage ls [prefix]` — list objects at an optional path prefix. JSON when piped, human in a terminal.'
+section: cli
+---
+
+```sh
+storage ls [prefix] [--limit n] [--cursor token]
+```
+
+List objects under an optional prefix. Human mode prints one path per line so the output pipes cleanly into `xargs`, `grep`, and friends; JSON mode emits the full `ListResult` (`{ items, cursor? }`).
+
+```sh
+storage ls
+storage ls photos/
+storage ls photos/ --limit 100
+```
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`) — pick the adapter.
+- `--snapshot <id>` — scope the read into a [snapshot](/cli/snapshots).
+- `--fork <name>` — scope the read into a [fork](/cli/forks).
+- `--limit <n>` — non-negative integer cap on the number of items returned.
+- `--cursor <token>` — pagination cursor returned by a previous call.
+- `--json` / `--no-json` — force JSON or human output.
+
+## Pagination
+
+`--limit` and `--cursor` together let you walk a large bucket. In human mode the cursor prints to stderr so the paths on stdout stay clean to pipe:
+
+```sh
+cursor=$(storage ls --limit 1000 2> >(grep -oE 'cursor: .*' | cut -d' ' -f2))
+storage ls --limit 1000 --cursor "$cursor"
+```

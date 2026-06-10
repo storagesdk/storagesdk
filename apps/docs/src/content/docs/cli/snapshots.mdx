@@ -1,0 +1,44 @@
+---
+title: snapshots
+eyebrow: CLI
+description: '`storage snapshots` lists every snapshot on the selected adapter. `--snapshot <id>` on read commands scopes the read into one.'
+section: cli
+---
+
+`storage snapshots` lists every snapshot on the selected adapter. Human mode prints one id per line; JSON mode emits the full `SnapshotInfo[]` (`{ id, name?, createdAt }`):
+
+```sh
+storage snapshots
+# snap-0193abc1234567890abcdef
+# snap-0193def0123456789abcdef
+
+storage snapshots | jq '.[].id'
+# "snap-0193abc1234567890abcdef"
+# "snap-0193def0123456789abcdef"
+```
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--json` / `--no-json` — force JSON or human output.
+
+## Reading from a snapshot
+
+The four read commands ([`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat), [`sign`](/cli/sign)) accept `--snapshot <id>` to redirect the read into a snapshot instead of base storage:
+
+```sh
+storage ls photos/ --snapshot snap-0193abc1234567890abcdef
+storage stat photos/cat.jpg --snapshot snap-0193abc1234567890abcdef
+storage cat photos/cat.jpg --snapshot snap-0193abc1234567890abcdef > local.jpg
+storage sign downloads/report.pdf --snapshot snap-0193abc1234567890abcdef
+```
+
+## Composing with `--fork`
+
+`--snapshot` composes with `--fork` (see [`forks`](/cli/forks)). Fork is applied first, so `--fork X --snapshot Y` reads from a snapshot taken inside the fork:
+
+```sh
+storage ls --fork experiment-a --snapshot snap-0193abc1234567890abcdef
+```
+
+Creating and removing snapshots comes with the write commands.
