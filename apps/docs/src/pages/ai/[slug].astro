@@ -5,9 +5,9 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
 export async function getStaticPaths() {
   const all = await getCollection('docs');
   return all
-    .filter((e) => e.id.startsWith('ai-tools/'))
+    .filter((e) => e.id.startsWith('ai/'))
     .map((entry) => ({
-      params: { slug: entry.id.replace('ai-tools/', '') },
+      params: { slug: entry.id.replace('ai/', '') },
       props: { entry },
     }));
 }

@@ -11,6 +11,9 @@ export default defineConfig({
   redirects: {
     '/cli/adapters': '/cli#adapter-discovery',
     '/adapters/registry': '/adapters#runtime-adapter-selection',
+    '/ai-tools': '/ai',
+    '/ai-tools/vercel': '/ai/vercel',
+    '/ai-tools/mastra': '/ai/mastra',
   },
   integrations: [react(), mdx()],
   markdown: {

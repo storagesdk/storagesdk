@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { readTheme, type Theme, writeTheme } from '../lib/theme';
 import { GithubIcon, MoonIcon, SunIcon } from './Icon';
 
-type Section = 'get-started' | 'api' | 'adapters' | 'ai-tools' | 'cli';
+type Section = 'get-started' | 'api' | 'adapters' | 'ai' | 'cli';
 
 interface NavProps {
   /** Optional initial section — used during SSR so the right link is
@@ -15,14 +15,14 @@ const LINKS: { id: Section; label: string; href: string }[] = [
   { id: 'api', label: 'API', href: '/api' },
   { id: 'adapters', label: 'Adapters', href: '/adapters' },
   { id: 'cli', label: 'CLI', href: '/cli' },
-  { id: 'ai-tools', label: 'AI tools', href: '/ai-tools' },
+  { id: 'ai', label: 'AI', href: '/ai' },
 ];
 
 function deriveSection(pathname: string): Section | undefined {
   if (pathname.startsWith('/get-started')) return 'get-started';
   if (pathname.startsWith('/api')) return 'api';
   if (pathname.startsWith('/adapters')) return 'adapters';
-  if (pathname.startsWith('/ai-tools')) return 'ai-tools';
+  if (pathname.startsWith('/ai')) return 'ai';
   if (pathname.startsWith('/cli')) return 'cli';
   return undefined;
 }

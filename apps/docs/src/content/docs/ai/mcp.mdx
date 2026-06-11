@@ -1,0 +1,85 @@
+---
+title: MCP Server
+eyebrow: AI
+description: 'Build a Model Context Protocol server with createMcpServer. Owns no transport — wire it to stdio, an in-memory pair, or anywhere else MCP runs.'
+section: ai
+---
+
+```ts
+import { createMcpServer } from '@storagesdk/ai/mcp';
+```
+
+`@storagesdk/ai/mcp` exports `createMcpServer(storage, options)` which returns an `McpServer` from `@modelcontextprotocol/sdk` with every storagesdk tool registered. The caller owns the transport — wire it to `StdioServerTransport` for shell hosts, an in-process transport for embedding, or anything else MCP supports.
+
+If you just want the `storage mcp` CLI command, see [CLI → MCP Server](/cli/mcp). The library is what you reach for when you need to embed the server inside your own process.
+
+## Install
+
+```sh
+npm install @storagesdk/ai @modelcontextprotocol/sdk
+```
+
+## Stdio server
+
+The most common shape — same as what `storage mcp` does internally:
+
+```ts
+import { fs } from '@storagesdk/adapters/fs';
+import { createMcpServer } from '@storagesdk/ai/mcp';
+import { Storage } from '@storagesdk/core';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+const storage = new Storage({
+  adapter: fs({ root: '/tmp/agent-runs', folder: 'data' }),
+});
+
+const server = createMcpServer(storage, {
+  readOnly: false,
+  scope: 'agents/',
+  urlExpiresIn: 1800,
+});
+
+await server.connect(new StdioServerTransport());
+```
+
+## In-process for tests
+
+Pair an in-memory transport with the MCP `Client` for round-trip tests without spawning a child process:
+
+```ts
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+
+const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+const server = createMcpServer(storage);
+await server.connect(serverT);
+
+const client = new Client({ name: 'test', version: '0.0.0' }, {});
+await client.connect(clientT);
+
+const { tools } = await client.listTools();        // → 18 tools
+const result = await client.callTool({
+  name: 'head',
+  arguments: { path: 'hello.txt' },
+});
+```
+
+## Options
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `readOnly` | `false` | Strip every mutator (`upload`, `delete`, `copy`, `move`, `snapshot_create`, `fork_create`, etc.). |
+| `scope` | `''` | Restrict every path argument to this prefix. Out-of-scope paths surface as `InvalidArgument` to the agent. |
+| `urlExpiresIn` | `600` | Lifetime (seconds) of presigned URLs the server returns to the agent. |
+| `maxInlineBytes` | `262144` | Inline-text cap for `download` responses. Larger objects come back as a presigned URL the agent can hand to another tool. |
+| `signal` | — | `AbortSignal` plumbed through every storage operation. |
+
+Same shape as the `tools()` factory used by [Vercel AI SDK](/ai/vercel) and [Mastra](/ai/mastra) — set the options once and they flow through to every tool.
+
+## Server identifier
+
+The server reports itself as **`@storagesdk/mcp`** to clients during `initialize`, sourced from `@storagesdk/ai`'s `package.json` version. MCP host UIs use this name as the server's label, so they don't see the internal `/ai/` subpath.
+
+## What the agent sees
+
+Tool names are snake_case so they read naturally in model output (`snapshot_create`, not `snapshotCreate`). Tool descriptions teach the agent to snapshot before risky edits and fork to try variants — see the [overview](/ai) for the full tool roster.
