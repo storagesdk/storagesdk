@@ -16,6 +16,10 @@
       "types": "./dist/mastra/index.d.ts",
       "default": "./dist/mastra/index.js"
     },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "default": "./dist/mcp/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -44,6 +48,8 @@
     "agent",
     "vercel-ai-sdk",
     "mastra",
+    "mcp",
+    "model-context-protocol",
     "snapshot",
     "fork"
   ],
@@ -58,6 +64,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@storagesdk/core": "workspace:*",
     "zod": "^4.0.0"
   },
