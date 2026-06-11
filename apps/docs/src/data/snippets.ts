@@ -323,18 +323,47 @@ try {
   cli: `# install once, talk to every backend
 npm install -g @storagesdk/cli
 
-# upload from a pipe — pick the adapter with a flag
-cat report.pdf | storage put report.pdf --adapter s3 --bucket reports --stdin
-
-# list as JSON (the default)
-storage list --adapter r2 --bucket reports --prefix 2026/
+# upload, download, copy — local <-> storage:// scheme
+storage cp ./report.pdf storage://reports/2026.pdf --adapter s3
+storage cat storage://config.json --adapter tigris | jq .
 
 # snapshots and forks at the prompt
-storage snapshot create --adapter tigris --bucket prod --name baseline
-storage fork create --from-snapshot snap_5fe2 --name experiment-42
+storage snapshot create --adapter tigris --name pre-deploy
+storage fork create experiment --from-snapshot snap_0193abc --adapter tigris
 
-# stream a download straight to disk
-storage get report.pdf --adapter gcs --bucket reports --stdout > out.pdf`,
+# scope reads into a snapshot or fork
+storage ls --adapter tigris --snapshot snap_0193abc photos/
+
+# JSON when piped, human in a terminal
+storage stat photos/cat.jpg --adapter tigris | jq .size`,
+
+  // ── Agents — Vercel AI SDK, Mastra, MCP server ──
+  agentsVercel: `import { tools } from '@storagesdk/ai/vercel';
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: anthropic('claude-sonnet-4-5'),
+  tools: tools(storage, { scope: 'agent-runs/' }),
+  prompt: 'Snapshot the README, then add a new section.',
+});`,
+
+  agentsMastra: `import { Agent } from '@mastra/core/agent';
+import { tools } from '@storagesdk/ai/mastra';
+
+const agent = new Agent({
+  name: 'codeReviewer',
+  instructions: 'Snapshot before any risky edit.',
+  model: 'anthropic/claude-sonnet-4-5',
+  tools: tools(storage),
+});`,
+
+  agentsMcp: `# storage mcp boots a stdio MCP server with the full
+# storagesdk surface — Claude Desktop, Cursor, MCP Inspector,
+# any host that speaks the protocol.
+storage mcp --adapter tigris --read-only --scope agent-runs/
+
+# or wire it into Claude Code
+claude mcp add storagesdk -- storage mcp --adapter tigris`,
 
   firstCall: `import { Storage } from '@storagesdk/core';
 import { fs } from '@storagesdk/adapters/fs';
