@@ -72,21 +72,32 @@ storage ls photos/
 ## Read commands
 
 ```sh
-storage ls [prefix]          # list objects under a prefix
-storage stat <path>          # metadata for one object
-storage cat <path>           # stream bytes to stdout
-storage sign <path>          # generate a signed URL
+storage ls [prefix]              # list objects under a prefix
+storage stat <path>              # metadata for one object
+storage cat <path>               # stream bytes to stdout
+storage sign download <path>     # signed GET URL (string)
+storage sign upload <path>       # signed PUT/POST URL (JSON: method, url, fields?)
 ```
 
-`ls`, `stat`, and `sign` honor the TTY/JSON convention (aligned text in a terminal, JSON when piped, `--json` / `--no-json` to force). `cat` always streams raw bytes — pipe with `>` to save:
+`ls`, `stat`, and `sign download` honor the TTY/JSON convention (aligned text in a terminal, JSON when piped, `--json` / `--no-json` to force). `cat` always streams raw bytes — pipe with `>` to save. `sign upload` always emits JSON because the result is structured (method + url + optional form fields for S3-style POST).
 
 ```sh
 storage cat photos/cat.jpg > local.jpg
 storage cat config.json | jq .
 storage stat photos/cat.jpg
 storage ls photos/ --limit 100 --cursor "$cursor"
-storage sign downloads/report.pdf --ttl 3600
+
+storage sign download downloads/report.pdf --ttl 3600
+url=$(storage sign download downloads/report.pdf)
+
+storage sign upload uploads/incoming.jpg \
+  --ttl 600 --content-type image/jpeg --max-size 5242880
+# { "method": "PUT", "url": "..." }
+# or
+# { "method": "POST", "url": "...", "fields": { ... } }
 ```
+
+`sign upload` accepts `--content-type`, `--max-size`, `--min-size`. Adapters that don't enforce these (e.g. fs) silently drop them.
 
 `StorageError` becomes a stderr message formatted as `✗ <Code>: <message>` (or just `✗ <Code>` when the message is the same as the code) plus a per-code hint: `NotFound` (check the path), `Unauthorized` (check the env vars), `InvalidArgument` (check the command arguments), `Conflict`, `NotSupported`, `Provider` (the backend rejected the operation).
 

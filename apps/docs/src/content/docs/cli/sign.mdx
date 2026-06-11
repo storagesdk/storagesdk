@@ -1,26 +1,75 @@
 ---
 title: sign
 eyebrow: CLI
-description: '`storage sign <path>` — generate a signed URL for one object. `--ttl` controls the lifetime.'
+description: 'Generate signed URLs for download or upload. `sign download <path>` returns a string; `sign upload <path>` returns JSON (method, url, optional fields).'
 section: cli
 ---
 
-```sh
-storage sign <path> [--ttl seconds]
-```
-
-Generate a signed URL for one object. Human mode emits a bare URL on stdout so `$(storage sign …)` works in a script; JSON mode wraps it as `{ "url": "…" }`.
+`storage sign` is a subcommand group:
 
 ```sh
-storage sign downloads/report.pdf
-storage sign downloads/report.pdf --ttl 3600
-url=$(storage sign downloads/report.pdf --ttl 3600)
+storage sign download <path>   # signed GET URL (string)
+storage sign upload <path>     # signed PUT/POST URL (JSON: method, url, fields?)
 ```
 
-## Flags
+The split is intentional — download URLs are bare strings (shell-friendly: `URL=$(storage sign download foo)`), upload URLs carry structure (method + url, plus form fields for S3-style POST uploads) that needs JSON.
+
+## `storage sign download <path>`
+
+```sh
+storage sign download photos/cat.jpg
+storage sign download photos/cat.jpg --ttl 3600
+storage sign download photos/cat.jpg --snapshot snap-0193abc1234567890abcdef
+```
+
+Human mode prints a bare URL on stdout so `$(storage sign download …)` works in a script. JSON mode emits `{ "url": "…" }`.
+
+### Flags
 
 - `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
-- `--snapshot <id>` — scope the read into a [snapshot](/cli/snapshots).
-- `--fork <name>` — scope the read into a [fork](/cli/forks).
+- `--snapshot <id>` / `--fork <name>` — [scope the read](/cli/snapshots).
 - `--ttl <seconds>` — positive integer. Lifetime of the URL; adapter default if omitted.
 - `--json` / `--no-json` — force JSON or human output.
+
+## `storage sign upload <path>`
+
+```sh
+storage sign upload uploads/incoming.jpg
+storage sign upload uploads/incoming.jpg --ttl 600 --content-type image/jpeg --max-size 5242880
+```
+
+Output is **always JSON** — the result shape varies by backend:
+
+```json
+{ "method": "PUT", "url": "https://…?signature=…" }
+```
+
+```json
+{
+  "method": "POST",
+  "url": "https://…",
+  "fields": {
+    "key": "uploads/incoming.jpg",
+    "Content-Type": "image/jpeg",
+    "policy": "…",
+    "x-amz-signature": "…"
+  }
+}
+```
+
+A `PUT`-style URL is used directly: `curl -X PUT '<url>' --data-binary @local.jpg`. A `POST`-style URL needs every field passed as a form field plus the file: `curl -X POST '<url>' -F key=… -F policy=… -F file=@local.jpg`.
+
+### Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--fork <name>` — scope the write into a [fork](/cli/forks).
+- `--ttl <seconds>` — positive integer. Lifetime of the URL.
+- `--content-type <mime>` — lock the upload to a specific Content-Type. Adapters that support it reject mismatched uploads.
+- `--max-size <bytes>` — maximum allowed upload size.
+- `--min-size <bytes>` — minimum allowed upload size.
+
+`--snapshot` is rejected here — snapshots are read-only. Use `--fork` to target a fork.
+
+### Backend support
+
+Adapters that don't enforce a constraint (e.g. the local filesystem adapter) silently drop `--content-type`, `--max-size`, and `--min-size`. The signed URL is still returned, but the policy isn't enforced. For real client-side upload policies, use an S3-compatible adapter or one that documents the constraints it honors.
