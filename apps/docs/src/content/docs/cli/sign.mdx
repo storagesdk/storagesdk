@@ -1,0 +1,26 @@
+---
+title: sign
+eyebrow: CLI
+description: '`storage sign <path>` — generate a signed URL for one object. `--ttl` controls the lifetime.'
+section: cli
+---
+
+```sh
+storage sign <path> [--ttl seconds]
+```
+
+Generate a signed URL for one object. Human mode emits a bare URL on stdout so `$(storage sign …)` works in a script; JSON mode wraps it as `{ "url": "…" }`.
+
+```sh
+storage sign downloads/report.pdf
+storage sign downloads/report.pdf --ttl 3600
+url=$(storage sign downloads/report.pdf --ttl 3600)
+```
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--snapshot <id>` — scope the read into a [snapshot](/cli/snapshots).
+- `--fork <name>` — scope the read into a [fork](/cli/forks).
+- `--ttl <seconds>` — positive integer. Lifetime of the URL; adapter default if omitted.
+- `--json` / `--no-json` — force JSON or human output.

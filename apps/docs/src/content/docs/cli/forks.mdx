@@ -1,0 +1,40 @@
+---
+title: forks
+eyebrow: CLI
+description: '`storage forks` lists every fork on the selected adapter. `--fork <name>` on read commands scopes the read into one.'
+section: cli
+---
+
+`storage forks` lists every fork on the selected adapter. Human mode prints one name per line; JSON mode emits the full `ForkInfo[]` (`{ name, fromSnapshot?, createdAt }`):
+
+```sh
+storage forks
+# experiment-a
+# experiment-b
+
+storage forks | jq '.[] | { name, fromSnapshot }'
+# { "name": "experiment-a", "fromSnapshot": "snap-0193abc1234567890abcdef" }
+# { "name": "experiment-b", "fromSnapshot": null }
+```
+
+`fromSnapshot` is set when the fork was seeded from a captured snapshot; `null`/`undefined` when seeded from the parent's live state.
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--json` / `--no-json` — force JSON or human output.
+
+## Reading from a fork
+
+The four read commands ([`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat), [`sign`](/cli/sign)) accept `--fork <name>` to redirect the read into a fork instead of base storage:
+
+```sh
+storage ls photos/ --fork experiment-a
+storage stat photos/cat.jpg --fork experiment-a
+storage cat photos/cat.jpg --fork experiment-a > local.jpg
+storage sign downloads/report.pdf --fork experiment-a
+```
+
+`--fork` composes with `--snapshot` — see [Composing with `--fork`](/cli/snapshots#composing-with-fork) on the snapshots page.
+
+Creating and removing forks comes with the write commands.

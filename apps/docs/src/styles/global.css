@@ -2263,6 +2263,38 @@ h1.headline em::after {
   }
 }
 
+/* 404 helpful-links row, sits below the hero headline + subhead. */
+.not-found-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.not-found-links a {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--fg);
+  font-size: 14px;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.not-found-links a:hover {
+  border-color: var(--fg-muted);
+  background: var(--bg);
+}
+
 /* Marquee tooltip — appears above the hovered logo, pure CSS. */
 .adapter-marquee-logo {
   position: relative;

@@ -7,10 +7,8 @@ import {
 import { defineCommand } from 'citty';
 import { emit, emitError, resolveOutputMode } from '../output.js';
 
-const VALID_ADAPTERS = ADAPTERS as readonly string[];
-
 function isAdapterName(name: string): name is AdapterName {
-  return VALID_ADAPTERS.includes(name);
+  return (ADAPTERS as readonly string[]).includes(name);
 }
 
 export const adaptersCommand = defineCommand({

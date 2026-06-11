@@ -24,7 +24,9 @@ export default function Footer() {
               <li>
                 <a href="/adapters">Adapters</a>
               </li>
-              {/* <li><a href="/cli">CLI</a></li> */}
+              <li>
+                <a href="/cli">CLI</a>
+              </li>
             </ul>
           </div>
           <div className="footer-col">

@@ -1,20 +1,18 @@
 ---
-title: CLI
+title: Overview
 eyebrow: CLI
-description: '@storagesdk/cli — talk to any storagesdk backend from your shell. Discover adapters with their env-var spec; the full verb surface and an MCP server subcommand follow.'
+description: '@storagesdk/cli — talk to any storagesdk backend from your shell. Read commands (`ls`, `stat`, `cat`, `sign`), snapshot/fork inspection, and adapter discovery; writes and an MCP server subcommand follow.'
 section: cli
 ---
 
 import Note from '../../components/docs/Note.astro';
-
-## Overview
 
 `@storagesdk/cli` ships two binary aliases — **`storage`** (primary) and **`storagesdk`** (for searchability) — both pointing at the same script. After install, both are on your PATH and resolve to the same binary.
 
 The CLI is built on the same `@storagesdk/adapters` registry the library uses, so any adapter that works in code works from the shell with no extra wiring — just set the adapter-native env vars and pick it with `--adapter <name>`.
 
 <Note>
-  This first release scaffolds the binary and ships the `adapters` discovery subcommand. The read/write verbs (`ls`, `stat`, `get`, `put`, `cp`, `mv`, `rm`, `sign`), snapshot/fork subcommands, and the `mcp` server subcommand land in follow-up releases.
+  This release ships the read surface: `ls`, `stat`, `cat`, `sign`, plus `snapshots` and `forks` for inspecting derived state. Writes (`put`, `cp`, `mv`, `rm`), the create/remove side of snapshots and forks, and the `mcp` server subcommand land in follow-ups.
 </Note>
 
 ## Install
@@ -32,9 +30,9 @@ npm install --save-dev @storagesdk/cli
 
 Use `storage` or `storagesdk` — both work; `storage` is shorter, `storagesdk` is unambiguous for shell history or grep.
 
-## Adapters
+## Adapter discovery
 
-`storage adapters` is the discovery surface for runtime adapter selection. Lists names with no argument; shows env vars (with required/optional flags + backend-native fallbacks) for a specific one.
+`storage adapters` lists every adapter the registry knows about; pass a name to see its env vars (with required/optional flags + backend-native fallbacks).
 
 ```sh
 storage adapters
@@ -95,15 +93,27 @@ Env vars for s3:
 
 If you already have `AWS_*` set in your environment, the S3 adapter picks them up automatically — no duplication.
 
-## Output: JSON when piped, human when in a TTY
+## Pick an adapter once
+
+Every command takes `--adapter <name>`. If you'll be running several in a row, set `STORAGE_ADAPTER` once and skip the flag:
+
+```sh
+export STORAGE_ADAPTER=tigris
+export TIGRIS_BUCKET=my-bucket
+export TIGRIS_ACCESS_KEY_ID=…
+export TIGRIS_SECRET_ACCESS_KEY=…
+storage ls photos/
+```
+
+## Output format
 
 The CLI detects whether stdout is a terminal and chooses the format. Piping always yields machine-readable JSON; in a terminal you get aligned text. Both can be forced via flags:
 
 ```sh
-storage adapters             # human (in a terminal)
-storage adapters | jq        # JSON (piped to jq)
-storage adapters --json      # force JSON
-storage adapters --no-json   # force human
+storage ls photos/             # human (in a terminal)
+storage ls photos/ | jq        # JSON (piped to jq)
+storage ls photos/ --json      # force JSON
+storage ls photos/ --no-json   # force human
 ```
 
 Errors go to stderr with a clear message and exit code; piped consumers get clean output on stdout.
@@ -116,3 +126,19 @@ storage adapters foo
 #              linode, fly, railway
 # (exit code 1)
 ```
+
+## Errors
+
+`StorageError` becomes a clean stderr message + a per-code hint and exit 1:
+
+- `NotFound` — check the path and that it exists in the selected adapter.
+- `Unauthorized` — check the adapter env vars (`storage adapters <name>`).
+- `InvalidArgument` — check the command arguments.
+- `Conflict` — the target already exists or conflicts with another resource.
+- `NotSupported` — this adapter doesn't support the operation.
+
+## Where to next
+
+Commands: [`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat), [`sign`](/cli/sign), [`snapshots`](/cli/snapshots), [`forks`](/cli/forks).
+
+Snapshots and forks are the SDK's primitives for point-in-time views and writable copies. The [`snapshots`](/cli/snapshots) and [`forks`](/cli/forks) pages cover listing them and using the `--snapshot` / `--fork` flags to scope any read.

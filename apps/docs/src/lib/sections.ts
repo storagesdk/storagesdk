@@ -16,13 +16,20 @@ interface SidebarItem {
   href?: string;
 }
 
+export interface SidebarGroup {
+  label: string;
+  items: SidebarItem[];
+}
+
 export interface Section {
   id: SectionId;
   label: string;
   href: string;
+  /** One or more sidebar groups. Sections with a single group render
+   *  the group label once at the top; multi-group sections (e.g. CLI's
+   *  "CLI" + "Commands") get a label per group. */
   sidebar: {
-    label: string;
-    items: SidebarItem[];
+    groups: SidebarGroup[];
   };
 }
 
@@ -32,12 +39,16 @@ export const SECTIONS: Record<SectionId, Section> = {
     label: 'Get Started',
     href: '/get-started',
     sidebar: {
-      label: 'Get Started',
-      items: [
-        { id: 'overview', label: 'Overview' },
-        { id: 'installation', label: 'Installation' },
-        { id: 'usage', label: 'Usage' },
-        { id: 'adapter', label: 'Adapter' },
+      groups: [
+        {
+          label: 'Get Started',
+          items: [
+            { id: 'overview', label: 'Overview' },
+            { id: 'installation', label: 'Installation' },
+            { id: 'usage', label: 'Usage' },
+            { id: 'adapter', label: 'Adapter' },
+          ],
+        },
       ],
     },
   },
@@ -46,20 +57,24 @@ export const SECTIONS: Record<SectionId, Section> = {
     label: 'API',
     href: '/api',
     sidebar: {
-      label: 'API',
-      items: [
-        { id: 'overview', label: 'Overview' },
-        { id: 'upload', label: 'upload()' },
-        { id: 'download', label: 'download()' },
-        { id: 'head', label: 'head()' },
-        { id: 'list', label: 'list()' },
-        { id: 'copy', label: 'copy()' },
-        { id: 'move', label: 'move()' },
-        { id: 'delete', label: 'delete()' },
-        { id: 'url', label: 'url()' },
-        { id: 'upload-url', label: 'uploadUrl()' },
-        { id: 'snapshots', label: 'Snapshots' },
-        { id: 'forks', label: 'Forks' },
+      groups: [
+        {
+          label: 'API',
+          items: [
+            { id: 'overview', label: 'Overview' },
+            { id: 'upload', label: 'upload()' },
+            { id: 'download', label: 'download()' },
+            { id: 'head', label: 'head()' },
+            { id: 'list', label: 'list()' },
+            { id: 'copy', label: 'copy()' },
+            { id: 'move', label: 'move()' },
+            { id: 'delete', label: 'delete()' },
+            { id: 'url', label: 'url()' },
+            { id: 'upload-url', label: 'uploadUrl()' },
+            { id: 'snapshots', label: 'Snapshots' },
+            { id: 'forks', label: 'Forks' },
+          ],
+        },
       ],
     },
   },
@@ -68,57 +83,64 @@ export const SECTIONS: Record<SectionId, Section> = {
     label: 'Adapters',
     href: '/adapters',
     sidebar: {
-      label: 'Adapters',
-      items: [
-        { id: 'overview', label: 'Overview', href: '/adapters' },
-        { id: 'registry', label: 'Registry', href: '/adapters/registry' },
+      groups: [
         {
-          id: 'tigris',
-          label: 'Tigris',
-          badge: 'native',
-          href: '/adapters/tigris',
-        },
-        { id: 's3', label: 'Amazon S3', href: '/adapters/s3' },
-        { id: 'r2', label: 'Cloudflare R2', href: '/adapters/r2' },
-        { id: 'gcs', label: 'Google Cloud Storage', href: '/adapters/gcs' },
-        { id: 'azure', label: 'Azure Blob', href: '/adapters/azure' },
-        { id: 'vercel', label: 'Vercel Blob', href: '/adapters/vercel' },
-        { id: 'minio', label: 'MinIO', href: '/adapters/minio' },
-        {
-          id: 'backblaze',
-          label: 'Backblaze B2',
-          href: '/adapters/backblaze',
-        },
-        {
-          id: 'spaces',
-          label: 'DigitalOcean Spaces',
-          href: '/adapters/spaces',
-        },
-        { id: 'wasabi', label: 'Wasabi', href: '/adapters/wasabi' },
-        {
-          id: 'supabase',
-          label: 'Supabase Storage',
-          href: '/adapters/supabase',
-        },
-        {
-          id: 'linode',
-          label: 'Linode Object Storage',
-          href: '/adapters/linode',
-        },
-        {
-          id: 'github',
-          label: 'GitHub',
-          badge: 'native',
-          href: '/adapters/github',
-        },
-        { id: 'webdav', label: 'WebDAV', href: '/adapters/webdav' },
-        { id: 'fly', label: 'Fly.io', href: '/adapters/fly' },
-        { id: 'railway', label: 'Railway', href: '/adapters/railway' },
-        { id: 'fs', label: 'Filesystem', href: '/adapters/fs' },
-        {
-          id: 'write-your-own',
-          label: 'Write your own',
-          href: '/adapters/write-your-own',
+          label: 'Adapters',
+          items: [
+            { id: 'overview', label: 'Overview', href: '/adapters' },
+            {
+              id: 'tigris',
+              label: 'Tigris',
+              badge: 'native',
+              href: '/adapters/tigris',
+            },
+            { id: 's3', label: 'Amazon S3', href: '/adapters/s3' },
+            { id: 'r2', label: 'Cloudflare R2', href: '/adapters/r2' },
+            {
+              id: 'gcs',
+              label: 'Google Cloud Storage',
+              href: '/adapters/gcs',
+            },
+            { id: 'azure', label: 'Azure Blob', href: '/adapters/azure' },
+            { id: 'vercel', label: 'Vercel Blob', href: '/adapters/vercel' },
+            { id: 'minio', label: 'MinIO', href: '/adapters/minio' },
+            {
+              id: 'backblaze',
+              label: 'Backblaze B2',
+              href: '/adapters/backblaze',
+            },
+            {
+              id: 'spaces',
+              label: 'DigitalOcean Spaces',
+              href: '/adapters/spaces',
+            },
+            { id: 'wasabi', label: 'Wasabi', href: '/adapters/wasabi' },
+            {
+              id: 'supabase',
+              label: 'Supabase Storage',
+              href: '/adapters/supabase',
+            },
+            {
+              id: 'linode',
+              label: 'Linode Object Storage',
+              href: '/adapters/linode',
+            },
+            {
+              id: 'github',
+              label: 'GitHub',
+              badge: 'native',
+              href: '/adapters/github',
+            },
+            { id: 'webdav', label: 'WebDAV', href: '/adapters/webdav' },
+            { id: 'fly', label: 'Fly.io', href: '/adapters/fly' },
+            { id: 'railway', label: 'Railway', href: '/adapters/railway' },
+            { id: 'fs', label: 'Filesystem', href: '/adapters/fs' },
+            {
+              id: 'write-your-own',
+              label: 'Write your own',
+              href: '/adapters/write-your-own',
+            },
+          ],
         },
       ],
     },
@@ -128,11 +150,15 @@ export const SECTIONS: Record<SectionId, Section> = {
     label: 'AI tools',
     href: '/ai-tools',
     sidebar: {
-      label: 'AI tools',
-      items: [
-        { id: 'overview', label: 'Overview', href: '/ai-tools' },
-        { id: 'vercel', label: 'Vercel AI SDK', href: '/ai-tools/vercel' },
-        { id: 'mastra', label: 'Mastra', href: '/ai-tools/mastra' },
+      groups: [
+        {
+          label: 'AI tools',
+          items: [
+            { id: 'overview', label: 'Overview', href: '/ai-tools' },
+            { id: 'vercel', label: 'Vercel AI SDK', href: '/ai-tools/vercel' },
+            { id: 'mastra', label: 'Mastra', href: '/ai-tools/mastra' },
+          ],
+        },
       ],
     },
   },
@@ -141,12 +167,22 @@ export const SECTIONS: Record<SectionId, Section> = {
     label: 'CLI',
     href: '/cli',
     sidebar: {
-      label: 'CLI',
-      items: [
-        { id: 'overview', label: 'Overview' },
-        { id: 'install', label: 'Install' },
-        { id: 'adapters', label: 'Adapters' },
-        { id: 'output-json-when-piped-human-when-in-a-tty', label: 'Output' },
+      groups: [
+        {
+          label: 'CLI',
+          items: [{ id: 'overview', label: 'Overview', href: '/cli' }],
+        },
+        {
+          label: 'Commands',
+          items: [
+            { id: 'ls', label: 'ls', href: '/cli/ls' },
+            { id: 'stat', label: 'stat', href: '/cli/stat' },
+            { id: 'cat', label: 'cat', href: '/cli/cat' },
+            { id: 'sign', label: 'sign', href: '/cli/sign' },
+            { id: 'snapshots', label: 'snapshots', href: '/cli/snapshots' },
+            { id: 'forks', label: 'forks', href: '/cli/forks' },
+          ],
+        },
       ],
     },
   },

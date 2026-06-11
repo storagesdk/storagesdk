@@ -14,8 +14,8 @@ const LINKS: { id: Section; label: string; href: string }[] = [
   { id: 'get-started', label: 'Get Started', href: '/get-started' },
   { id: 'api', label: 'API', href: '/api' },
   { id: 'adapters', label: 'Adapters', href: '/adapters' },
-  { id: 'ai-tools', label: 'AI tools', href: '/ai-tools' },
   { id: 'cli', label: 'CLI', href: '/cli' },
+  { id: 'ai-tools', label: 'AI tools', href: '/ai-tools' },
 ];
 
 function deriveSection(pathname: string): Section | undefined {
