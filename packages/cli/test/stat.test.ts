@@ -58,6 +58,8 @@ describe('storage stat', () => {
       'fs',
     ]);
     expect(exitCode).toBe(1);
+    // Errors carry the StorageError code so users can look it up.
+    expect(stderr).toContain('NotFound');
     expect(stderr).toContain('Check the path');
   });
 });

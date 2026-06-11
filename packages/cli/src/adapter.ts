@@ -32,6 +32,19 @@ export async function resolveAdapter(
 }
 
 /**
+ * Variant for write commands. Forks are writable (returns a full
+ * `Storage`); snapshots aren't even an option here since they're
+ * read-only. `--snapshot` isn't exposed on write commands' arg specs.
+ */
+export async function resolveWritableStorage(opts: {
+  adapter?: string | undefined;
+  fork?: string | undefined;
+}): Promise<Storage> {
+  const base = await resolveBaseStorage(opts.adapter);
+  return opts.fork ? base.forks.get(opts.fork) : base;
+}
+
+/**
  * Variant for commands that need the base `Storage` (e.g. `snapshots`
  * and `forks` list commands operate on the storage's namespaces, not on
  * a scoped view of it).

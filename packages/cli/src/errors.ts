@@ -7,17 +7,24 @@ const HINTS: Record<string, string> = {
   InvalidArgument: 'Check the command arguments.',
   Conflict: 'The target already exists or conflicts with another resource.',
   NotSupported: 'This adapter does not support the operation.',
+  Provider:
+    'The storage backend rejected the operation. The message above carries any details the backend returned.',
 };
 
 /**
- * Funnel for command bodies. `StorageError` becomes a clean stderr
- * message + a per-code hint; anything else is re-thrown so the user
- * sees the raw stack (likely a CLI bug). Exits the process so each
- * command can just `await run(args).catch(handleStorageError)`.
+ * Funnel for command bodies. `StorageError` becomes a stderr line
+ * with the error code prefix + (when present) the underlying message
+ * + a per-code hint. Anything else is re-thrown so the user sees the
+ * raw stack (likely a CLI bug). Exits the process so each command can
+ * just `await run(args).catch(handleStorageError)`.
  */
 export function handleStorageError(error: unknown): never {
   if (error instanceof StorageError) {
-    emitError(error.message, HINTS[error.code]);
+    const detail =
+      error.message && error.message !== error.code
+        ? `${error.code}: ${error.message}`
+        : error.code;
+    emitError(detail, HINTS[error.code]);
     process.exit(1);
   }
   throw error;

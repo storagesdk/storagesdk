@@ -13,17 +13,24 @@ export interface RunResult {
   stderr: string;
 }
 
+export interface RunOptions {
+  /** Bytes piped into the CLI's stdin (for `storage cp - storage://...`). */
+  input?: string | Uint8Array;
+}
+
 /**
  * Spawn the built CLI binary with `FS_ROOT` / `FS_FOLDER` pointing at
  * the given tmp dir so the `fs` adapter resolves via `--adapter fs`.
  */
 export async function run(
   args: string[],
-  env: Record<string, string>
+  env: Record<string, string>,
+  opts: RunOptions = {}
 ): Promise<RunResult> {
   const result = await execa('node', [BIN, ...args], {
     reject: false,
     env: { ...process.env, ...env },
+    ...(opts.input !== undefined ? { input: opts.input } : {}),
   });
   return {
     exitCode: result.exitCode ?? 0,
@@ -41,9 +48,11 @@ export async function run(
 export function setupFs(): {
   storage: Storage;
   env: { FS_ROOT: string; FS_FOLDER: string };
+  root: string;
   runCli: (
     args: string[],
-    extraEnv?: Record<string, string>
+    extraEnv?: Record<string, string>,
+    opts?: RunOptions
   ) => Promise<RunResult>;
   dispose: () => void;
 } {
@@ -52,10 +61,13 @@ export function setupFs(): {
   const adapter = fs({ root, folder });
   const storage = new Storage({ adapter });
   const env = { FS_ROOT: root, FS_FOLDER: folder };
-  const runCli = (args: string[], extraEnv?: Record<string, string>) =>
-    run(args, { ...env, ...extraEnv });
+  const runCli = (
+    args: string[],
+    extraEnv?: Record<string, string>,
+    opts?: RunOptions
+  ) => run(args, { ...env, ...extraEnv }, opts);
   const dispose = () => {
     rmSync(root, { recursive: true, force: true });
   };
-  return { storage, env, runCli, dispose };
+  return { storage, env, root, runCli, dispose };
 }

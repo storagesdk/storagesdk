@@ -31,3 +31,23 @@ export const SCOPE_ARGS = {
     description: 'Scope the read into a fork by name.',
   },
 } as const;
+
+/**
+ * `WRITE_SCOPE_ARGS` — write commands accept `--fork` (forks are
+ * writable) and declare `--snapshot` only to give it a friendly
+ * rejection. Without the explicit declaration, `citty` swallows
+ * `--snapshot bar` and treats `bar` as a stray positional, silently
+ * misrouting writes. Use `rejectSnapshotFlag()` at the top of each
+ * write command's `run` to enforce the rule.
+ */
+export const WRITE_SCOPE_ARGS = {
+  fork: {
+    type: 'string',
+    description: 'Scope the write into a fork by name.',
+  },
+  snapshot: {
+    type: 'string',
+    description:
+      'Rejected — snapshots are read-only. Use --fork to write to a fork.',
+  },
+} as const;
