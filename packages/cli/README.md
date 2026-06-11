@@ -72,47 +72,87 @@ storage ls photos/
 ## Read commands
 
 ```sh
-storage ls [prefix]          # list objects under a prefix
-storage stat <path>          # metadata for one object
-storage cat <path>           # stream bytes to stdout
-storage sign <path>          # generate a signed URL
+storage ls [prefix]              # list objects under a prefix
+storage stat <path>              # metadata for one object
+storage cat <path>               # stream bytes to stdout
+storage sign download <path>     # signed GET URL (string)
+storage sign upload <path>       # signed PUT/POST URL (JSON: method, url, fields?)
 ```
 
-`ls`, `stat`, and `sign` honor the TTY/JSON convention (aligned text in a terminal, JSON when piped, `--json` / `--no-json` to force). `cat` always streams raw bytes — pipe with `>` to save:
+`ls`, `stat`, and `sign download` honor the TTY/JSON convention (aligned text in a terminal, JSON when piped, `--json` / `--no-json` to force). `cat` always streams raw bytes — pipe with `>` to save. `sign upload` always emits JSON because the result is structured (method + url + optional form fields for S3-style POST).
 
 ```sh
 storage cat photos/cat.jpg > local.jpg
 storage cat config.json | jq .
 storage stat photos/cat.jpg
 storage ls photos/ --limit 100 --cursor "$cursor"
-storage sign downloads/report.pdf --ttl 3600
+
+storage sign download downloads/report.pdf --ttl 3600
+url=$(storage sign download downloads/report.pdf)
+
+storage sign upload uploads/incoming.jpg \
+  --ttl 600 --content-type image/jpeg --max-size 5242880
+# { "method": "PUT", "url": "..." }
+# or
+# { "method": "POST", "url": "...", "fields": { ... } }
 ```
 
-`StorageError` becomes a clean stderr message + a per-code hint and exit 1: `NotFound` (check the path), `Unauthorized` (check the env vars), `InvalidArgument` (check the command arguments), `Conflict`, `NotSupported`.
+`sign upload` accepts `--content-type`, `--max-size`, `--min-size`. Adapters that don't enforce these (e.g. fs) silently drop them.
+
+`StorageError` becomes a stderr message formatted as `✗ <Code>: <message>` (or just `✗ <Code>` when the message is the same as the code) plus a per-code hint: `NotFound` (check the path), `Unauthorized` (check the env vars), `InvalidArgument` (check the command arguments), `Conflict`, `NotSupported`, `Provider` (the backend rejected the operation).
+
+## Write commands
+
+```sh
+storage cp <src> <dst>       # copy between local and remote (storage://); `-` is stdin/stdout
+storage mv <src> <dst>       # same scheme detection as cp; source removed after copy
+storage rm <path>            # delete one remote object (bare keys or storage://<key>)
+```
+
+`cp` and `mv` use a `storage://` URL scheme to mark remote paths; anything else is local. At least one side must be remote — local-to-local is rejected (use the shell). `cp` also accepts `-` for stdin (as source) or stdout (as destination); `mv` does not. Same remote source and destination is rejected on both `cp` and `mv` (would destroy the object on `mv`):
+
+```sh
+storage cp ./report.pdf storage://reports/2026-06.pdf       # upload
+storage cp storage://reports/2026-06.pdf ./report.pdf       # download
+storage cp storage://a.jpg storage://b.jpg                   # remote → remote
+storage cp - storage://from-stdin.txt < ./local.txt          # upload from stdin
+storage cp storage://config.json - | jq .                    # download to stdout
+
+storage mv storage://drafts/post.md storage://posts/post.md  # rename
+storage rm storage://photos/cat.jpg
+```
+
+Write commands take `--fork <name>` to scope writes into a fork. `--snapshot <id>` is rejected with a clear message — snapshots are read-only. `cp` / `mv` accept `--content-type <mime>` to override the upload's Content-Type.
+
+In human mode, write commands print a confirmation line to **stderr** (so stdout stays clean for piped data); JSON mode emits `{ action, from?, to?, path? }` on stdout.
 
 ## Snapshots and forks
 
-List them with `storage snapshots` and `storage forks` (TTY/JSON output, same rule as the rest):
+List with `storage snapshots` and `storage forks`; manage with the singular `storage snapshot` and `storage fork` subcommand groups:
 
 ```sh
-storage snapshots
-# snap-0193abc1234567890abcdef
-# snap-0193def0123456789abcdef
+storage snapshots                                       # list snapshot ids
+storage forks                                           # list fork names
 
-storage forks
-# experiment-a
-# experiment-b
+storage snapshot create                                 # take a snapshot
+storage snapshot create --name pre-deploy               # attach a label
+storage snapshot rm snap-0193abc1234567890              # delete (idempotent)
+
+storage fork create experiment-a                                          # seeded from base
+storage fork create experiment-a --from-snapshot snap-0193abc1234         # seeded from a snapshot
+storage fork rm experiment-a                                              # delete (idempotent)
 ```
 
-Scope a read into a snapshot or fork with `--snapshot <id>` / `--fork <name>` on `ls`, `stat`, `cat`, or `sign`:
+Scope any object command into a snapshot or fork with `--snapshot <id>` / `--fork <name>`. `--snapshot` is reads only (rejected on writes); `--fork` works on both:
 
 ```sh
 storage ls photos/ --snapshot snap-0193abc1234567890abcdef
 storage cat photos/cat.jpg --fork experiment-a > local.jpg
+storage cp ./image.jpg storage://image.jpg --fork experiment-a
 storage sign downloads/report.pdf --snapshot snap-0193abc1234567890abcdef
 ```
 
-Both flags compose. Fork is applied first, so `--fork X --snapshot Y` addresses a snapshot inside the fork:
+Both flags compose on reads. Fork is applied first, so `--fork X --snapshot Y` addresses a snapshot inside the fork:
 
 ```sh
 storage ls --fork experiment-a --snapshot snap-0193abc1234567890abcdef
@@ -129,7 +169,7 @@ storage ls photos/ --json      # force JSON
 storage ls photos/ --no-json   # force human
 ```
 
-Errors go to stderr; piped consumers get clean JSON on stdout.
+For writes (`cp`, `mv`, `rm`), the human-mode confirmation line goes to **stderr** so stdout stays clean for downloaded bytes (`storage cp storage://config.json -`). JSON mode always emits structured output on stdout. Errors go to stderr in both modes.
 
 ## License
 

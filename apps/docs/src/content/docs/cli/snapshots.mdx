@@ -1,7 +1,7 @@
 ---
 title: snapshots
 eyebrow: CLI
-description: '`storage snapshots` lists every snapshot on the selected adapter. `--snapshot <id>` on read commands scopes the read into one.'
+description: 'List, create, and remove snapshots. `--snapshot <id>` on read commands scopes the read into one.'
 section: cli
 ---
 
@@ -22,6 +22,18 @@ storage snapshots | jq '.[].id'
 - `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
 - `--json` / `--no-json` — force JSON or human output.
 
+## Create and remove
+
+The write surface lives under `storage snapshot` (singular) — explicit verbs make the intent unambiguous:
+
+```sh
+storage snapshot create                     # take a snapshot, returns SnapshotInfo
+storage snapshot create --name pre-deploy   # attach a human-readable name
+storage snapshot rm snap-0193abc1234567890  # delete by id (idempotent)
+```
+
+`snapshot rm` is a no-op when the id doesn't exist — the underlying adapter contract is idempotent delete.
+
 ## Reading from a snapshot
 
 The four read commands ([`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat), [`sign`](/cli/sign)) accept `--snapshot <id>` to redirect the read into a snapshot instead of base storage:
@@ -33,6 +45,8 @@ storage cat photos/cat.jpg --snapshot snap-0193abc1234567890abcdef > local.jpg
 storage sign downloads/report.pdf --snapshot snap-0193abc1234567890abcdef
 ```
 
+Write commands ([`cp`](/cli/cp), [`mv`](/cli/mv), [`rm`](/cli/rm)) reject `--snapshot` — snapshots are read-only. Use [`--fork`](/cli/forks) instead.
+
 ## Composing with `--fork`
 
 `--snapshot` composes with `--fork` (see [`forks`](/cli/forks)). Fork is applied first, so `--fork X --snapshot Y` reads from a snapshot taken inside the fork:
@@ -40,5 +54,3 @@ storage sign downloads/report.pdf --snapshot snap-0193abc1234567890abcdef
 ```sh
 storage ls --fork experiment-a --snapshot snap-0193abc1234567890abcdef
 ```
-
-Creating and removing snapshots comes with the write commands.

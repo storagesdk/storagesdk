@@ -1,0 +1,29 @@
+---
+title: rm
+eyebrow: CLI
+description: '`storage rm <path>` — delete one remote object. Bare paths and `storage://<key>` both work.'
+section: cli
+---
+
+```sh
+storage rm <path>
+```
+
+Delete one remote object. The `storage://` scheme is accepted but optional — `rm` is always remote, so bare keys work too:
+
+```sh
+storage rm photos/cat.jpg
+storage rm storage://photos/cat.jpg
+```
+
+`-` is rejected — `rm` has no stdin/stdout role.
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--fork <name>` — scope the delete into a [fork](/cli/forks).
+- `--json` / `--no-json` — force JSON or human output.
+
+## Why not `--snapshot`?
+
+Snapshots are read-only — exit 1 with a clear message. Use [`--fork`](/cli/forks).

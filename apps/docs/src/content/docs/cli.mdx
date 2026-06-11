@@ -1,7 +1,7 @@
 ---
 title: Overview
 eyebrow: CLI
-description: '@storagesdk/cli — talk to any storagesdk backend from your shell. Read commands (`ls`, `stat`, `cat`, `sign`), snapshot/fork inspection, and adapter discovery; writes and an MCP server subcommand follow.'
+description: '@storagesdk/cli — talk to any storagesdk backend from your shell. Reads, writes, and snapshot/fork management; an MCP server subcommand follows.'
 section: cli
 ---
 
@@ -12,7 +12,9 @@ import Note from '../../components/docs/Note.astro';
 The CLI is built on the same `@storagesdk/adapters` registry the library uses, so any adapter that works in code works from the shell with no extra wiring — just set the adapter-native env vars and pick it with `--adapter <name>`.
 
 <Note>
-  This release ships the read surface: `ls`, `stat`, `cat`, `sign`, plus `snapshots` and `forks` for inspecting derived state. Writes (`put`, `cp`, `mv`, `rm`), the create/remove side of snapshots and forks, and the `mcp` server subcommand land in follow-ups.
+  This release ships the full object surface and snapshot/fork
+  management. The `mcp` server subcommand (stdio Model Context Protocol)
+  lands next.
 </Note>
 
 ## Install
@@ -139,6 +141,9 @@ storage adapters foo
 
 ## Where to next
 
-Commands: [`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat), [`sign`](/cli/sign), [`snapshots`](/cli/snapshots), [`forks`](/cli/forks).
+- **Reads:** [`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat).
+- **Writes:** [`cp`](/cli/cp), [`mv`](/cli/mv), [`rm`](/cli/rm).
+- **Signed URLs:** [`sign download`](/cli/sign#storage-sign-download-path) (GET) and [`sign upload`](/cli/sign#storage-sign-upload-path) (PUT/POST).
+- **Snapshots and forks:** [`snapshots`](/cli/snapshots) and [`forks`](/cli/forks) cover listing, creation, removal, and the `--snapshot` / `--fork` scoping flags.
 
-Snapshots and forks are the SDK's primitives for point-in-time views and writable copies. The [`snapshots`](/cli/snapshots) and [`forks`](/cli/forks) pages cover listing them and using the `--snapshot` / `--fork` flags to scope any read.
+Write commands print a confirmation line to **stderr** in human mode so stdout stays clean for piped data (e.g. `cp storage://config.json -`); JSON mode emits `{ action, from?, to?, path? }` on stdout so it composes with `jq`.
