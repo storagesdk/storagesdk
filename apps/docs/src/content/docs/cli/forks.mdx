@@ -1,7 +1,7 @@
 ---
 title: forks
 eyebrow: CLI
-description: '`storage forks` lists every fork on the selected adapter. `--fork <name>` on read commands scopes the read into one.'
+description: 'List, create, and remove forks. `--fork <name>` on read and write commands scopes the operation into one.'
 section: cli
 ---
 
@@ -24,17 +24,26 @@ storage forks | jq '.[] | { name, fromSnapshot }'
 - `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
 - `--json` / `--no-json` — force JSON or human output.
 
-## Reading from a fork
+## Create and remove
 
-The four read commands ([`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat), [`sign`](/cli/sign)) accept `--fork <name>` to redirect the read into a fork instead of base storage:
+The write surface lives under `storage fork` (singular):
+
+```sh
+storage fork create experiment-a                                  # seeded from base
+storage fork create experiment-a --from-snapshot snap-0193abc1234  # seeded from a snapshot
+storage fork rm experiment-a                                      # delete (idempotent)
+```
+
+`fork rm` is a no-op when the name doesn't exist.
+
+## Scoping reads and writes
+
+Every object command — both reads ([`ls`](/cli/ls), [`stat`](/cli/stat), [`cat`](/cli/cat), [`sign`](/cli/sign)) and writes ([`cp`](/cli/cp), [`mv`](/cli/mv), [`rm`](/cli/rm)) — accepts `--fork <name>` to redirect into a fork:
 
 ```sh
 storage ls photos/ --fork experiment-a
-storage stat photos/cat.jpg --fork experiment-a
-storage cat photos/cat.jpg --fork experiment-a > local.jpg
-storage sign downloads/report.pdf --fork experiment-a
+storage cp ./image.jpg storage://image.jpg --fork experiment-a
+storage rm storage://image.jpg --fork experiment-a
 ```
 
 `--fork` composes with `--snapshot` — see [Composing with `--fork`](/cli/snapshots#composing-with-fork) on the snapshots page.
-
-Creating and removing forks comes with the write commands.

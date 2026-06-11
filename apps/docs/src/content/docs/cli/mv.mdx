@@ -1,0 +1,33 @@
+---
+title: mv
+eyebrow: CLI
+description: '`storage mv <src> <dst>` — move between local and remote (`storage://`). Source is removed after a successful copy.'
+section: cli
+---
+
+```sh
+storage mv <src> <dst>
+```
+
+Move bytes between **local** paths and the **`storage://`** scheme. Same path rules as [`cp`](/cli/cp), with one extra step: the source is deleted after a successful copy. Stdin/stdout (`-`) is **not** supported — use `cp` for stream-based transfers.
+
+```sh
+storage mv ./report.pdf storage://reports/2026-06.pdf          # upload + delete local
+storage mv storage://reports/2026-06.pdf ./report.pdf          # download + delete remote
+storage mv storage://a.txt storage://archive/a.txt             # rename / remote → remote
+```
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--fork <name>` — scope the move into a [fork](/cli/forks).
+- `--content-type <mime>` — override the Content-Type for an upload.
+- `--json` / `--no-json` — force JSON or human output.
+
+## Why not `--snapshot`?
+
+Snapshots are read-only — exit 1 with a clear message. Use [`--fork`](/cli/forks).
+
+## Same-source-and-destination is rejected
+
+`storage mv storage://x storage://x` exits 1. On many backends `mv` is implemented as copy-then-delete; same source and destination would destroy the object. The CLI refuses before reaching the adapter.

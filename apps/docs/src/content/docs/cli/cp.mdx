@@ -1,0 +1,37 @@
+---
+title: cp
+eyebrow: CLI
+description: '`storage cp <src> <dst>` — copy between local and remote (`storage://`). Use `-` for stdin/stdout.'
+section: cli
+---
+
+```sh
+storage cp <src> <dst>
+```
+
+Copy bytes between **local** paths and the **`storage://`** scheme. At least one side must be remote — local-to-local is rejected (use the shell). `cp` also accepts `-` for stdin (as source) or stdout (as destination):
+
+```sh
+storage cp ./photos/cat.jpg storage://photos/cat.jpg              # upload
+storage cp storage://photos/cat.jpg ./photos/cat.jpg              # download
+storage cp storage://a.jpg storage://b.jpg                        # remote → remote
+storage cp - storage://from-stdin.txt < ./local.txt               # upload from stdin
+storage cp storage://config.json - | jq .                         # download to stdout
+```
+
+When the destination is `-`, stdout is reserved for the bytes — no confirmation line. Otherwise the success output follows the CLI's TTY/JSON rule (see [Overview](/cli#output-format)).
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--fork <name>` — scope the copy into a [fork](/cli/forks).
+- `--content-type <mime>` — override the Content-Type for an upload.
+- `--json` / `--no-json` — force JSON or human output.
+
+## Why not `--snapshot`?
+
+Snapshots are read-only. Passing `--snapshot` to `cp` exits 1 with a clear message; use [`--fork`](/cli/forks) to write to a fork instead.
+
+## Same-source-and-destination is rejected
+
+`storage cp storage://x storage://x` exits 1 — the upload would silently overwrite an object with itself, which is at best a no-op and on some backends destructive. Pick a different destination.
