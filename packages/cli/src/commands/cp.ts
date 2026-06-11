@@ -7,14 +7,10 @@ import { defineCommand } from 'citty';
 import { resolveWritableStorage } from '../adapter.js';
 import { COMMON_ARGS, WRITE_SCOPE_ARGS } from '../args.js';
 import { handleStorageError } from '../errors.js';
-import {
-  emitError,
-  emitWriteSuccess,
-  rejectSnapshotFlag,
-  resolveOutputMode,
-} from '../output.js';
+import { emitError, emitWriteSuccess, resolveOutputMode } from '../output.js';
 import { type Path, parsePath } from '../scheme.js';
 import { isPrematureClose } from '../stream.js';
+import { rejectSnapshotFlag } from '../validate.js';
 
 export const cpCommand = defineCommand({
   meta: {
