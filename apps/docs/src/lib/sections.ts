@@ -186,6 +186,10 @@ export const SECTIONS: Record<SectionId, Section> = {
             { id: 'forks', label: 'forks', href: '/cli/forks' },
           ],
         },
+        {
+          label: 'Agents',
+          items: [{ id: 'mcp', label: 'MCP Server', href: '/cli/mcp' }],
+        },
       ],
     },
   },
