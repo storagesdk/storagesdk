@@ -2313,6 +2313,166 @@ h1.headline em::after {
   background: var(--bg);
 }
 
+/* ─── CLI preview — single terminal that types commands live ─── */
+.cli-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  overflow: hidden;
+}
+
+.cli-preview-term {
+  background: var(--bg-code);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+}
+
+.cli-preview-term-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunk);
+}
+
+.cli-preview-term-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  display: inline-block;
+}
+
+.cli-preview-term-title {
+  margin-left: 8px;
+  color: var(--fg-faint);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+.cli-preview-playpause {
+  margin-left: auto;
+  font: inherit;
+  font-size: 11px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.cli-preview-playpause:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.cli-preview-term-body {
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.cli-preview-term-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cli-preview-comment {
+  color: var(--fg-faint);
+  font-size: 12px;
+}
+
+.cli-preview-term-line {
+  color: var(--fg);
+  /* Preserve spaces; wrap at token boundaries; break-anywhere only as
+     a last resort for very long URLs. The hanging indent (padding +
+     negative text-indent) keeps wrapped lines visually attached to
+     the command rather than flush with the prompt. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-spacing: 0.08em;
+  padding-left: 1.4em;
+  text-indent: -1.4em;
+}
+
+/* `--flag` tokens read as solid blocks in monospace; widen the visual
+   gap on their left so they don't crowd the preceding word. The text
+   content of the span is the literal `--flag`, so copy/paste yields
+   the original command unchanged. */
+.cli-preview-flag {
+  margin-left: 0.35em;
+}
+
+/* CLI section: header on the left, terminal preview on the right at
+   wide widths; stacked below 1100px. */
+.cli-section-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.cli-section-copy h2 {
+  margin-top: 8px;
+}
+
+@media (min-width: 1100px) {
+  .cli-section-grid {
+    grid-template-columns: 30fr 70fr;
+    gap: 72px;
+  }
+}
+
+.cli-preview-prompt {
+  color: var(--accent);
+  font-weight: 600;
+  user-select: none;
+}
+
+.cli-preview-term-output {
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+}
+
+/* Blinking caret on the line currently being typed. */
+.cli-preview-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: cli-preview-blink 1s steps(2, end) infinite;
+}
+
+@keyframes cli-preview-blink {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cli-preview-cursor {
+    animation: none;
+  }
+}
+
 /* Marquee tooltip — appears above the hovered logo, pure CSS. */
 .adapter-marquee-logo {
   position: relative;

@@ -1,7 +1,7 @@
 ---
 import AdapterMarquee from '../components/AdapterMarquee';
 import AgentsSection from '../components/AgentsSection';
-import CliSection from '../components/CliSection';
+import CliSection from '../components/CliSection.astro';
 import Features from '../components/Features';
 import FinalCta from '../components/FinalCta';
 import Footer from '../components/Footer';
@@ -21,7 +21,7 @@ import Base from '../layouts/Base.astro';
   <Primitives client:load />
   <AgentsSection client:load />
   <OneApiSection client:load />
-  <CliSection client:load />
+  <CliSection />
   <Features />
   <FinalCta />
   <Footer transition:persist="footer" />
