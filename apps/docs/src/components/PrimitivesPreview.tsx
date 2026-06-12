@@ -21,7 +21,15 @@ interface FileRow {
   readonly effect: 'none' | 'highlight';
 }
 
-type State = Record<PanelKey, readonly FileRow[] | null>;
+// Parent always exists (it's the bucket itself). Snapshot/forks start
+// as `null` ("— not created —") and become rows once their create
+// call fires.
+interface State {
+  readonly parent: readonly FileRow[];
+  readonly snapshot: readonly FileRow[] | null;
+  readonly forkA: readonly FileRow[] | null;
+  readonly forkB: readonly FileRow[] | null;
+}
 
 const INITIAL_STATE: State = {
   parent: [],
