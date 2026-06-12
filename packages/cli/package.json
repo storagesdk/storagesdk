@@ -19,14 +19,6 @@
     "access": "public",
     "provenance": true
   },
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc -p tsconfig.build.json --watch",
-    "typecheck": "tsc --noEmit",
-    "publint": "publint",
-    "test": "vitest run",
-    "clean": "rm -rf dist"
-  },
   "keywords": [
     "storage",
     "storagesdk",
@@ -46,6 +38,16 @@
   "engines": {
     "node": ">=20"
   },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit",
+    "publint": "publint",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "prepack": "node ../../scripts/inject-cli-adapter-deps.mjs",
+    "postpack": "node ../../scripts/restore-cli-package.mjs"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@storagesdk/adapters": "workspace:*",
@@ -54,7 +56,6 @@
     "citty": "^0.2.2"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "execa": "^9.6.1"
   }
 }
