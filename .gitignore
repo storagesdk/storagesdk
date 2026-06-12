@@ -11,6 +11,10 @@ build/
 coverage/
 .vitest-cache/
 
+# Backup written by scripts/inject-cli-adapter-deps.mjs (prepack hook)
+# in case postpack didn't run; safe to delete.
+*.publishbak
+
 # Editor and OS
 .DS_Store
 .idea/
@@ -31,3 +35,4 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+*.tgz
