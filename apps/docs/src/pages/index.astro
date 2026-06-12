@@ -7,7 +7,7 @@ import FinalCta from '../components/FinalCta';
 import Footer from '../components/Footer';
 import Hero from '../components/Hero';
 import Nav from '../components/Nav';
-import OneApiSection from '../components/OneApiSection';
+import OneApiSection from '../components/OneApiSection.astro';
 import Primitives from '../components/Primitives';
 import Base from '../layouts/Base.astro';
 ---
@@ -18,9 +18,9 @@ import Base from '../layouts/Base.astro';
   <Nav client:load transition:persist="nav" />
   <Hero client:load />
   <AdapterMarquee />
+  <OneApiSection />
   <Primitives client:load />
   <AgentsSection client:load />
-  <OneApiSection client:load />
   <CliSection />
   <Features />
   <FinalCta />
