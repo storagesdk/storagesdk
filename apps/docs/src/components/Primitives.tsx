@@ -28,33 +28,35 @@ export default function Primitives() {
           </div>
         </div>
 
-        <div className="primitive-card">
-          <div>
-            <div className="ptag">snapshots</div>
-            <h3>Freeze a bucket. Read it forever.</h3>
-            <p>
-              Point-in-time snapshot of a bucket. Live writes keep going on the
-              parent; the snapshot stays exactly as it was, readable through the
-              same Storage API.
-            </p>
+        <div className="primitives-grid">
+          <div className="primitive-card">
+            <div>
+              <div className="ptag">snapshots</div>
+              <h3>Freeze a bucket. Read it forever.</h3>
+              <p>
+                Point-in-time snapshot of a bucket. Live writes keep going on
+                the parent; the snapshot stays exactly as it was, readable
+                through the same Storage API.
+              </p>
+            </div>
+            <CodeBlock
+              filename="snapshots.ts"
+              snippets={SNIPPETS.snapshotsRead}
+            />
           </div>
-          <CodeBlock
-            filename="snapshots.ts"
-            snippets={SNIPPETS.snapshotsRead}
-          />
-        </div>
 
-        <div className="primitive-card" id="forks">
-          <div>
-            <div className="ptag">forks</div>
-            <h3>Branch a bucket. Mutate without fear.</h3>
-            <p>
-              Fork from a snapshot or from a bucket's live state. Every write
-              lands in the fork's namespace; the parent is untouched. Throw it
-              away when you're done.
-            </p>
+          <div className="primitive-card" id="forks">
+            <div>
+              <div className="ptag">forks</div>
+              <h3>Branch a bucket. Mutate without fear.</h3>
+              <p>
+                Fork from a snapshot or from a bucket's live state. Every write
+                lands in the fork's namespace; the parent is untouched. Throw it
+                away when you're done.
+              </p>
+            </div>
+            <CodeBlock filename="forks.ts" snippets={SNIPPETS.forksBranch} />
           </div>
-          <CodeBlock filename="forks.ts" snippets={SNIPPETS.forksBranch} />
         </div>
 
         <div className="support-note">

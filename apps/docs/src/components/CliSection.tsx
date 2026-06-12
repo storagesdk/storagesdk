@@ -19,11 +19,13 @@ export default function CliSection() {
       <div className="shell">
         <div className="section-head">
           <div className="section-eyebrow">cli</div>
-          <h2>The same surface, from your shell.</h2>
+          <h2>Unix verbs, every backend.</h2>
           <p className="lead">
-            <C>@storagesdk/cli</C> wraps every method as a command. <C>cp</C>{' '}
-            and <C>mv</C> use a <C>storage://</C> scheme to mark remote paths;
-            pipes and redirects work the way you'd expect. Switch adapters with{' '}
+            <C>@storagesdk/cli</C> ships POSIX-style commands — <C>ls</C>,{' '}
+            <C>stat</C>, <C>cat</C>, <C>cp</C>, <C>mv</C>, <C>rm</C>,{' '}
+            <C>sign</C> — that talk to every adapter. <C>cp</C> and <C>mv</C>{' '}
+            use a <C>storage://</C> scheme to mark remote paths; pipes and
+            redirects work the way you'd expect. Switch adapters with{' '}
             <C>--adapter</C>, scope writes into a fork with <C>--fork</C>, get
             JSON when piped.
           </p>

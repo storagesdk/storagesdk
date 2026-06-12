@@ -1,16 +1,13 @@
 ---
 import AdapterMarquee from '../components/AdapterMarquee';
-import AdapterSwitcher from '../components/AdapterSwitcher';
 import AgentsSection from '../components/AgentsSection';
 import CliSection from '../components/CliSection';
-import CustomAdapterSection from '../components/CustomAdapterSection';
 import Features from '../components/Features';
 import FinalCta from '../components/FinalCta';
 import Footer from '../components/Footer';
 import Hero from '../components/Hero';
-import InstallSection from '../components/InstallSection';
 import Nav from '../components/Nav';
-import OneVerb from '../components/OneVerb';
+import OneApiSection from '../components/OneApiSection';
 import Primitives from '../components/Primitives';
 import Base from '../layouts/Base.astro';
 ---
@@ -22,13 +19,10 @@ import Base from '../layouts/Base.astro';
   <Hero client:load />
   <AdapterMarquee />
   <Primitives client:load />
-  <AdapterSwitcher client:load />
-  <OneVerb client:load />
-  <Features />
-  <CustomAdapterSection client:load />
-  <CliSection client:load />
   <AgentsSection client:load />
-  <InstallSection client:load />
+  <OneApiSection client:load />
+  <CliSection client:load />
+  <Features />
   <FinalCta />
   <Footer transition:persist="footer" />
 </Base>
