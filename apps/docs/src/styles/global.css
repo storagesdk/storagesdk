@@ -2494,6 +2494,199 @@ h1.headline em::after {
   margin-top: 18px;
 }
 
+/* ---- Agents preview (wiring tabs + chat transcript) ---- */
+
+.agents-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agents-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agents-tab {
+  appearance: none;
+  padding: 6px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: 500 12px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.agents-tab:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.agents-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.agents-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .agents-split {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}
+
+.agents-pane {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 440px;
+}
+
+.agents-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.agents-pane-title {
+  font: 12px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  margin-left: 4px;
+  flex: 1;
+}
+
+.agents-code {
+  font: 13px / 1.7 var(--font-mono);
+  color: var(--fg);
+  padding: 12px 0;
+  margin: 0;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.agents-code-line {
+  padding: 0 14px;
+  white-space: pre;
+}
+
+/* Shell tab: dim leading `#` comment lines a touch */
+.agents-code-shell .agents-code-line {
+  color: var(--fg);
+}
+
+.agents-chat {
+  flex: 1 1 0;
+  /* Flex children default to min-height: auto (their content size), which
+     would shove the pane open instead of scrolling. Forcing min-height: 0
+     lets the chat shrink to its allotted box and overflow-y kick in. */
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agents-chat-empty {
+  padding: 24px 12px;
+  text-align: center;
+  font: 13px var(--font-mono);
+  color: var(--fg-faint);
+}
+
+.agents-msg {
+  /* Buttons; reset UA defaults so they read as message rows */
+  appearance: none;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: 13px / 1.5 var(--font-sans, inherit);
+  color: var(--fg);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+  box-shadow: inset 2px 0 0 transparent;
+}
+
+.agents-msg:hover {
+  background: var(--bg-elev);
+}
+
+.agents-msg-just {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.agents-msg-label {
+  font: 600 10px / 1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+}
+
+.agents-msg-user .agents-msg-label {
+  color: var(--accent);
+}
+
+.agents-msg-body {
+  color: var(--fg);
+}
+
+.agents-msg-tool {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.agents-msg-tool-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.agents-msg-tool-args {
+  color: var(--fg-muted);
+  padding-left: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agents-msg-tool-result {
+  color: var(--fg);
+  padding-left: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agents-msg-tool-result::before {
+  content: "→ ";
+  color: var(--fg-faint);
+}
+
 .one-api-split {
   display: grid;
   grid-template-columns: 1fr;
