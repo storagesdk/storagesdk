@@ -7,6 +7,7 @@ import { cpCommand } from './commands/cp.js';
 import { forkCommand } from './commands/fork.js';
 import { forksCommand } from './commands/forks.js';
 import { lsCommand } from './commands/ls.js';
+import { mcpCommand } from './commands/mcp.js';
 import { mvCommand } from './commands/mv.js';
 import { rmCommand } from './commands/rm.js';
 import { signCommand } from './commands/sign.js';
@@ -34,6 +35,7 @@ const main = defineCommand({
     forks: forksCommand,
     snapshot: snapshotCommand,
     fork: forkCommand,
+    mcp: mcpCommand,
   },
 });
 

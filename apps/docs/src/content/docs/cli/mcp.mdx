@@ -1,0 +1,55 @@
+---
+title: MCP Server
+eyebrow: CLI
+description: '`storage mcp` — stdio Model Context Protocol server. Connect Claude Desktop, Cursor, the MCP Inspector, or any MCP host to your storagesdk backend.'
+section: cli
+---
+
+```sh
+storage mcp [--read-only] [--scope <prefix>] [--url-expires-in <seconds>] [--max-inline-bytes <bytes>]
+```
+
+Boot a stdio Model Context Protocol server that exposes every storagesdk verb as an MCP tool. Pair it with any MCP host — Claude Desktop, Cursor, the MCP Inspector, or your own client — and the agent gets the full storagesdk surface: `download`, `upload`, `head`, `list`, `url`, `delete`, `copy`, `move`, `upload_url`, `download_range`, plus the snapshot and fork roster.
+
+`stdout` is reserved for the JSON-RPC protocol. The readiness line and any errors go to `stderr`, so do not run this interactively — pipe it through an MCP host.
+
+## Trying it with the MCP Inspector
+
+```sh
+mkdir -p /tmp/sdk-mcp/data
+echo "hello mcp" > /tmp/sdk-mcp/data/hello.txt
+
+npx @modelcontextprotocol/inspector \
+  -e FS_ROOT=/tmp/sdk-mcp -e FS_FOLDER=data \
+  storage mcp --adapter fs
+```
+
+The inspector opens a localhost UI where you can list tools and call them. **List Tools** → 18 verbs; click `head`, fill `path: "hello.txt"`, **Run Tool** — JSON metadata comes back.
+
+## Wiring into Claude Code
+
+```sh
+mkdir -p /tmp/sdk-mcp/data
+
+claude mcp add storagesdk \
+  -e FS_ROOT=/tmp/sdk-mcp -e FS_FOLDER=data \
+  -- storage mcp --adapter fs
+```
+
+Then in a session: `/mcp` lists registered servers; ask Claude to "list files in storage" or "create a snapshot" and watch the tool calls fire.
+
+For S3 / Tigris / R2 / etc., swap env vars: `-e TIGRIS_BUCKET=… -e TIGRIS_ACCESS_KEY_ID=…` and `--adapter tigris`.
+
+## Flags
+
+- `--adapter <name>` (required, or set `STORAGE_ADAPTER`).
+- `--read-only` — strip every mutator (`upload`, `delete`, `copy`, `move`, `snapshot_create`, `fork_create`, etc.). Use when the agent should browse but not write.
+- `--scope <prefix>` — restrict every path argument to this prefix. Out-of-scope paths surface as `InvalidArgument` to the agent. Belt-and-suspenders if the model misbehaves.
+- `--url-expires-in <seconds>` — lifetime of presigned URLs the server surfaces to the agent. Default 600.
+- `--max-inline-bytes <bytes>` — inline-text cap for `download` responses. Larger objects come back as a presigned URL the agent can hand to another tool. Default 262144 (256 KB).
+
+## What the agent sees
+
+Tool names are snake_case so they read naturally in model output (`snapshot_create`, not `snapshotCreate`). Tool descriptions teach the agent to snapshot before risky edits and fork to try variants — that's the storagesdk-specific behavior the tool pack ships, not generic file access.
+
+For the full per-tool reference, see [`@storagesdk/ai`'s tool list](/ai).

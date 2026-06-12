@@ -27,6 +27,9 @@ export default function Footer() {
               <li>
                 <a href="/cli">CLI</a>
               </li>
+              <li>
+                <a href="/ai">AI</a>
+              </li>
             </ul>
           </div>
           <div className="footer-col">
@@ -34,16 +37,6 @@ export default function Footer() {
             <ul>
               <li>
                 <a href="https://github.com/storagesdk/storagesdk">GitHub</a>
-              </li>
-              <li>
-                <a href="https://www.npmjs.com/package/@storagesdk/core">
-                  @storagesdk/core on npm
-                </a>
-              </li>
-              <li>
-                <a href="https://www.npmjs.com/package/@storagesdk/adapters">
-                  @storagesdk/adapters
-                </a>
               </li>
               <li>
                 <a href="https://github.com/storagesdk/storagesdk/issues">

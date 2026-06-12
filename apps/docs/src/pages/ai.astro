@@ -2,8 +2,8 @@
 import { getEntry, render } from 'astro:content';
 import DocsLayout from '../layouts/DocsLayout.astro';
 
-const entry = await getEntry('docs', 'ai-tools');
-if (!entry) throw new Error('Missing docs/ai-tools.mdx');
+const entry = await getEntry('docs', 'ai');
+if (!entry) throw new Error('Missing docs/ai.mdx');
 const { Content } = await render(entry);
 ---
 <DocsLayout

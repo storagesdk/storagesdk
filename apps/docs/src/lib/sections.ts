@@ -2,7 +2,7 @@
 // `<DocsLayout>` to look up the matching entry and render the sidebar.
 // The right-rail TOC is built from the live DOM headings.
 
-export type SectionId = 'get-started' | 'api' | 'adapters' | 'ai-tools' | 'cli';
+export type SectionId = 'get-started' | 'api' | 'adapters' | 'ai' | 'cli';
 
 interface SidebarItem {
   /** DOM id of the heading this entry jumps to (anchor-based nav), or
@@ -145,18 +145,19 @@ export const SECTIONS: Record<SectionId, Section> = {
       ],
     },
   },
-  'ai-tools': {
-    id: 'ai-tools',
-    label: 'AI tools',
-    href: '/ai-tools',
+  ai: {
+    id: 'ai',
+    label: 'AI',
+    href: '/ai',
     sidebar: {
       groups: [
         {
-          label: 'AI tools',
+          label: 'AI',
           items: [
-            { id: 'overview', label: 'Overview', href: '/ai-tools' },
-            { id: 'vercel', label: 'Vercel AI SDK', href: '/ai-tools/vercel' },
-            { id: 'mastra', label: 'Mastra', href: '/ai-tools/mastra' },
+            { id: 'overview', label: 'Overview', href: '/ai' },
+            { id: 'vercel', label: 'Vercel AI SDK', href: '/ai/vercel' },
+            { id: 'mastra', label: 'Mastra', href: '/ai/mastra' },
+            { id: 'mcp', label: 'MCP Server', href: '/ai/mcp' },
           ],
         },
       ],
@@ -185,6 +186,10 @@ export const SECTIONS: Record<SectionId, Section> = {
             { id: 'snapshots', label: 'snapshots', href: '/cli/snapshots' },
             { id: 'forks', label: 'forks', href: '/cli/forks' },
           ],
+        },
+        {
+          label: 'Agents',
+          items: [{ id: 'mcp', label: 'MCP Server', href: '/cli/mcp' }],
         },
       ],
     },

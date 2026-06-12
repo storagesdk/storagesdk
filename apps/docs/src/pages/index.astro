@@ -1,13 +1,13 @@
 ---
 import AdapterMarquee from '../components/AdapterMarquee';
 import AdapterSwitcher from '../components/AdapterSwitcher';
+import AgentsSection from '../components/AgentsSection';
+import CliSection from '../components/CliSection';
 import CustomAdapterSection from '../components/CustomAdapterSection';
 import Features from '../components/Features';
 import FinalCta from '../components/FinalCta';
 import Footer from '../components/Footer';
 import Hero from '../components/Hero';
-// CLI page/section commented out until @storagesdk/cli ships.
-// import CliSection from '../components/CliSection';
 import InstallSection from '../components/InstallSection';
 import Nav from '../components/Nav';
 import OneVerb from '../components/OneVerb';
@@ -26,8 +26,8 @@ import Base from '../layouts/Base.astro';
   <OneVerb client:load />
   <Features />
   <CustomAdapterSection client:load />
-  {/* CliSection hidden from landing until @storagesdk/cli ships. */}
-  {/* <CliSection client:load /> */}
+  <CliSection client:load />
+  <AgentsSection client:load />
   <InstallSection client:load />
   <FinalCta />
   <Footer transition:persist="footer" />

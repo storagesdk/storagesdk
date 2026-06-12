@@ -128,6 +128,9 @@ importers:
 
   packages/ai:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       '@storagesdk/core':
         specifier: workspace:*
         version: link:../core
@@ -150,9 +153,15 @@ importers:
 
   packages/cli:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       '@storagesdk/adapters':
         specifier: workspace:*
         version: link:../adapters
+      '@storagesdk/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@storagesdk/core':
         specifier: workspace:*
         version: link:../core

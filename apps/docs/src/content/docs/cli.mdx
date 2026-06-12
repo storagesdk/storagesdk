@@ -12,9 +12,10 @@ import Note from '../../components/docs/Note.astro';
 The CLI is built on the same `@storagesdk/adapters` registry the library uses, so any adapter that works in code works from the shell with no extra wiring — just set the adapter-native env vars and pick it with `--adapter <name>`.
 
 <Note>
-  This release ships the full object surface and snapshot/fork
-  management. The `mcp` server subcommand (stdio Model Context Protocol)
-  lands next.
+  The CLI verb set is now complete: object reads and writes, snapshot
+  and fork management, signed URLs, and a stdio Model Context Protocol
+  server. Pair any of the verbs with `--adapter <name>` to pick the
+  backend; or set `STORAGE_ADAPTER` once and let every command read it.
 </Note>
 
 ## Install
@@ -145,5 +146,6 @@ storage adapters foo
 - **Writes:** [`cp`](/cli/cp), [`mv`](/cli/mv), [`rm`](/cli/rm).
 - **Signed URLs:** [`sign download`](/cli/sign#storage-sign-download-path) (GET) and [`sign upload`](/cli/sign#storage-sign-upload-path) (PUT/POST).
 - **Snapshots and forks:** [`snapshots`](/cli/snapshots) and [`forks`](/cli/forks) cover listing, creation, removal, and the `--snapshot` / `--fork` scoping flags.
+- **AI agents:** [`mcp`](/cli/mcp) boots a stdio Model Context Protocol server so Claude Desktop, Cursor, or any MCP host can drive every verb.
 
 Write commands print a confirmation line to **stderr** in human mode so stdout stays clean for piped data (e.g. `cp storage://config.json -`); JSON mode emits `{ action, from?, to?, path? }` on stdout so it composes with `jq`.

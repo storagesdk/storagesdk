@@ -6,7 +6,7 @@ AI tool definitions for [storagesdk](https://github.com/storagesdk/storagesdk). 
 npm install @storagesdk/core @storagesdk/adapters @storagesdk/ai
 ```
 
-The package ships per-framework subpath integrations. Pick the one for your agent runtime, hand it a `Storage`, and pass the result to your runtime's tool registration site.
+The package ships per-framework subpath integrations and a Model Context Protocol server. Pick the one for your agent runtime, hand it a `Storage`, and pass the result to your runtime's tool registration site (or, for MCP, connect a transport).
 
 ## The 18 tools
 
@@ -130,6 +130,31 @@ const result = await agent.generate([
 ```
 
 `tools(storage)` returns a `Record<string, Tool>` whose values are Mastra `Tool` instances built via `createTool` from `@mastra/core/tools`. Each tool's `id` matches the verb name (`download`, `snapshot_create`, etc.) so it's recognizable in Mastra traces.
+
+## Model Context Protocol
+
+```ts
+import { fs } from '@storagesdk/adapters/fs';
+import { createMcpServer } from '@storagesdk/ai/mcp';
+import { Storage } from '@storagesdk/core';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+const storage = new Storage({
+  adapter: fs({ root: '/tmp/agent-runs', folder: 'data' }),
+});
+
+const server = createMcpServer(storage, {
+  readOnly: false,
+  scope: 'agents/',
+  urlExpiresIn: 1800,
+});
+
+await server.connect(new StdioServerTransport());
+```
+
+`createMcpServer` returns an `McpServer` from `@modelcontextprotocol/sdk` with every storagesdk tool registered. The caller owns the transport — connect to `StdioServerTransport` for shell hosts (Claude Desktop, Cursor, MCP Inspector, etc.), or to an in-process transport for embedding. The same `ToolsOptions` flow through as the Vercel and Mastra integrations.
+
+Most users won't call this directly — [`@storagesdk/cli`'s `storage mcp` command](https://storagesdk.dev/cli/mcp) wraps this with stdio plumbing and adapter resolution baked in.
 
 ## Example
 

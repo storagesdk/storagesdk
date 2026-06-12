@@ -36,21 +36,6 @@ export function emitError(message: string, hint?: string): void {
 }
 
 /**
- * Reject `--snapshot` on a write command. Snapshots are read-only, so
- * threading a write through one makes no sense — fail loudly with a
- * pointer at `--fork` (which scopes writes properly).
- */
-export function rejectSnapshotFlag(snapshot?: string): void {
-  if (snapshot) {
-    emitError(
-      '--snapshot cannot be used with write commands.',
-      'Snapshots are read-only. Pass --fork to write to a fork.'
-    );
-    process.exit(1);
-  }
-}
-
-/**
  * Emit a success confirmation for a write command. Human-readable goes
  * to **stderr** so it doesn't pollute stdout (which `cp` may use for
  * downloaded bytes); JSON-mode structured output goes to stdout for

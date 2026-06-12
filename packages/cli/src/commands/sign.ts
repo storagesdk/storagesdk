@@ -3,12 +3,8 @@ import { defineCommand } from 'citty';
 import { resolveAdapter, resolveWritableStorage } from '../adapter.js';
 import { COMMON_ARGS, SCOPE_ARGS, WRITE_SCOPE_ARGS } from '../args.js';
 import { handleStorageError } from '../errors.js';
-import {
-  emit,
-  emitError,
-  rejectSnapshotFlag,
-  resolveOutputMode,
-} from '../output.js';
+import { emit, resolveOutputMode } from '../output.js';
+import { parsePositiveInt, rejectSnapshotFlag } from '../validate.js';
 
 const downloadCommand = defineCommand({
   meta: {
@@ -106,19 +102,6 @@ const uploadCommand = defineCommand({
     }
   },
 });
-
-function parsePositiveInt(
-  raw: string | undefined,
-  flag: string
-): number | undefined {
-  if (raw === undefined) return undefined;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n <= 0) {
-    emitError(`${flag} must be a positive integer.`, `Got: ${raw}`);
-    process.exit(1);
-  }
-  return n;
-}
 
 export const signCommand = defineCommand({
   meta: {

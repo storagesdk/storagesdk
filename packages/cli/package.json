@@ -47,11 +47,14 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@storagesdk/adapters": "workspace:*",
+    "@storagesdk/ai": "workspace:*",
     "@storagesdk/core": "workspace:*",
     "citty": "^0.2.2"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "execa": "^9.6.1"
   }
 }

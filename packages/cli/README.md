@@ -158,6 +158,28 @@ Both flags compose on reads. Fork is applied first, so `--fork X --snapshot Y` a
 storage ls --fork experiment-a --snapshot snap-0193abc1234567890abcdef
 ```
 
+## Model Context Protocol
+
+`storage mcp` boots a stdio Model Context Protocol server that exposes every storagesdk verb as an MCP tool — pair it with Claude Desktop, Cursor, the MCP Inspector, or any MCP host to drive your storage from an AI agent:
+
+```sh
+storage mcp                            # stdio, run until stdin closes
+storage mcp --read-only                # browse-only (strips mutators)
+storage mcp --scope agent-runs/        # path-restrict every tool
+storage mcp --url-expires-in 1800      # presigned-URL TTL
+storage mcp --max-inline-bytes 65536   # inline-text cap for download
+```
+
+`stdout` is reserved for the JSON-RPC protocol — do not run interactively. The readiness line and any errors go to `stderr`. The actual server lives in [`@storagesdk/ai/mcp`](https://www.npmjs.com/package/@storagesdk/ai) (`createMcpServer`) so non-CLI hosts (HTTP servers, in-process embedding) can register the same tool roster.
+
+Quick test with the MCP Inspector:
+
+```sh
+npx @modelcontextprotocol/inspector \
+  -e FS_ROOT=/tmp/sdk-mcp -e FS_FOLDER=data \
+  storage mcp --adapter fs
+```
+
 ## Output format
 
 TTY-aware by default — human-readable when stdout is a terminal, JSON when piped:
