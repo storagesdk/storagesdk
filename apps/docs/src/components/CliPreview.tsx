@@ -92,13 +92,15 @@ export default function CliPreview() {
   const [reducedMotion, setReducedMotion] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Detect reduced motion preference (one-shot, no listener needed —
-  // the user reloads if they change the system setting).
+  // Track prefers-reduced-motion live — devtools toggles and OS-level
+  // changes should re-render this preview without needing a reload.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setReducedMotion(
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    );
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
   }, []);
 
   // Typing tick — advance one character per CHAR_INTERVAL_MS.

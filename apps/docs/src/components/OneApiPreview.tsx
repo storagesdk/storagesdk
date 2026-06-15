@@ -280,9 +280,11 @@ export default function OneApiPreview() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setReducedMotion(
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    );
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
   }, []);
 
   // Each tick advances the step AND rotates the adapter tab, so the
@@ -419,7 +421,7 @@ export default function OneApiPreview() {
           <div className="one-api-pane-head">
             <span className="one-api-bucket">{tab.bucketLabel}</span>
             <span className="one-api-count">
-              {files.filter((f) => f.effect !== 'fade').length} files
+              {displayFiles.filter((f) => f.effect !== 'fade').length} files
             </span>
           </div>
           <ul className="one-api-files">
