@@ -247,6 +247,12 @@ export default function PrimitivesPreview() {
 
   const activeLine = step > 0 ? STEPS[step - 1]?.line : undefined;
   const atEnd = step >= STEPS.length && !playing;
+  // With prefers-reduced-motion the autoplay timer never runs, so the
+  // `state` would sit at the initial (only parent visible, empty). Show
+  // the final step's state instead so all four panels are populated.
+  const displayState = reducedMotion
+    ? (STATES[STATES.length - 1] ?? state)
+    : state;
 
   function onStepClick(stepIdx: number) {
     setPlaying(false);
@@ -323,7 +329,7 @@ export default function PrimitivesPreview() {
         </div>
         <div className="primitives-panels">
           {PANELS.map((panel) => {
-            const rows = state[panel.key];
+            const rows = displayState[panel.key];
             const exists = rows !== null;
             return (
               <div

@@ -154,13 +154,16 @@ export default function AgentsPreview() {
 
   // Keep the latest message in view as the chat grows. `step` is the
   // trigger — not read in the effect body, just the dependency.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only dep
+  // `reducedMotion` is the other trigger: when it flips on, we render
+  // every message at once and need to jump-scroll to the bottom so the
+  // tail messages aren't hidden above the scroll fold.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only deps
   useEffect(() => {
     chatRef.current?.scrollTo({
       top: chatRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  }, [step]);
+  }, [step, reducedMotion]);
 
   const tab = TABS.find((t) => t.key === tabKey) ?? DEFAULT_TAB;
   const visibleCount = reducedMotion ? MESSAGES.length : step;

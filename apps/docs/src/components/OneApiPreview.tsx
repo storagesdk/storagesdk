@@ -313,6 +313,12 @@ export default function OneApiPreview() {
   // The currently-highlighted code line is the one we *just* executed.
   const activeLine = step > 0 ? STEPS[step - 1]?.line : undefined;
   const atEnd = step >= STEPS.length && !playing;
+  // With prefers-reduced-motion the autoplay timer never runs, so the
+  // `files` state would sit at the empty initial. Render the final
+  // step's state instead so the panel isn't blank.
+  const displayFiles = reducedMotion
+    ? (STATES[STATES.length - 1] ?? files)
+    : files;
 
   function onSelectTab(key: string) {
     if (key === tabKey) return;
@@ -417,10 +423,10 @@ export default function OneApiPreview() {
             </span>
           </div>
           <ul className="one-api-files">
-            {files.length === 0 && (
+            {displayFiles.length === 0 && (
               <li className="one-api-files-empty">— empty —</li>
             )}
-            {files.map((f) => (
+            {displayFiles.map((f) => (
               <li
                 key={f.id}
                 className={`one-api-file one-api-file-${f.effect}`}
