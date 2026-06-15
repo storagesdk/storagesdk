@@ -1,0 +1,64 @@
+---
+import CliPreview from './CliPreview';
+---
+
+<section class="section" id="cli">
+  <div class="shell">
+    <div class="cli-section-grid">
+      <div class="cli-section-copy">
+        <div class="section-eyebrow">cli</div>
+        <h2>Same SDK, in the shell.</h2>
+        <p class="lead">
+          <code class="cli-section-c">@storagesdk/cli</code> wraps every
+          adapter in shell commands you've already typed a thousand times
+          — <code class="cli-section-c">ls</code>, <code class="cli-section-c"
+            >stat</code
+          >, <code class="cli-section-c">cat</code>, <code class="cli-section-c"
+            >cp</code
+          >, <code class="cli-section-c">mv</code>, <code class="cli-section-c"
+            >rm</code
+          >, <code class="cli-section-c">sign</code>. Familiar to humans;
+          native vocabulary for every LLM trained on a terminal. <code
+            class="cli-section-c">cp</code
+          > and <code class="cli-section-c">mv</code> use a <code
+            class="cli-section-c">storage://</code
+          > scheme to mark remote paths; pipes and redirects work the way
+          you'd expect. Switch adapters with <code class="cli-section-c"
+            >--adapter</code
+          >, scope writes into a fork with <code class="cli-section-c"
+            >--fork</code
+          >.
+        </p>
+        <div style="margin-top: 18px; display: flex; gap: 24px">
+          <a class="feature-link" href="/cli">
+            CLI reference
+            <svg
+              aria-hidden="true"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+      <div class="cli-section-preview">
+        <CliPreview client:load />
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .cli-section-c {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    color: var(--fg);
+  }
+</style>

@@ -1,0 +1,54 @@
+---
+import AgentsPreview from './AgentsPreview';
+---
+
+<section class="section" id="agents">
+  <div class="shell">
+    <div class="section-head">
+      <div class="section-eyebrow">agents</div>
+      <h2>Drop into any agent runtime.</h2>
+      <p class="lead">
+        Hand a <code class="cli-section-c">Storage</code> to the Vercel AI SDK
+        or Mastra; or boot the MCP server for any host that speaks the
+        protocol. Tool descriptions teach the model to snapshot before risky
+        edits and fork to try variants — your undo and branching story comes
+        baked in.
+      </p>
+    </div>
+    <AgentsPreview client:load />
+    <div class="one-api-foot">
+      <a class="feature-link" href="/ai">
+        AI integrations
+        <svg
+          aria-hidden="true"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 12h14M13 6l6 6-6 6"></path>
+        </svg>
+      </a>
+      <a class="feature-link" href="/cli/mcp">
+        MCP server reference
+        <svg
+          aria-hidden="true"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 12h14M13 6l6 6-6 6"></path>
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>

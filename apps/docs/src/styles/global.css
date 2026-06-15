@@ -1042,193 +1042,6 @@ h1.headline em::after {
   }
 }
 
-/* ─── primitives showcase (snapshots + forks centerpiece) ─── */
-.primitives {
-  padding: 72px 0 16px;
-}
-
-.primitives-head {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-  margin-bottom: 32px;
-  align-items: end;
-}
-
-@media (max-width: 880px) {
-  .primitives-head {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-}
-
-.primitives-head h2 {
-  font-size: clamp(30px, 3.6vw, 44px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  margin: 0;
-  line-height: 1.05;
-  max-width: 14ch;
-  text-wrap: balance;
-}
-
-.primitives-head h2 em {
-  font-style: normal;
-  color: var(--accent);
-}
-
-.primitives-head .lead {
-  font-size: 16px;
-  color: var(--fg-muted);
-  line-height: 1.55;
-  margin: 0;
-  text-wrap: pretty;
-}
-
-.primitive-card {
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
-  border-radius: var(--r-lg);
-  padding: 28px 32px;
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 36px;
-  margin-bottom: 20px;
-  position: relative;
-  overflow: hidden;
-  align-items: start;
-}
-
-.primitive-card > div:first-child {
-  align-self: center;
-}
-
-@media (max-width: 880px) {
-  .primitive-card {
-    grid-template-columns: 1fr;
-    gap: 22px;
-    padding: 22px;
-  }
-}
-
-.primitive-card .ptag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  margin-bottom: 14px;
-  white-space: nowrap;
-}
-
-.primitive-card .ptag::before {
-  content: "";
-  width: 5px;
-  height: 5px;
-  background: var(--accent);
-  border-radius: 50%;
-}
-
-.primitive-card h3 {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin: 0 0 10px;
-  line-height: 1.2;
-  text-wrap: balance;
-}
-
-.primitive-card p {
-  color: var(--fg-muted);
-  font-size: 14px;
-  line-height: 1.55;
-  margin: 0;
-  max-width: 42ch;
-}
-
-.primitive-card ul.bullets {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.primitive-card ul.bullets li {
-  font-size: 13.5px;
-  color: var(--fg);
-  line-height: 1.5;
-  padding-left: 22px;
-  position: relative;
-}
-
-.primitive-card ul.bullets li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.55em;
-  width: 12px;
-  height: 1px;
-  background: var(--accent);
-}
-
-.primitive-card ul.bullets b {
-  color: var(--fg);
-  font-weight: 600;
-}
-
-/* ─── agent callout (above primitives) ─── */
-.agent-note {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 18px;
-  padding: 20px 24px;
-  border: 1px solid var(--accent-line);
-  background: var(--accent-soft);
-  border-radius: var(--r-md);
-  margin-bottom: 28px;
-  align-items: start;
-}
-
-.agent-note-mark {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  padding: 4px 8px;
-  background: var(--bg);
-  border: 1px solid var(--accent-line);
-  border-radius: 4px;
-  white-space: nowrap;
-  align-self: start;
-  margin-top: 2px;
-}
-
-.agent-note-body {
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--fg);
-  text-wrap: pretty;
-}
-
-.agent-note-body b {
-  font-weight: 600;
-}
-
-@media (max-width: 600px) {
-  .agent-note {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .agent-note-mark {
-    justify-self: start;
-  }
-}
-
 /* ─── support note (emulation) ─── */
 .support-note {
   margin-top: 14px;
@@ -2293,6 +2106,748 @@ h1.headline em::after {
 .not-found-links a:hover {
   border-color: var(--fg-muted);
   background: var(--bg);
+}
+
+/* ─── CLI preview — single terminal that types commands live ─── */
+.cli-preview {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  overflow: hidden;
+}
+
+.cli-preview-term {
+  background: var(--bg-code);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+}
+
+.cli-preview-term-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunk);
+}
+
+.cli-preview-term-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  display: inline-block;
+}
+
+.cli-preview-term-title {
+  margin-left: 8px;
+  color: var(--fg-faint);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+.cli-preview-playpause {
+  margin-left: auto;
+  font: inherit;
+  font-size: 11px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.cli-preview-playpause:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.cli-preview-term-body {
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.cli-preview-term-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cli-preview-comment {
+  color: var(--fg-faint);
+  font-size: 12px;
+}
+
+.cli-preview-term-line {
+  color: var(--fg);
+  /* Preserve spaces; wrap at token boundaries; break-anywhere only as
+     a last resort for very long URLs. The hanging indent (padding +
+     negative text-indent) keeps wrapped lines visually attached to
+     the command rather than flush with the prompt. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-spacing: 0.08em;
+  padding-left: 1.4em;
+  text-indent: -1.4em;
+}
+
+/* `--flag` tokens read as solid blocks in monospace; widen the visual
+   gap on their left so they don't crowd the preceding word. The text
+   content of the span is the literal `--flag`, so copy/paste yields
+   the original command unchanged. */
+.cli-preview-flag {
+  margin-left: 0.35em;
+}
+
+/* CLI section: header on the left, terminal preview on the right at
+   wide widths; stacked below 1100px. */
+.cli-section-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.cli-section-copy h2 {
+  margin-top: 8px;
+}
+
+@media (min-width: 1100px) {
+  .cli-section-grid {
+    grid-template-columns: 30fr 70fr;
+    gap: 72px;
+  }
+}
+
+/* ---- One-API preview (tabbed code + animated file panel) ---- */
+
+.one-api-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.one-api-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.one-api-tab {
+  appearance: none;
+  padding: 6px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: 500 12px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.one-api-tab:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.one-api-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.one-api-tab-more {
+  text-decoration: none;
+  margin-left: auto;
+  color: var(--fg-faint);
+}
+
+.one-api-tab-more:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.one-api-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin-top: 18px;
+}
+
+/* ---- Agents preview (wiring tabs + chat transcript) ---- */
+
+.agents-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agents-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agents-tab {
+  appearance: none;
+  padding: 6px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: 500 12px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.agents-tab:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.agents-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.agents-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .agents-split {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}
+
+.agents-pane {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 440px;
+}
+
+.agents-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.agents-pane-title {
+  font: 12px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  margin-left: 4px;
+  flex: 1;
+}
+
+.agents-code {
+  font: 13px / 1.7 var(--font-mono);
+  color: var(--fg);
+  padding: 12px 0;
+  margin: 0;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.agents-code-line {
+  padding: 0 14px;
+  white-space: pre;
+}
+
+/* Shell tab: dim leading `#` comment lines a touch */
+.agents-code-shell .agents-code-line {
+  color: var(--fg);
+}
+
+.agents-chat {
+  flex: 1 1 0;
+  /* Flex children default to min-height: auto (their content size), which
+     would shove the pane open instead of scrolling. Forcing min-height: 0
+     lets the chat shrink to its allotted box and overflow-y kick in. */
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agents-chat-empty {
+  padding: 24px 12px;
+  text-align: center;
+  font: 13px var(--font-mono);
+  color: var(--fg-faint);
+}
+
+.agents-msg {
+  /* Buttons; reset UA defaults so they read as message rows */
+  appearance: none;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: 13px / 1.5 var(--font-sans, inherit);
+  color: var(--fg);
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+  box-shadow: inset 2px 0 0 transparent;
+}
+
+.agents-msg:hover {
+  background: var(--bg-elev);
+}
+
+.agents-msg-just {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.agents-msg-label {
+  font: 600 10px / 1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-muted);
+}
+
+.agents-msg-user .agents-msg-label {
+  color: var(--accent);
+}
+
+.agents-msg-body {
+  color: var(--fg);
+}
+
+.agents-msg-tool {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.agents-msg-tool-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.agents-msg-tool-args {
+  color: var(--fg-muted);
+  padding-left: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agents-msg-tool-result {
+  color: var(--fg);
+  padding-left: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agents-msg-tool-result::before {
+  content: "→ ";
+  color: var(--fg-faint);
+}
+
+/* ---- Primitives preview (code + 2×2 panel grid) ---- */
+
+.primitives-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.primitives-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .primitives-split {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}
+
+.primitives-pane {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+}
+
+.primitives-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.primitives-pane-title {
+  font: 12px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  margin-left: 4px;
+  flex: 1;
+}
+
+.primitives-code-body {
+  font: 13px / 1.7 var(--font-mono);
+  color: var(--fg);
+  padding: 12px 0;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.primitives-code-line {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  display: block;
+  padding: 0 14px;
+  white-space: pre;
+  transition: background 0.25s ease;
+  box-shadow: inset 2px 0 0 transparent;
+}
+
+.primitives-code-line.active {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.primitives-code-line.clickable {
+  cursor: pointer;
+}
+
+.primitives-code-line.clickable:hover:not(.active) {
+  background: color-mix(in oklab, var(--bg-elev) 50%, var(--accent-soft));
+}
+
+/* 2×2 grid of bucket panels */
+
+.primitives-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(4, 1fr);
+  gap: 10px;
+  height: 480px;
+}
+
+@media (min-width: 700px) {
+  .primitives-panels {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+}
+
+.primitives-panel {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+
+.primitives-panel-empty {
+  opacity: 0.55;
+}
+
+.primitives-panel-head {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+  font: 11px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  letter-spacing: 0.02em;
+}
+
+.primitives-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.primitives-panel-blank,
+.primitives-panel-placeholder {
+  padding: 14px 12px;
+  text-align: center;
+  font: 11px var(--font-mono);
+  color: var(--fg-faint);
+}
+
+.primitives-file {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font: 12px var(--font-mono);
+  color: var(--fg);
+  box-shadow: inset 2px 0 0 transparent;
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.primitives-file-highlight {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.primitives-file-path {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.primitives-file-meta {
+  color: var(--fg-faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.one-api-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 1100px) {
+  .one-api-split {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}
+
+.one-api-pane {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 440px;
+}
+
+.one-api-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+
+.one-api-pane-title,
+.one-api-bucket {
+  font: 12px / 1 var(--font-mono);
+  color: var(--fg-muted);
+  margin-left: 4px;
+  flex: 1;
+}
+
+.one-api-count {
+  font: 11px / 1 var(--font-mono);
+  color: var(--fg-faint);
+}
+
+.one-api-code-body {
+  font: 13px / 1.7 var(--font-mono);
+  color: var(--fg);
+  padding: 12px 0;
+  margin: 0;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.one-api-code-line {
+  /* Shared rules for both <div> (non-clickable) and <button> (clickable)
+     line variants. The reset bits (background, border, font, …) are
+     harmless on the div and tame button UA defaults. */
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+  display: block;
+  padding: 0 14px;
+  white-space: pre;
+  transition: background 0.25s ease;
+  box-shadow: inset 2px 0 0 transparent;
+}
+
+.one-api-code-line.active {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.one-api-code-line.clickable {
+  cursor: pointer;
+}
+
+.one-api-code-line.clickable:hover:not(.active) {
+  background: color-mix(in oklab, var(--bg-elev) 50%, var(--accent-soft));
+}
+
+.one-api-files {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.one-api-files-empty {
+  padding: 24px 12px;
+  text-align: center;
+  font: 13px var(--font-mono);
+  color: var(--fg-faint);
+}
+
+.one-api-file {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font: 13px / 1.3 var(--font-mono);
+  color: var(--fg);
+  box-shadow: inset 2px 0 0 transparent;
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease,
+    opacity 0.45s ease,
+    max-height 0.4s ease,
+    padding 0.4s ease;
+  max-height: 60px;
+  overflow: hidden;
+}
+
+.one-api-file-highlight {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.one-api-file-download {
+  background: var(--accent-soft);
+}
+
+.one-api-file-fade {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.one-api-file-path {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.one-api-file-meta {
+  color: var(--fg-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cli-preview-prompt {
+  color: var(--accent);
+  font-weight: 600;
+  user-select: none;
+}
+
+.cli-preview-term-output {
+  margin: 4px 0 0;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+}
+
+/* Blinking caret on the line currently being typed. */
+.cli-preview-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: cli-preview-blink 1s steps(2, end) infinite;
+}
+
+@keyframes cli-preview-blink {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cli-preview-cursor {
+    animation: none;
+  }
 }
 
 /* Marquee tooltip — appears above the hovered logo, pure CSS. */

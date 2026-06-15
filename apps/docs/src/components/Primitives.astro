@@ -1,0 +1,26 @@
+---
+import PrimitivesPreview from './PrimitivesPreview';
+---
+
+<section class="section primitives" id="snapshots">
+  <div class="shell">
+    <div class="section-head">
+      <div class="section-eyebrow">snapshots &amp; forks</div>
+      <h2>Snapshots and Forks, built in.</h2>
+      <p class="lead">
+        Forks are sandboxes for your agents. Branch a bucket per run; let the
+        agent upload, mutate, and delete freely; merge or throw the fork away
+        when it's done. Snapshots make every run reproducible — start the next
+        agent from the same frozen state.
+      </p>
+    </div>
+    <PrimitivesPreview client:load />
+    <div class="support-note">
+      <span class="support-note-dot" aria-hidden="true"></span>
+      <span>
+        <b>Native on Tigris and GitHub.</b> Emulated as sibling buckets on S3,
+        R2, GCS and others.
+      </span>
+    </div>
+  </div>
+</section>
