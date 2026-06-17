@@ -894,7 +894,7 @@ export function storageAdapterTestSuite<Raw = unknown>(
         // it on parent.
         await ctx.upload('untouched.txt', 'in base');
         const snap = await ctx.snapshots.create();
-        const name = ctx.forkName('merge-respect-del');
+        const name = ctx.forkName('mg-keep');
         await ctx.forks.create({ name, fromSnapshot: snap.id });
 
         await ctx.delete('untouched.txt');
@@ -911,9 +911,15 @@ export function storageAdapterTestSuite<Raw = unknown>(
       });
 
       it('rebase respects a fork-side delete when the parent left the path alone', async () => {
+        // `forkName(suffix)` produces `<test-prefix>-<suffix>`, which
+        // becomes the fork bucket's name. The post-op snapshot of a
+        // rebase tacks `-snapshot-<25 digits>` onto that to make a
+        // sibling bucket — S3 / Azure cap names at 63 chars, so the
+        // suffix has to stay short. See
+        // `project_bucket_name_length_constraint.md` in the auto-memory.
         await ctx.upload('untouched.txt', 'in base');
         const snap = await ctx.snapshots.create();
-        const name = ctx.forkName('rebase-respect-del');
+        const name = ctx.forkName('rb-keep');
         await ctx.forks.create({ name, fromSnapshot: snap.id });
 
         const fork = ctx.forks.get(name);
@@ -930,21 +936,38 @@ export function storageAdapterTestSuite<Raw = unknown>(
         await fork.snapshots.delete(result.id);
       });
 
-      it('merge throws NotFound if the fork base snapshot was deleted', async () => {
+      it('merge handles a deleted fork base snapshot without destroying the parent', async () => {
         await ctx.upload('x.txt', 'x');
         const snap = await ctx.snapshots.create();
         const name = ctx.forkName('merge-base-gone');
         await ctx.forks.create({ name, fromSnapshot: snap.id });
 
         // Delete the base snapshot out from under the fork. A naive
-        // implementation would compute the diff against an empty base
-        // and reclassify everything as `added`, silently overwriting
-        // the parent. Surface NotFound instead.
-        await ctx.snapshots.delete(snap.id);
+        // polyfill would compute the diff against an empty base and
+        // reclassify everything as `added`, silently overwriting the
+        // parent. The contract: either throw NotFound (polyfill path)
+        // or succeed safely (native path that derives the merge base
+        // from history, like github).
+        try {
+          await ctx.snapshots.delete(snap.id);
+        } catch {
+          // Adapters with native referential integrity (e.g. tigris)
+          // refuse to delete a snapshot that's the base of an existing
+          // fork. The orphaned-base scenario is unreachable on those
+          // backends — nothing to assert.
+          return;
+        }
 
-        await expect(ctx.forks.merge?.(name)).rejects.toMatchObject({
-          code: 'NotFound',
-        });
+        try {
+          const result = await ctx.forks.merge(name);
+          // Native impl succeeded without the snapshot tag — verify the
+          // parent's content is intact (not destroyed by an empty-base
+          // miscompute). Then clean up the post-op snapshot.
+          expect(bodyText(await ctx.download('x.txt'))).toBe('x');
+          await ctx.snapshots.delete(result.id);
+        } catch (e) {
+          expect(e).toMatchObject({ code: 'NotFound' });
+        }
       });
 
       it('diff (ahead) reports what merge would apply to parent', async () => {
