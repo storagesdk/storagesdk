@@ -97,6 +97,12 @@ function computeDiff(
     if (!inSource) continue;
 
     if (!inDest) {
+      // If the path was in base, dest deliberately deleted it — respect
+      // that delete; don't resurrect the file. Only treat it as `added`
+      // when source brought a genuinely new path (not in base).
+      // Symmetric with the (inBase && !inSource) branch above: deletes
+      // win over modifications in the naive strategy.
+      if (inBase) continue;
       added.push(path);
       continue;
     }

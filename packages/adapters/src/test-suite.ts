@@ -888,6 +888,48 @@ export function storageAdapterTestSuite<Raw = unknown>(
         await fork.snapshots.delete(result.id);
       });
 
+      it('merge respects a parent-side delete when the fork left the path alone', async () => {
+        // Parent deletes a file the fork never touched. The fork still
+        // has it (carried over from base) but merge must not resurrect
+        // it on parent.
+        await ctx.upload('untouched.txt', 'in base');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-respect-del');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        await ctx.delete('untouched.txt');
+
+        const result = await ctx.forks.merge?.(name);
+        expect(result).toBeDefined();
+        if (!result) return;
+
+        await expect(ctx.download('untouched.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+
+        await ctx.snapshots.delete(result.id);
+      });
+
+      it('rebase respects a fork-side delete when the parent left the path alone', async () => {
+        await ctx.upload('untouched.txt', 'in base');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('rebase-respect-del');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const fork = ctx.forks.get(name);
+        await fork.delete('untouched.txt');
+
+        const result = await ctx.forks.rebase?.(name);
+        expect(result).toBeDefined();
+        if (!result) return;
+
+        await expect(fork.download('untouched.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+
+        await fork.snapshots.delete(result.id);
+      });
+
       it('diff (ahead) reports what merge would apply to parent', async () => {
         await ctx.upload('shared.txt', 'shared');
         const snap = await ctx.snapshots.create();
