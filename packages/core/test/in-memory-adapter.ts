@@ -18,6 +18,7 @@ import type {
   StorageItem,
   StorageItemMeta,
 } from '../src/index.js';
+import { defaultDiff, defaultMerge, defaultRebase } from '../src/merge.js';
 
 /** A stored object as the adapter sees it internally. */
 interface Entry {
@@ -199,7 +200,7 @@ function emptyReader(message: string): ReadOnlyAdapter {
  * share a parent client.
  */
 function createImpl(state: AdapterState): Adapter {
-  return {
+  const adapter: Adapter = {
     name: 'in-memory',
     raw: state,
 
@@ -373,8 +374,13 @@ function createImpl(state: AdapterState): Adapter {
         if (!fork) throw notFound(`fork ${name} not found`);
         return fork.impl;
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 /**

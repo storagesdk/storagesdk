@@ -5,6 +5,9 @@ import {
   bodyToBytes,
   checkSignal,
   type DownloadOptions,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   type ForkInfo,
   type ForkOptions,
@@ -685,7 +688,7 @@ function impl(
     };
   }
 
-  return defineAdapter<GithubRaw>({
+  const adapter: Adapter<GithubRaw> = {
     name: 'github',
     raw: octokit,
 
@@ -1120,8 +1123,13 @@ function impl(
         }
         return impl(config, octokit, name);
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
-  });
+  };
+  return defineAdapter(adapter);
 }
 
 function refAsApiRef(branchOrTag: string): string {

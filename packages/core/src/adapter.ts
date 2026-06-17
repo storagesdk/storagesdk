@@ -3,11 +3,14 @@ import { normalizePath, normalizePrefix } from './paths.js';
 import type {
   BodyInput,
   CreateSnapshotOptions,
+  DiffOptions,
   DownloadOptions,
+  ForkDiff,
   ForkInfo,
   ForkOptions,
   ListOptions,
   ListResult,
+  MergeOptions,
   SnapshotInfo,
   StorageItem,
   StorageItemMeta,
@@ -41,10 +44,29 @@ export interface AdapterSnapshots {
 }
 
 /**
- * The fork-management namespace on an `Adapter`. Same five operations as
- * `AdapterSnapshots`, but `get(name)` returns a full `Adapter` because a
- * fork is writable storage in its own right. Carries the parent's `Raw`
+ * The fork-management namespace on an `Adapter`. Carries the parent's `Raw`
  * type so `forks.get(name).raw` stays narrowly typed.
+ *
+ * `merge` and `rebase` are naive-strategy three-way ops:
+ * - `merge(name)` pulls the fork's files into the parent (fork = source).
+ * - `rebase(name)` pulls the parent's files into the fork (parent = source).
+ *
+ * For each path:
+ * - in base, not in source → source deleted it → delete from dest
+ * - in source, not in base → source added it → write to dest
+ * - in both → newer `lastModified` wins; equal mtime skips (assume same)
+ *
+ * The base for the diff is the fork's `fromSnapshot` — every fork created
+ * through `forks.create()` ends up with one (auto-snapshotted at create
+ * time when the caller didn't pass `fromSnapshot`).
+ *
+ * Both return a `SnapshotInfo` of the destination's *post-op* state:
+ * `merge` snapshots the parent; `rebase` snapshots the fork. This is a
+ * stable reference to "what the operation produced" — pass it along,
+ * fork downstream experiments from it, or just anchor the result.
+ *
+ * Adapters that can't reliably surface `lastModified` from `head` throw
+ * `StorageError` with code `NotSupported` from `merge` / `rebase`.
  */
 export interface AdapterForks<Raw = unknown> {
   create(opts: ForkOptions): Promise<ForkInfo>;
@@ -52,6 +74,9 @@ export interface AdapterForks<Raw = unknown> {
   head(name: string, opts?: { signal?: AbortSignal }): Promise<ForkInfo>;
   delete(name: string, opts?: { signal?: AbortSignal }): Promise<void>;
   get(name: string): Adapter<Raw>;
+  merge(name: string, opts?: MergeOptions): Promise<SnapshotInfo>;
+  rebase(name: string, opts?: MergeOptions): Promise<SnapshotInfo>;
+  diff(name: string, opts?: DiffOptions): Promise<ForkDiff>;
 }
 
 /**
@@ -168,11 +193,27 @@ export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
     },
 
     forks: {
-      create: (opts) => impl.forks.create(opts),
+      create: async (opts) => {
+        // Every fork needs a base snapshot so `merge` and `rebase` can do
+        // a three-way diff (delete propagation depends on it). If the
+        // caller already passed `fromSnapshot`, use it; otherwise
+        // auto-snapshot the parent first and inject the new snapshot's
+        // id. Adapter impls always see a fully-resolved `fromSnapshot`.
+        if (opts.fromSnapshot !== undefined) {
+          return impl.forks.create(opts);
+        }
+        const snap = await impl.snapshots.create(
+          opts.signal ? { signal: opts.signal } : undefined
+        );
+        return impl.forks.create({ ...opts, fromSnapshot: snap.id });
+      },
       list: () => impl.forks.list(),
       head: (name, opts) => impl.forks.head(name, opts),
       delete: (name, opts) => impl.forks.delete(name, opts),
       get: (name) => defineAdapter<Raw>(impl.forks.get(name)),
+      merge: (name, opts) => impl.forks.merge(name, opts),
+      rebase: (name, opts) => impl.forks.rebase(name, opts),
+      diff: (name, opts) => impl.forks.diff(name, opts),
     },
   };
 }

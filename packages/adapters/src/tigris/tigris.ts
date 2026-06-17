@@ -3,6 +3,9 @@ import {
   type BodyInput,
   bridgeSignalToController,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   type ForkInfo,
   type ListOptions,
@@ -133,7 +136,7 @@ function impl(
 ): Adapter<TigrisRaw> {
   const bucket = config.bucket;
 
-  return {
+  const adapter: Adapter<TigrisRaw> = {
     name: 'tigris',
     raw: makeRaw(config),
 
@@ -445,8 +448,13 @@ function impl(
         // `forks.get`, so the result is a single-wrapped adapter.
         return impl({ ...config, bucket: name }, getSourceLocations);
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 function snapshotReader(
