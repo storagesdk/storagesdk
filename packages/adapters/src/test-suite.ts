@@ -930,6 +930,23 @@ export function storageAdapterTestSuite<Raw = unknown>(
         await fork.snapshots.delete(result.id);
       });
 
+      it('merge throws NotFound if the fork base snapshot was deleted', async () => {
+        await ctx.upload('x.txt', 'x');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-base-gone');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        // Delete the base snapshot out from under the fork. A naive
+        // implementation would compute the diff against an empty base
+        // and reclassify everything as `added`, silently overwriting
+        // the parent. Surface NotFound instead.
+        await ctx.snapshots.delete(snap.id);
+
+        await expect(ctx.forks.merge?.(name)).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+      });
+
       it('diff (ahead) reports what merge would apply to parent', async () => {
         await ctx.upload('shared.txt', 'shared');
         const snap = await ctx.snapshots.create();

@@ -144,6 +144,7 @@ async function applyDiff(
   opts: MergeOptions | undefined
 ): Promise<SnapshotInfo> {
   const signal = opts?.signal;
+  if (signal?.aborted) throw aborted();
   const [sourceMap, baseMap, destMap] = await Promise.all([
     snapshotPaths(source, signal),
     snapshotPaths(base, signal),
@@ -196,8 +197,20 @@ async function copyOne(
  * `forks.create()` (via `Storage`, which auto-snapshots when the caller
  * didn't pass `fromSnapshot`) ends up with one; if it's missing the
  * fork was created out-of-band and we have nothing to diff against.
+ *
+ * `snapshots.get(id)` is sync and adapter-specific on missing ids —
+ * some return an empty reader, some return a reader scoped to a
+ * non-existent location. Either way, computing the diff against
+ * silently-empty base data gives WRONG results (everything in source
+ * gets classified as "added"). Validate with `head(id)` first so the
+ * caller gets a clear `NotFound` instead of a silently catastrophic
+ * merge.
  */
-function getBase(parent: Adapter, fromSnapshot: string | undefined) {
+async function getBase(
+  parent: Adapter,
+  fromSnapshot: string | undefined,
+  signal?: AbortSignal
+): Promise<ReadOnlyAdapter> {
   if (!fromSnapshot) {
     throw new StorageError({
       code: 'InvalidArgument',
@@ -205,7 +218,22 @@ function getBase(parent: Adapter, fromSnapshot: string | undefined) {
         'fork has no fromSnapshot; merge / rebase / diff need a base for the three-way diff. Re-create the fork through Storage.forks.create()',
     });
   }
+  await parent.snapshots.head(fromSnapshot, signal ? { signal } : undefined);
   return parent.snapshots.get(fromSnapshot);
+}
+
+/**
+ * Resolve a source-side snapshot override (`MergeOptions.snapshot` or
+ * `DiffOptions.snapshot`). Same validation rationale as `getBase` —
+ * `get(id)` is best-effort across adapters, so we `head(id)` first.
+ */
+async function getSourceSnapshot(
+  carrier: Adapter,
+  snapshotId: string,
+  signal?: AbortSignal
+): Promise<ReadOnlyAdapter> {
+  await carrier.snapshots.head(snapshotId, signal ? { signal } : undefined);
+  return carrier.snapshots.get(snapshotId);
 }
 
 /**
@@ -228,17 +256,18 @@ export async function defaultMerge(
   forkName: string,
   opts?: MergeOptions
 ): Promise<SnapshotInfo> {
+  const signal = opts?.signal;
   const forkInfo = await parent.forks.head(
     forkName,
-    opts?.signal ? { signal: opts.signal } : undefined
+    signal ? { signal } : undefined
   );
   const fork = parent.forks.get(forkName);
   // `opts.snapshot` (when set) is an id from the fork's own snapshot
   // namespace — merge that frozen view instead of fork-current.
   const source: ReadOnlyAdapter = opts?.snapshot
-    ? fork.snapshots.get(opts.snapshot)
+    ? await getSourceSnapshot(fork, opts.snapshot, signal)
     : fork;
-  const base = getBase(parent, forkInfo.fromSnapshot);
+  const base = await getBase(parent, forkInfo.fromSnapshot, signal);
   return applyDiff(source, base, parent, opts);
 }
 
@@ -255,15 +284,16 @@ export async function defaultRebase(
   forkName: string,
   opts?: MergeOptions
 ): Promise<SnapshotInfo> {
+  const signal = opts?.signal;
   const forkInfo = await parent.forks.head(
     forkName,
-    opts?.signal ? { signal: opts.signal } : undefined
+    signal ? { signal } : undefined
   );
   const dest = parent.forks.get(forkName);
   const source: ReadOnlyAdapter = opts?.snapshot
-    ? parent.snapshots.get(opts.snapshot)
+    ? await getSourceSnapshot(parent, opts.snapshot, signal)
     : parent;
-  const base = getBase(parent, forkInfo.fromSnapshot);
+  const base = await getBase(parent, forkInfo.fromSnapshot, signal);
   return applyDiff(source, base, dest, opts);
 }
 
@@ -294,15 +324,19 @@ export async function defaultDiff(
     signal ? { signal } : undefined
   );
   const fork = parent.forks.get(forkName);
-  const base = getBase(parent, forkInfo.fromSnapshot);
+  const base = await getBase(parent, forkInfo.fromSnapshot, signal);
 
   let source: ReadOnlyAdapter;
   let dest: ReadOnlyAdapter;
   if (direction === 'ahead') {
-    source = opts?.snapshot ? fork.snapshots.get(opts.snapshot) : fork;
+    source = opts?.snapshot
+      ? await getSourceSnapshot(fork, opts.snapshot, signal)
+      : fork;
     dest = parent;
   } else {
-    source = opts?.snapshot ? parent.snapshots.get(opts.snapshot) : parent;
+    source = opts?.snapshot
+      ? await getSourceSnapshot(parent, opts.snapshot, signal)
+      : parent;
     dest = fork;
   }
 
