@@ -166,7 +166,7 @@ async function applyDiff(
 
 function aborted(): StorageError {
   return new StorageError({
-    code: 'InvalidArgument',
+    code: 'Aborted',
     message: 'operation aborted',
   });
 }
