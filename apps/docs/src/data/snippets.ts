@@ -55,6 +55,23 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
+    archil: `import { Storage } from '@storagesdk/core';
+import { archil } from '@storagesdk/adapters/archil';
+
+const storage = new Storage({
+  adapter: archil({
+    bucket: 'disk_123',
+    region: 'aws-us-east-1',
+    accessKeyId: process.env.ARCHIL_S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.ARCHIL_S3_SECRET_ACCESS_KEY,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     gcs: `import { Storage } from '@storagesdk/core';
 import { gcs } from '@storagesdk/adapters/gcs';
 

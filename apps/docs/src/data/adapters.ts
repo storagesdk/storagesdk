@@ -31,6 +31,12 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/r2',
   },
   {
+    name: 'Archil',
+    short: 'Archil',
+    key: 'archil',
+    sub: '@storagesdk/adapters/archil',
+  },
+  {
     name: 'Google Cloud Storage',
     short: 'GCS',
     key: 'gcs',
