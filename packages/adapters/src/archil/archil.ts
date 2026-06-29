@@ -105,7 +105,7 @@ export function archil<Disk extends ArchilDisk = ArchilDisk>(
       checkSignal(opts?.signal);
       if (config.publicBaseUrl !== undefined) {
         return Promise.resolve(
-          `${config.publicBaseUrl.replace(/\/+$/u, '')}/${normalizePath(path)}`
+          `${config.publicBaseUrl.replace(/\/+$/u, '')}/${encodePath(normalizePath(path))}`
         );
       }
 
@@ -186,4 +186,8 @@ function normalizePath(path: string): string {
     });
   }
   return trimmed;
+}
+
+function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
 }

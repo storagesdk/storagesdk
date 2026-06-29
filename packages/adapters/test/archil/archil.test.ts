@@ -58,7 +58,7 @@ describe('archil config', () => {
     expect(adapter.disk).toBe(disk);
   });
 
-  it('returns public URLs when configured', async () => {
+  it('returns encoded public URLs when configured', async () => {
     const adapter = archil({
       bucket: 'disk_123',
       region: 'aws-us-east-1',
@@ -67,8 +67,8 @@ describe('archil config', () => {
       publicBaseUrl: 'https://cdn.example.com/root/',
     });
 
-    await expect(adapter.url('/folder/file.txt')).resolves.toBe(
-      'https://cdn.example.com/root/folder/file.txt'
+    await expect(adapter.url('/folder/a b#c?.txt')).resolves.toBe(
+      'https://cdn.example.com/root/folder/a%20b%23c%3F.txt'
     );
   });
 
