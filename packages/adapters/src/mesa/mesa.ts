@@ -6,6 +6,7 @@ import {
   checkSignal,
   defineAdapter,
   type ForkInfo,
+  isAbortError,
   type ListOptions,
   type ListResult,
   type ReadOnlyAdapter,
@@ -367,11 +368,16 @@ function impl(
     forks: {
       async create(opts): Promise<ForkInfo> {
         checkSignal(opts.signal);
-        const bookmark = await resolveBookmark();
-        const changeId = opts.fromSnapshot
-          ? await snapshotChangeId(raw, repoInput, bookmark, opts.fromSnapshot)
-          : await resolveChangeId();
         try {
+          const bookmark = await resolveBookmark();
+          const changeId = opts.fromSnapshot
+            ? await snapshotChangeId(
+                raw,
+                repoInput,
+                bookmark,
+                opts.fromSnapshot
+              )
+            : await resolveChangeId();
           await raw.bookmarks.create({
             ...repoInput,
             name: opts.name,
@@ -391,6 +397,12 @@ function impl(
 
       async list(): Promise<ForkInfo[]> {
         const repo = await resolveRepo();
+        const activeBookmark = await resolveBookmark();
+        const snapshots = await snapshotChangeMap(
+          raw,
+          repoInput,
+          activeBookmark
+        );
         const forks: ForkInfo[] = [];
         let cursor: string | undefined;
         do {
@@ -401,10 +413,14 @@ function impl(
           });
           for (const item of page.bookmarks) {
             if (
-              !item.name.startsWith(`${SNAPSHOT_BOOKMARK_NAMESPACE}/`) &&
-              item.name !== repo.default_bookmark
+              isForkBookmark(item.name, repo.default_bookmark, activeBookmark)
             ) {
-              forks.push({ name: item.name, createdAt: new Date(0) });
+              const fromSnapshot = snapshots.get(item.change_id);
+              forks.push({
+                name: item.name,
+                ...(fromSnapshot !== undefined ? { fromSnapshot } : {}),
+                createdAt: new Date(0),
+              });
             }
           }
           cursor = page.next_cursor ?? undefined;
@@ -415,8 +431,26 @@ function impl(
       async head(name, opts): Promise<ForkInfo> {
         checkSignal(opts?.signal);
         try {
-          await raw.bookmarks.get({ ...repoInput, bookmark: name });
-          return { name, createdAt: new Date(0) };
+          const repo = await resolveRepo();
+          const activeBookmark = await resolveBookmark();
+          if (!isForkBookmark(name, repo.default_bookmark, activeBookmark)) {
+            throw notFound(name);
+          }
+          const fork = await raw.bookmarks.get({
+            ...repoInput,
+            bookmark: name,
+          });
+          const snapshots = await snapshotChangeMap(
+            raw,
+            repoInput,
+            activeBookmark
+          );
+          const fromSnapshot = snapshots.get(fork.change_id);
+          return {
+            name,
+            ...(fromSnapshot !== undefined ? { fromSnapshot } : {}),
+            createdAt: new Date(0),
+          };
         } catch (err) {
           throw asStorageError(err, name);
         }
@@ -425,10 +459,11 @@ function impl(
       async delete(name, opts): Promise<void> {
         checkSignal(opts?.signal);
         const repo = await resolveRepo();
-        if (name === repo.default_bookmark) {
+        const activeBookmark = await resolveBookmark();
+        if (!isForkBookmark(name, repo.default_bookmark, activeBookmark)) {
           throw new StorageError({
             code: 'InvalidArgument',
-            message: `Refusing to delete default bookmark ${name}`,
+            message: `Refusing to delete non-fork bookmark ${name}`,
           });
         }
         try {
@@ -480,6 +515,42 @@ async function snapshotChangeId(
   return ref.change_id;
 }
 
+async function snapshotChangeMap(
+  raw: Mesa,
+  repoInput: MesaRepoInput,
+  bookmark: string
+): Promise<Map<string, string>> {
+  const prefix = snapshotBookmarkPrefix(bookmark);
+  const snapshots = new Map<string, string>();
+  let cursor: string | undefined;
+  do {
+    const page = await raw.bookmarks.list({
+      ...repoInput,
+      ...(cursor !== undefined ? { cursor } : {}),
+      limit: 100,
+    });
+    for (const item of page.bookmarks) {
+      if (item.name.startsWith(prefix)) {
+        snapshots.set(item.change_id, item.name.slice(prefix.length));
+      }
+    }
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor !== undefined);
+  return snapshots;
+}
+
+function isForkBookmark(
+  name: string,
+  defaultBookmark: string,
+  activeBookmark: string
+): boolean {
+  return (
+    name !== defaultBookmark &&
+    name !== activeBookmark &&
+    !name.startsWith(`${SNAPSHOT_BOOKMARK_NAMESPACE}/`)
+  );
+}
+
 function metaFromContent(content: MesaFileContent): StorageItemMeta {
   return {
     path: content.path,
@@ -516,6 +587,13 @@ function flattenEntries(entries: MesaContentEntry[]): MesaContentEntry[] {
 
 function asStorageError(err: unknown, path?: string): StorageError {
   if (err instanceof StorageError) return err;
+  if (isAbortError(err)) {
+    return new StorageError({
+      code: 'Aborted',
+      message: 'Operation aborted',
+      cause: err,
+    });
+  }
   if (err instanceof MesaApiError) {
     return new StorageError({
       code: codeForStatus(err.status),
