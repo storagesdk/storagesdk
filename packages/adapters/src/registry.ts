@@ -6,6 +6,7 @@ import { FS_ENV_VARS, fsConfigFromEnv } from './fs/env.js';
 import { GCS_ENV_VARS, gcsConfigFromEnv } from './gcs/env.js';
 import { GITHUB_ENV_VARS, githubConfigFromEnv } from './github/env.js';
 import { LINODE_ENV_VARS, linodeConfigFromEnv } from './linode/env.js';
+import { MESA_ENV_VARS, mesaConfigFromEnv } from './mesa/env.js';
 import { MINIO_ENV_VARS, minioConfigFromEnv } from './minio/env.js';
 import { R2_ENV_VARS, r2ConfigFromEnv } from './r2/env.js';
 import { RAILWAY_ENV_VARS, railwayConfigFromEnv } from './railway/env.js';
@@ -25,6 +26,7 @@ export const ADAPTERS = [
   'fs',
   's3',
   'r2',
+  'mesa',
   'minio',
   'tigris',
   'azure',
@@ -59,6 +61,7 @@ const ENV_VARS: Record<AdapterName, readonly AdapterEnvVar[]> = {
   fs: FS_ENV_VARS,
   s3: S3_ENV_VARS,
   r2: R2_ENV_VARS,
+  mesa: MESA_ENV_VARS,
   minio: MINIO_ENV_VARS,
   tigris: TIGRIS_ENV_VARS,
   azure: AZURE_ENV_VARS,
@@ -79,6 +82,7 @@ const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
   fs: fsConfigFromEnv,
   s3: s3ConfigFromEnv,
   r2: r2ConfigFromEnv,
+  mesa: mesaConfigFromEnv,
   minio: minioConfigFromEnv,
   tigris: tigrisConfigFromEnv,
   azure: azureConfigFromEnv,
@@ -134,6 +138,8 @@ async function loadAdapterFactory(
       return (await import('./s3/index.js')).s3 as never;
     case 'r2':
       return (await import('./r2/index.js')).r2 as never;
+    case 'mesa':
+      return (await import('./mesa/index.js')).mesa as never;
     case 'minio':
       return (await import('./minio/index.js')).minio as never;
     case 'tigris':
