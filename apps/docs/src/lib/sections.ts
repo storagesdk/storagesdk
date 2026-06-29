@@ -98,6 +98,12 @@ export const SECTIONS: Record<SectionId, Section> = {
             { id: 'r2', label: 'Cloudflare R2', href: '/adapters/r2' },
             { id: 'archil', label: 'Archil', href: '/adapters/archil' },
             {
+              id: 'code-storage',
+              label: 'Code Storage',
+              badge: 'native',
+              href: '/adapters/code-storage',
+            },
+            {
               id: 'gcs',
               label: 'Google Cloud Storage',
               href: '/adapters/gcs',
