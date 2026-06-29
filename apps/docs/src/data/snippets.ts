@@ -72,22 +72,6 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
-    'code-storage': `import { Storage } from '@storagesdk/core';
-import { codeStorage } from '@storagesdk/adapters/code-storage';
-
-const storage = new Storage({
-  adapter: codeStorage({
-    name: 'your-org',
-    repo: 'agent-runs',
-    key: process.env.CODE_STORAGE_KEY,
-  }),
-});
-
-await storage.upload('hello.txt', 'Hello, storage SDK!', {
-  contentType: 'text/plain',
-});
-
-const text = await storage.download('hello.txt', { as: 'text' });`,
     gcs: `import { Storage } from '@storagesdk/core';
 import { gcs } from '@storagesdk/adapters/gcs';
 
