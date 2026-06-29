@@ -2,10 +2,6 @@ import type { Adapter } from '@storagesdk/core/adapter';
 import { ARCHIL_ENV_VARS, archilConfigFromEnv } from './archil/env.js';
 import { AZURE_ENV_VARS, azureConfigFromEnv } from './azure/env.js';
 import { BACKBLAZE_ENV_VARS, backblazeConfigFromEnv } from './backblaze/env.js';
-import {
-  CODE_STORAGE_ENV_VARS,
-  codeStorageConfigFromEnv,
-} from './code-storage/env.js';
 import { FLY_ENV_VARS, flyConfigFromEnv } from './fly/env.js';
 import { FS_ENV_VARS, fsConfigFromEnv } from './fs/env.js';
 import { GCS_ENV_VARS, gcsConfigFromEnv } from './gcs/env.js';
@@ -31,7 +27,6 @@ export const ADAPTERS = [
   's3',
   'r2',
   'archil',
-  'code-storage',
   'minio',
   'tigris',
   'azure',
@@ -67,7 +62,6 @@ const ENV_VARS: Record<AdapterName, readonly AdapterEnvVar[]> = {
   s3: S3_ENV_VARS,
   r2: R2_ENV_VARS,
   archil: ARCHIL_ENV_VARS,
-  'code-storage': CODE_STORAGE_ENV_VARS,
   minio: MINIO_ENV_VARS,
   tigris: TIGRIS_ENV_VARS,
   azure: AZURE_ENV_VARS,
@@ -89,7 +83,6 @@ const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
   s3: s3ConfigFromEnv,
   r2: r2ConfigFromEnv,
   archil: archilConfigFromEnv,
-  'code-storage': codeStorageConfigFromEnv,
   minio: minioConfigFromEnv,
   tigris: tigrisConfigFromEnv,
   azure: azureConfigFromEnv,
@@ -147,8 +140,6 @@ async function loadAdapterFactory(
       return (await import('./r2/index.js')).r2 as never;
     case 'archil':
       return (await import('./archil/index.js')).archil as never;
-    case 'code-storage':
-      return (await import('./code-storage/index.js')).codeStorage as never;
     case 'minio':
       return (await import('./minio/index.js')).minio as never;
     case 'tigris':
