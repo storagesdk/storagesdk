@@ -55,6 +55,22 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
+    mesa: `import { Storage } from '@storagesdk/core';
+import { mesa } from '@storagesdk/adapters/mesa';
+
+const storage = new Storage({
+  adapter: mesa({
+    repo: 'agent-runs',
+    apiKey: process.env.MESA_API_KEY,
+    org: 'acme',
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     gcs: `import { Storage } from '@storagesdk/core';
 import { gcs } from '@storagesdk/adapters/gcs';
 

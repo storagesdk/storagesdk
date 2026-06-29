@@ -1,0 +1,60 @@
+---
+title: Mesa
+eyebrow: Adapters
+description: Mesa adapter for storagesdk — repository content as objects, changes for writes, bookmarks for snapshots and forks.
+section: adapters
+---
+
+## Overview
+
+[Mesa](https://mesa.dev/) is programmatic Git hosting for agents and automation. The Mesa adapter maps repository files to storagesdk objects, writes through Mesa changes, snapshots to namespaced bookmarks, and forks to bookmarks.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { mesa } from '@storagesdk/adapters/mesa';
+
+const storage = new Storage({
+  adapter: mesa({
+    repo: 'agent-runs',
+    apiKey: process.env.MESA_API_KEY,
+    org: 'acme',
+  }),
+});
+```
+
+```ts
+mesa({
+  repo: string;
+  apiKey?: string;
+  org?: string;
+  bookmark?: string;
+  apiUrl?: string;
+  vcsUrl?: string;
+  userAgent?: string;
+  author?: { name: string; email: string };
+  committer?: { name: string; email: string };
+  commitMessage?: (op, paths) => string;
+});
+```
+
+## Notes
+
+- `bookmark` defaults to the repository default bookmark.
+- Writes create a Mesa change and move the working bookmark to that change.
+- Snapshots are bookmarks under `storagesdk/snapshots/<bookmark>/<id>`.
+- Forks are normal Mesa bookmarks.
+- `url()` and `uploadUrl()` are not supported.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Mesa bookmarks |
+| Forks | Mesa bookmarks |
+| Byte-range reads | SDK-side slicing |
+| Multipart upload | No |
+| Enforced upload limits | No |
+| User metadata | No |
+| Signed URLs | No |
