@@ -31,6 +31,13 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/r2',
   },
   {
+    name: 'Code Storage',
+    short: 'Code',
+    key: 'code-storage',
+    sub: '@storagesdk/adapters/code-storage',
+    native: true,
+  },
+  {
     name: 'Google Cloud Storage',
     short: 'GCS',
     key: 'gcs',
