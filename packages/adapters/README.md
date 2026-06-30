@@ -20,6 +20,7 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 | Vercel Blob | [`@storagesdk/adapters/vercel`](./src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
 | MinIO | [`@storagesdk/adapters/minio`](./src/minio/README.md) | [MinIO](https://min.io/). |
 | GitHub | [`@storagesdk/adapters/github`](./src/github/README.md) | [GitHub](https://github.com) repository — snapshots are tags, forks are branches, native git refs all the way down. |
+| Freestyle | [`@storagesdk/adapters/freestyle`](./src/freestyle/README.md) | [Freestyle Git](https://www.freestyle.sh/docs/git) repository — snapshots and forks are git branches. |
 | WebDAV | [`@storagesdk/adapters/webdav`](./src/webdav/README.md) | Any WebDAV server — Nextcloud, ownCloud, Apache mod_dav, nginx-dav, NAS, pCloud, mailbox.org, kDrive. Snapshots/forks via native server-side `COPY`. |
 | Fly.io | [`@storagesdk/adapters/fly`](./src/fly/README.md) | Fly-managed Tigris buckets — branded alias of the Tigris adapter. |
 | Railway | [`@storagesdk/adapters/railway`](./src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
@@ -43,7 +44,7 @@ import {
 // Enumerate
 ADAPTERS
 // → readonly ['fs', 's3', 'r2', 'minio', 'tigris', 'azure', 'gcs',
-//             'vercel', 'github', 'webdav', 'backblaze', 'spaces',
+//             'vercel', 'github', 'freestyle', 'webdav', 'backblaze', 'spaces',
 //             'wasabi', 'supabase', 'linode', 'fly', 'railway']
 
 // What env vars does this adapter read?

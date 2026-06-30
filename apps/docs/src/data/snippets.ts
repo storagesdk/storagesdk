@@ -136,6 +136,22 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
+    freestyle: `import { Storage } from '@storagesdk/core';
+import { freestyle } from '@storagesdk/adapters/freestyle';
+
+const storage = new Storage({
+  adapter: freestyle({
+    repoId: process.env.FREESTYLE_REPO_ID,
+    // branch defaults to the repo's default branch
+    // apiKey defaults to the Freestyle SDK's env handling
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     fly: `import { Storage } from '@storagesdk/core';
 import { fly } from '@storagesdk/adapters/fly';
 
