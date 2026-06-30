@@ -2,6 +2,7 @@ import type { Adapter } from '@storagesdk/core/adapter';
 import { AZURE_ENV_VARS, azureConfigFromEnv } from './azure/env.js';
 import { BACKBLAZE_ENV_VARS, backblazeConfigFromEnv } from './backblaze/env.js';
 import { FLY_ENV_VARS, flyConfigFromEnv } from './fly/env.js';
+import { FREESTYLE_ENV_VARS, freestyleConfigFromEnv } from './freestyle/env.js';
 import { FS_ENV_VARS, fsConfigFromEnv } from './fs/env.js';
 import { GCS_ENV_VARS, gcsConfigFromEnv } from './gcs/env.js';
 import { GITHUB_ENV_VARS, githubConfigFromEnv } from './github/env.js';
@@ -31,6 +32,7 @@ export const ADAPTERS = [
   'gcs',
   'vercel',
   'github',
+  'freestyle',
   'webdav',
   'backblaze',
   'spaces',
@@ -65,6 +67,7 @@ const ENV_VARS: Record<AdapterName, readonly AdapterEnvVar[]> = {
   gcs: GCS_ENV_VARS,
   vercel: VERCEL_ENV_VARS,
   github: GITHUB_ENV_VARS,
+  freestyle: FREESTYLE_ENV_VARS,
   webdav: WEBDAV_ENV_VARS,
   backblaze: BACKBLAZE_ENV_VARS,
   spaces: SPACES_ENV_VARS,
@@ -85,6 +88,7 @@ const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
   gcs: gcsConfigFromEnv,
   vercel: vercelConfigFromEnv,
   github: githubConfigFromEnv,
+  freestyle: freestyleConfigFromEnv,
   webdav: webdavConfigFromEnv,
   backblaze: backblazeConfigFromEnv,
   spaces: spacesConfigFromEnv,
@@ -146,6 +150,8 @@ async function loadAdapterFactory(
       return (await import('./vercel/index.js')).vercel as never;
     case 'github':
       return (await import('./github/index.js')).github as never;
+    case 'freestyle':
+      return (await import('./freestyle/index.js')).freestyle as never;
     case 'webdav':
       return (await import('./webdav/index.js')).webdav as never;
     case 'backblaze':

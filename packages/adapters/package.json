@@ -72,6 +72,10 @@
       "types": "./dist/github/index.d.ts",
       "default": "./dist/github/index.js"
     },
+    "./freestyle": {
+      "types": "./dist/freestyle/index.d.ts",
+      "default": "./dist/freestyle/index.js"
+    },
     "./webdav": {
       "types": "./dist/webdav/index.d.ts",
       "default": "./dist/webdav/index.js"
@@ -115,6 +119,7 @@
     "gcs",
     "vercel-blob",
     "github",
+    "freestyle",
     "webdav",
     "nextcloud",
     "owncloud",
@@ -147,6 +152,7 @@
     "@azure/storage-blob": "^12.0.0",
     "@google-cloud/storage": "^7.0.0",
     "@octokit/rest": "^21.0.0",
+    "freestyle": "^0.1.63",
     "@tigrisdata/storage": "^3.11.0",
     "@vercel/blob": "^2.3.0",
     "vitest": "^4.0.0",
@@ -174,6 +180,9 @@
     "@octokit/rest": {
       "optional": true
     },
+    "freestyle": {
+      "optional": true
+    },
     "@tigrisdata/storage": {
       "optional": true
     },
@@ -197,6 +206,7 @@
     "@octokit/rest": "^21.1.1",
     "@tigrisdata/storage": "^3.11.0",
     "@vercel/blob": "^2.4.0",
+    "freestyle": "^0.1.63",
     "webdav": "^5.10.0"
   }
 }
