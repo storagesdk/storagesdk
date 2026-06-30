@@ -19,6 +19,7 @@ describe('ADAPTERS', () => {
       's3',
       'r2',
       'archil',
+      'code-storage',
       'minio',
       'tigris',
       'azure',
