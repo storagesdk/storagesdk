@@ -1,0 +1,66 @@
+---
+title: Freestyle
+eyebrow: Adapters
+description: Freestyle Git adapter for storagesdk — object operations through repository contents, snapshots and forks as git branches.
+section: adapters
+---
+
+## Overview
+
+Adapter for a [Freestyle Git](https://www.freestyle.sh/docs/git) repository. Object operations go through Freestyle's repository contents API; snapshots and forks are git branches.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { freestyle } from '@storagesdk/adapters/freestyle';
+
+const storage = new Storage({
+  adapter: freestyle({
+    repoId: process.env.FREESTYLE_REPO_ID,
+    // branch defaults to the repo's default branch
+    // apiKey defaults to the Freestyle SDK's env handling
+  }),
+});
+```
+
+```ts
+freestyle({
+  repoId: string;
+  apiKey?: string;       // falls back to Freestyle SDK env handling
+  accessToken?: string;  // mutually exclusive with apiKey
+  branch?: string;       // defaults to the repo's default branch
+  baseUrl?: string;
+  author?: { name: string; email: string };
+  commitMessage?: (op, paths) => string;
+});
+```
+
+No `bucket` field — the storage namespace is `(repoId, branch)`. Snapshots are addressed by snapshot id; forks are addressed by branch name.
+
+## Notes
+
+- Peer dependency: `freestyle`.
+- **No presigned uploads.** `uploadUrl()` throws `NotSupported` — Freestyle Git has no object-style presigned upload equivalent.
+- **No user metadata.** Git tracks file content + path, not arbitrary metadata. `upload({ metadata })` is silently dropped.
+- **No Content-Type.** `download` returns `application/octet-stream` regardless of how the file was uploaded.
+- Every write op creates a commit. Default commit author is `storagesdk <storagesdk@example.invalid>` and the default commit message is `"storagesdk: <op> <path>"`; customize via the `author` and `commitMessage` config.
+- `storage.raw` is the underlying `Freestyle` instance.
+
+## Current SDK limits
+
+- `snapshots.delete()` and `forks.delete()` throw `NotSupported` because the Freestyle SDK does not currently expose branch deletion.
+- `snapshots.list()` returns `createdAt: new Date(0)` for existing snapshot branches because branch listings do not include creation timestamps.
+- `forks.list()` and `forks.head()` return fork names without `fromSnapshot` because branch listings do not expose provenance.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Native — branch at `storagesdk/snapshots/<branch>/<id>` |
+| Forks | Native — git branch at `<name>` |
+| Byte-range reads | ✓ (slice of the downloaded blob) |
+| Multipart upload | ✗ |
+| Enforced upload limits | ✗ |
+| User metadata | ✗ |
+| Signed URLs | ✗ — deterministic `freestyle-git://` identifier only |

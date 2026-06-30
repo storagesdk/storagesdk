@@ -24,6 +24,7 @@ describe('ADAPTERS', () => {
       'gcs',
       'vercel',
       'github',
+      'freestyle',
       'webdav',
       'backblaze',
       'spaces',

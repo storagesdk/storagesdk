@@ -131,6 +131,12 @@ export const SECTIONS: Record<SectionId, Section> = {
               badge: 'native',
               href: '/adapters/github',
             },
+            {
+              id: 'freestyle',
+              label: 'Freestyle',
+              badge: 'native',
+              href: '/adapters/freestyle',
+            },
             { id: 'webdav', label: 'WebDAV', href: '/adapters/webdav' },
             { id: 'fly', label: 'Fly.io', href: '/adapters/fly' },
             { id: 'railway', label: 'Railway', href: '/adapters/railway' },

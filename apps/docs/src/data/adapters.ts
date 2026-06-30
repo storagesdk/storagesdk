@@ -92,6 +92,13 @@ export const ADAPTERS: AdapterEntry[] = [
     native: true,
   },
   {
+    name: 'Freestyle',
+    short: 'Freestyle',
+    key: 'freestyle',
+    sub: '@storagesdk/adapters/freestyle',
+    native: true,
+  },
+  {
     name: 'WebDAV',
     short: 'WebDAV',
     key: 'webdav',
