@@ -2,6 +2,9 @@ import {
   type Adapter,
   bodyToBytes,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -127,7 +130,7 @@ function impl(
   bucketName: string,
   tokenSpread: TokenSpread
 ): Adapter<VercelBlobRaw> {
-  return {
+  const adapter: Adapter<VercelBlobRaw> = {
     name: 'vercel',
     raw,
 
@@ -561,8 +564,13 @@ function impl(
       get(name): Adapter<VercelBlobRaw> {
         return impl(raw, name, tokenSpread);
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 /**

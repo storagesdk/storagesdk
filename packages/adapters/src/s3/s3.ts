@@ -29,6 +29,9 @@ import {
   type BodyInput,
   bridgeSignalToController,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -145,7 +148,7 @@ function impl(
   manifest: ManifestStore,
   getSourceLocation: () => Promise<string | undefined>
 ): Adapter<S3Client> {
-  return {
+  const adapter: Adapter<S3Client> = {
     name: 's3',
     raw: client,
 
@@ -562,8 +565,13 @@ function impl(
         // via its recursive `forks.get`, so this stays single-wrapped.
         return impl(client, name, manifest, getSourceLocation);
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 async function headObject(

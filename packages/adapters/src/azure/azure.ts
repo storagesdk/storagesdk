@@ -11,6 +11,9 @@ import {
   bodyToBytes,
   bridgeSignalToController,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -81,7 +84,7 @@ function impl(
 ): Adapter<BlobServiceClientType> {
   const container = client.getContainerClient(bucket);
 
-  return {
+  const adapter: Adapter<BlobServiceClientType> = {
     name: 'azure',
     raw: client,
 
@@ -468,8 +471,13 @@ function impl(
       get(name): Adapter<BlobServiceClientType> {
         return impl(client, credential, name);
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 async function createSibling(

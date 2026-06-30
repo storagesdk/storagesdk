@@ -169,6 +169,19 @@ function prefixedAdapter<Raw>(
       head: (name, opts) => base.forks.head(name, opts),
       delete: (name, opts) => base.forks.delete(name, opts),
       get: (name) => prefixedAdapter(base.forks.get(name), getPrefix),
+      merge: (name, opts) => base.forks.merge(name, opts),
+      rebase: (name, opts) => base.forks.rebase(name, opts),
+      diff: async (name, opts) => {
+        // The underlying diff returns paths from the raw adapter's
+        // listings, which include this test's prefix. Strip it so
+        // tests can assert against the user-supplied names.
+        const result = await base.forks.diff(name, opts);
+        return {
+          added: result.added.map(strip),
+          modified: result.modified.map(strip),
+          deleted: result.deleted.map(strip),
+        };
+      },
     },
   };
 }
@@ -781,6 +794,232 @@ export function storageAdapterTestSuite<Raw = unknown>(
 
         // Clean nested snapshot up so dispose can remove the fork.
         await fork.snapshots.delete(childSnap.id);
+      });
+    });
+
+    describe('forks.merge / forks.rebase', {
+      timeout: snapshotForkTimeoutMs,
+    }, () => {
+      it('merge pulls a fork-only file back into the parent', async () => {
+        await ctx.upload('a.txt', 'a-original');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-add');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const fork = ctx.forks.get(name);
+        await fork.upload('b.txt', 'b-from-fork');
+
+        const result = await ctx.forks.merge?.(name);
+        expect(result.id).toBeTruthy();
+
+        // b.txt now lives on the parent.
+        expect(bodyText(await ctx.download('b.txt'))).toBe('b-from-fork');
+        // Parent's own file is untouched.
+        expect(bodyText(await ctx.download('a.txt'))).toBe('a-original');
+
+        await ctx.snapshots.delete(result.id);
+      });
+
+      it('merge propagates a fork-side delete to the parent', async () => {
+        await ctx.upload('keep.txt', 'still here');
+        await ctx.upload('drop.txt', 'will be removed');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-del');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const fork = ctx.forks.get(name);
+        await fork.delete('drop.txt');
+
+        const result = await ctx.forks.merge?.(name);
+
+        expect(bodyText(await ctx.download('keep.txt'))).toBe('still here');
+        await expect(ctx.download('drop.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+
+        await ctx.snapshots.delete(result.id);
+      });
+
+      it('merge leaves parent-side additions alone', async () => {
+        await ctx.upload('shared.txt', 'shared');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-keep');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        // Add a file to the parent AFTER the fork was created. It's not
+        // in the fork's base, not in the fork-current — but it should
+        // survive the merge.
+        await ctx.upload('parent-only.txt', 'parent owns this');
+
+        const fork = ctx.forks.get(name);
+        await fork.upload('fork-only.txt', 'fork owns this');
+
+        const result = await ctx.forks.merge?.(name);
+
+        expect(bodyText(await ctx.download('parent-only.txt'))).toBe(
+          'parent owns this'
+        );
+        expect(bodyText(await ctx.download('fork-only.txt'))).toBe(
+          'fork owns this'
+        );
+        expect(bodyText(await ctx.download('shared.txt'))).toBe('shared');
+
+        await ctx.snapshots.delete(result.id);
+      });
+
+      it('rebase pulls parent-side additions into the fork', async () => {
+        await ctx.upload('base.txt', 'base');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('rebase-add');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        // Parent gets a new file post-fork-create.
+        await ctx.upload('parent-new.txt', 'arrived after fork');
+
+        const result = await ctx.forks.rebase?.(name);
+        expect(result.id).toBeTruthy();
+
+        const fork = ctx.forks.get(name);
+        expect(bodyText(await fork.download('parent-new.txt'))).toBe(
+          'arrived after fork'
+        );
+
+        // Use the fork's own snapshot namespace for cleanup.
+        await fork.snapshots.delete(result.id);
+      });
+
+      it('merge respects a parent-side delete when the fork left the path alone', async () => {
+        // Parent deletes a file the fork never touched. The fork still
+        // has it (carried over from base) but merge must not resurrect
+        // it on parent.
+        await ctx.upload('untouched.txt', 'in base');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('mg-keep');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        await ctx.delete('untouched.txt');
+
+        const result = await ctx.forks.merge?.(name);
+        expect(result).toBeDefined();
+        if (!result) return;
+
+        await expect(ctx.download('untouched.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+
+        await ctx.snapshots.delete(result.id);
+      });
+
+      it('rebase respects a fork-side delete when the parent left the path alone', async () => {
+        // `forkName(suffix)` produces `<test-prefix>-<suffix>`, which
+        // becomes the fork bucket's name. The post-op snapshot of a
+        // rebase tacks `-snapshot-<25 digits>` onto that to make a
+        // sibling bucket — S3 / Azure cap names at 63 chars, so the
+        // suffix has to stay short. See
+        // `project_bucket_name_length_constraint.md` in the auto-memory.
+        await ctx.upload('untouched.txt', 'in base');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('rb-keep');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const fork = ctx.forks.get(name);
+        await fork.delete('untouched.txt');
+
+        const result = await ctx.forks.rebase?.(name);
+        expect(result).toBeDefined();
+        if (!result) return;
+
+        await expect(fork.download('untouched.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+
+        await fork.snapshots.delete(result.id);
+      });
+
+      it('merge handles a deleted fork base snapshot without destroying the parent', async () => {
+        await ctx.upload('x.txt', 'x');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('merge-base-gone');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        // Delete the base snapshot out from under the fork. A naive
+        // polyfill would compute the diff against an empty base and
+        // reclassify everything as `added`, silently overwriting the
+        // parent. The contract: either throw NotFound (polyfill path)
+        // or succeed safely (native path that derives the merge base
+        // from history, like github).
+        try {
+          await ctx.snapshots.delete(snap.id);
+        } catch {
+          // Adapters with native referential integrity (e.g. tigris)
+          // refuse to delete a snapshot that's the base of an existing
+          // fork. The orphaned-base scenario is unreachable on those
+          // backends — nothing to assert.
+          return;
+        }
+
+        try {
+          const result = await ctx.forks.merge(name);
+          // Native impl succeeded without the snapshot tag — verify the
+          // parent's content is intact (not destroyed by an empty-base
+          // miscompute). Then clean up the post-op snapshot.
+          expect(bodyText(await ctx.download('x.txt'))).toBe('x');
+          await ctx.snapshots.delete(result.id);
+        } catch (e) {
+          expect(e).toMatchObject({ code: 'NotFound' });
+        }
+      });
+
+      it('diff (ahead) reports what merge would apply to parent', async () => {
+        await ctx.upload('shared.txt', 'shared');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('diff-ahead');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        const fork = ctx.forks.get(name);
+        await fork.upload('fork-only.txt', 'fork new');
+
+        const ahead = await ctx.forks.diff?.(name); // default direction = 'ahead'
+        expect(ahead).toBeDefined();
+        if (!ahead) return;
+        expect(ahead.added).toContain('fork-only.txt');
+      });
+
+      it('diff (behind) reports what rebase would apply to the fork', async () => {
+        await ctx.upload('shared.txt', 'shared');
+        await ctx.upload('parent-will-delete.txt', 'goodbye');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('diff-behind');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        await ctx.upload('parent-only.txt', 'parent new');
+        await ctx.delete('parent-will-delete.txt');
+
+        const behind = await ctx.forks.diff?.(name, { direction: 'behind' });
+        expect(behind).toBeDefined();
+        if (!behind) return;
+        expect(behind.added).toContain('parent-only.txt');
+        expect(behind.deleted).toContain('parent-will-delete.txt');
+      });
+
+      it('rebase propagates a parent-side delete to the fork', async () => {
+        await ctx.upload('keep.txt', 'still here');
+        await ctx.upload('drop.txt', 'parent will delete');
+        const snap = await ctx.snapshots.create();
+        const name = ctx.forkName('rebase-del');
+        await ctx.forks.create({ name, fromSnapshot: snap.id });
+
+        await ctx.delete('drop.txt');
+
+        const result = await ctx.forks.rebase?.(name);
+
+        const fork = ctx.forks.get(name);
+        expect(bodyText(await fork.download('keep.txt'))).toBe('still here');
+        await expect(fork.download('drop.txt')).rejects.toMatchObject({
+          code: 'NotFound',
+        });
+
+        await fork.snapshots.delete(result.id);
       });
     });
 

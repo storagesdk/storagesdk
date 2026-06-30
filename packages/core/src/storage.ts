@@ -3,11 +3,14 @@ import { toWebStream } from './streams.js';
 import type {
   BodyInput,
   CreateSnapshotOptions,
+  DiffOptions,
   DownloadOptions,
+  ForkDiff,
   ForkInfo,
   ForkOptions,
   ListOptions,
   ListResult,
+  MergeOptions,
   SnapshotInfo,
   StorageItem,
   StorageItemMeta,
@@ -131,6 +134,9 @@ export class Storage<Raw = unknown> extends ReadOnlyStorage {
     head(name: string, opts?: { signal?: AbortSignal }): Promise<ForkInfo>;
     delete(name: string, opts?: { signal?: AbortSignal }): Promise<void>;
     get(name: string): Storage<Raw>;
+    merge(name: string, opts?: MergeOptions): Promise<SnapshotInfo>;
+    rebase(name: string, opts?: MergeOptions): Promise<SnapshotInfo>;
+    diff(name: string, opts?: DiffOptions): Promise<ForkDiff>;
   };
 
   constructor(opts: StorageOptions<Raw>) {
@@ -153,6 +159,9 @@ export class Storage<Raw = unknown> extends ReadOnlyStorage {
       head: (name, headOpts) => adapter.forks.head(name, headOpts),
       delete: (name, deleteOpts) => adapter.forks.delete(name, deleteOpts),
       get: (name) => new Storage<Raw>({ adapter: adapter.forks.get(name) }),
+      merge: (name, mergeOpts) => adapter.forks.merge(name, mergeOpts),
+      rebase: (name, mergeOpts) => adapter.forks.rebase(name, mergeOpts),
+      diff: (name, diffOpts) => adapter.forks.diff(name, diffOpts),
     };
   }
 
