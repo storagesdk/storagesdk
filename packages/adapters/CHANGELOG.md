@@ -1,5 +1,12 @@
 # @storagesdk/adapters
 
+## 0.8.0
+
+### Minor Changes
+
+- fe9ceea: Add the Archil adapter for Archil disks via Archil's S3-compatible API.
+- 06b28f9: Add the Code Storage adapter for repository-backed storage.
+
 ## 0.7.1
 
 ### Patch Changes
