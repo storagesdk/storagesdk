@@ -4,7 +4,7 @@
 [![CI](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml/badge.svg)](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@storagesdk/core)](./LICENSE)
 
-A unified TypeScript SDK for storage with first-class support for snapshotting, forking across Tigris, Amazon S3, Cloudflare R2, GCS, Azure Blob, Vercel Blob and many more.
+A unified TypeScript SDK for storage with first-class support for snapshotting, forking across Tigris, Amazon S3, Cloudflare R2, Archil, GCS, Azure Blob, Vercel Blob and many more.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
@@ -51,6 +51,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | Tigris | [`@storagesdk/adapters/tigris`](./packages/adapters/src/tigris/README.md) | [Tigris](https://www.tigrisdata.com/) — snapshots and forks are first-class via Tigris's native APIs. |
 | S3 | [`@storagesdk/adapters/s3`](./packages/adapters/src/s3/README.md) | Amazon S3 and any S3-compatible provider. |
 | R2 | [`@storagesdk/adapters/r2`](./packages/adapters/src/r2/README.md) | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
+| Archil | [`@storagesdk/adapters/archil`](./packages/adapters/src/archil/README.md) | [Archil](https://archil.com/) disks via Archil's S3-compatible API. |
 | GCS | [`@storagesdk/adapters/gcs`](./packages/adapters/src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
 | Azure Blob | [`@storagesdk/adapters/azure`](./packages/adapters/src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
 | Vercel Blob | [`@storagesdk/adapters/vercel`](./packages/adapters/src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |

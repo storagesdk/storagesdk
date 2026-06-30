@@ -20,6 +20,10 @@
       "types": "./dist/r2/index.d.ts",
       "default": "./dist/r2/index.js"
     },
+    "./archil": {
+      "types": "./dist/archil/index.d.ts",
+      "default": "./dist/archil/index.js"
+    },
     "./minio": {
       "types": "./dist/minio/index.d.ts",
       "default": "./dist/minio/index.js"
@@ -107,6 +111,7 @@
     "filesystem",
     "s3",
     "r2",
+    "archil",
     "minio",
     "tigris",
     "fly",

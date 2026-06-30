@@ -1,0 +1,62 @@
+---
+title: Archil
+eyebrow: Adapters
+description: Archil adapter for storagesdk — an S3-compatible wrapper for Archil disks with region-derived endpoints and branch routing.
+section: adapters
+---
+
+## Overview
+
+[Archil](https://archil.com/) exposes disks through an S3-compatible API. The Archil adapter wraps the S3 adapter with Archil defaults: endpoint derivation from the Archil region, path-style addressing, and SigV4 signing with the geographic region.
+
+Set `branch` to scope all operations to a disk branch. Archil routes branches through the bucket name as `<diskId>.<branch>`.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { archil } from '@storagesdk/adapters/archil';
+
+const storage = new Storage({
+  adapter: archil({
+    bucket: 'disk_123',
+    region: 'aws-us-east-1',
+    accessKeyId: process.env.ARCHIL_S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.ARCHIL_S3_SECRET_ACCESS_KEY,
+  }),
+});
+```
+
+```ts
+archil({
+  bucket?: string;
+  disk?: { id: string; region: string };
+  region?: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  branch?: string;
+  publicBaseUrl?: string;
+  defaultUrlExpiresIn?: number;
+});
+```
+
+## Notes
+
+- `bucket` is the Archil disk id. It is optional only when `disk` is passed.
+- `region` is an Archil region like `aws-us-east-1` or `gcp-us-central1`. It is optional only when `disk` is passed.
+- Most endpoints derive to `https://s3.green.<geo>.<cloud>.prod.archil.com`.
+- `gcp-us-central1` currently uses `https://s3.blue.us-central1.gcp.prod.archil.com`.
+- `publicBaseUrl` makes `url()` return unsigned URLs under that origin; otherwise `url()` returns signed S3 URLs.
+- `adapter.disk` preserves the passed disk object for Archil-native operations.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling locations via S3 adapter behavior |
+| Forks | Sibling locations via S3 adapter behavior |
+| Byte-range reads | Yes |
+| Multipart upload | Yes |
+| Enforced upload limits | Yes |
+| User metadata | Yes |
+| Signed URLs | Yes |
