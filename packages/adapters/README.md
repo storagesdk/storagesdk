@@ -16,6 +16,7 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 | S3 | [`@storagesdk/adapters/s3`](./src/s3/README.md) | Amazon S3 and any S3-compatible provider. |
 | R2 | [`@storagesdk/adapters/r2`](./src/r2/README.md) | [Cloudflare R2](https://www.cloudflare.com/developer-platform/products/r2/). |
 | Code Storage | [`@storagesdk/adapters/code-storage`](./src/code-storage/README.md) | [Code Storage](https://code.storage/) repositories — snapshots are tags, forks are branches. |
+| Archil | [`@storagesdk/adapters/archil`](./src/archil/README.md) | [Archil](https://archil.com/) disks via Archil's S3-compatible API. |
 | GCS | [`@storagesdk/adapters/gcs`](./src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
 | Azure Blob | [`@storagesdk/adapters/azure`](./src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
 | Vercel Blob | [`@storagesdk/adapters/vercel`](./src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
@@ -43,7 +44,7 @@ import {
 
 // Enumerate
 ADAPTERS
-// → readonly ['fs', 's3', 'r2', 'code-storage', 'minio', 'tigris', 'azure', 'gcs',
+// → readonly ['fs', 's3', 'r2', 'archil', 'code-storage', 'minio', 'tigris', 'azure', 'gcs',
 //             'vercel', 'github', 'webdav', 'backblaze', 'spaces',
 //             'wasabi', 'supabase', 'linode', 'fly', 'railway']
 

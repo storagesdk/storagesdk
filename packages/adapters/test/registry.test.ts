@@ -18,6 +18,7 @@ describe('ADAPTERS', () => {
       'fs',
       's3',
       'r2',
+      'archil',
       'code-storage',
       'minio',
       'tigris',
