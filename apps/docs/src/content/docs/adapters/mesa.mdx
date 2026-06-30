@@ -45,7 +45,8 @@ mesa({
 - Writes create a Mesa change and move the working bookmark to that change.
 - Snapshots are bookmarks under `storagesdk/snapshots/<bookmark>/<id>`.
 - Forks are normal Mesa bookmarks.
-- `url()` and `uploadUrl()` are not supported.
+- `url()` returns a deterministic `mesa://` locator, not a fetchable signed HTTP URL.
+- `uploadUrl()` throws `NotSupported`; Mesa does not expose object-style presigned upload URLs.
 
 ## Compatibility
 
@@ -57,4 +58,4 @@ mesa({
 | Multipart upload | No |
 | Enforced upload limits | No |
 | User metadata | No |
-| Signed URLs | No |
+| Signed URLs | Deterministic `mesa://` locator only |

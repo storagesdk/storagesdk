@@ -31,6 +31,19 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/r2',
   },
   {
+    name: 'Archil',
+    short: 'Archil',
+    key: 'archil',
+    sub: '@storagesdk/adapters/archil',
+  },
+  {
+    name: 'Code Storage',
+    short: 'Code',
+    key: 'code-storage',
+    sub: '@storagesdk/adapters/code-storage',
+    native: true,
+  },
+  {
     name: 'Mesa',
     short: 'Mesa',
     key: 'mesa',

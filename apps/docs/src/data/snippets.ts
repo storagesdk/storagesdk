@@ -55,6 +55,39 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
+    archil: `import { Storage } from '@storagesdk/core';
+import { archil } from '@storagesdk/adapters/archil';
+
+const storage = new Storage({
+  adapter: archil({
+    bucket: 'disk_123',
+    region: 'aws-us-east-1',
+    accessKeyId: process.env.ARCHIL_S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.ARCHIL_S3_SECRET_ACCESS_KEY,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
+    'code-storage': `import { Storage } from '@storagesdk/core';
+import { codeStorage } from '@storagesdk/adapters/code-storage';
+
+const storage = new Storage({
+  adapter: codeStorage({
+    name: 'your-org',
+    repo: 'agent-runs',
+    key: process.env.CODE_STORAGE_KEY,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     mesa: `import { Storage } from '@storagesdk/core';
 import { mesa } from '@storagesdk/adapters/mesa';
 

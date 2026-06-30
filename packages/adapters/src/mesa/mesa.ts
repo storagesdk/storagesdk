@@ -239,12 +239,16 @@ function impl(
       }
     },
 
-    url(_path, opts): Promise<string> {
+    async url(path, opts): Promise<string> {
       checkSignal(opts?.signal);
-      throw new StorageError({
-        code: 'NotSupported',
-        message: 'Mesa does not expose object-style signed file URLs',
-      });
+      const params = new URLSearchParams({ path });
+      if (config.org !== undefined) params.set('org', config.org);
+      if (fixedChangeId !== undefined) {
+        params.set('change_id', fixedChangeId);
+      } else {
+        params.set('bookmark', await resolveBookmark());
+      }
+      return `mesa://${encodeURIComponent(config.repo)}?${params}`;
     },
 
     async delete(path, opts): Promise<void> {

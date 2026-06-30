@@ -22,6 +22,12 @@ storageAdapterTestSuite({
   name: 'mesa adapter',
   skip: !configured,
   adapter: buildAdapter,
+  capabilities: {
+    contentType: false,
+    userMetadata: false,
+    presignedUploads: false,
+    fetchableSignedUrls: false,
+  },
 });
 
 describe('mesa config', () => {

@@ -20,6 +20,14 @@
       "types": "./dist/r2/index.d.ts",
       "default": "./dist/r2/index.js"
     },
+    "./archil": {
+      "types": "./dist/archil/index.d.ts",
+      "default": "./dist/archil/index.js"
+    },
+    "./code-storage": {
+      "types": "./dist/code-storage/index.d.ts",
+      "default": "./dist/code-storage/index.js"
+    },
     "./mesa": {
       "types": "./dist/mesa/index.d.ts",
       "default": "./dist/mesa/index.js"
@@ -111,6 +119,8 @@
     "filesystem",
     "s3",
     "r2",
+    "archil",
+    "code-storage",
     "mesa",
     "minio",
     "tigris",
@@ -153,6 +163,7 @@
     "@google-cloud/storage": "^7.0.0",
     "@mesadev/sdk": "^0.38.0",
     "@octokit/rest": "^21.0.0",
+    "@pierre/storage": "^1.13.0",
     "@tigrisdata/storage": "^3.11.0",
     "@vercel/blob": "^2.3.0",
     "vitest": "^4.0.0",
@@ -183,6 +194,9 @@
     "@octokit/rest": {
       "optional": true
     },
+    "@pierre/storage": {
+      "optional": true
+    },
     "@tigrisdata/storage": {
       "optional": true
     },
@@ -205,6 +219,7 @@
     "@google-cloud/storage": "^7.19.0",
     "@mesadev/sdk": "^0.38.0",
     "@octokit/rest": "^21.1.1",
+    "@pierre/storage": "^1.13.0",
     "@tigrisdata/storage": "^3.11.0",
     "@vercel/blob": "^2.4.0",
     "webdav": "^5.10.0"

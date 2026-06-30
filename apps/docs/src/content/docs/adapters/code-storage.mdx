@@ -1,0 +1,65 @@
+---
+title: Code Storage
+eyebrow: Adapters
+description: Code Storage adapter for storagesdk — repository files as objects, commits for writes, tags for snapshots, and branches for forks.
+section: adapters
+---
+
+## Overview
+
+[Code Storage](https://code.storage/) is Git infrastructure exposed through the `@pierre/storage` SDK. The adapter maps repository files to storagesdk objects, writes through Code Storage commits, snapshots to tags, and forks to branches.
+
+This is a Git-style adapter. `url()` and `uploadUrl()` are not supported because Code Storage exposes authenticated Git remote URLs rather than object-style signed file URLs.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { codeStorage } from '@storagesdk/adapters/code-storage';
+
+const storage = new Storage({
+  adapter: codeStorage({
+    name: 'your-org',
+    repo: 'agent-runs',
+    key: process.env.CODE_STORAGE_KEY,
+  }),
+});
+```
+
+```ts
+codeStorage({
+  name: string;
+  repo: string;
+  branch?: string;
+  key?: string;
+  token?: string;
+  apiBaseUrl?: string;
+  storageBaseUrl?: string;
+  defaultTTL?: number;
+  author?: { name: string; email: string };
+  committer?: { name: string; email: string };
+  commitMessage?: (op, paths) => string;
+});
+```
+
+## Notes
+
+- `name` is the Code Storage organization identifier.
+- `repo` is the repository id.
+- `branch` defaults to the repository default branch.
+- Set `key` to a Code Storage ES256 private key PEM, or set `token` to a pre-minted JWT.
+- Writes create commits on the configured branch.
+- Snapshots are lightweight tags under `storagesdk/<branch>/<id>`.
+- Forks are branches in the same repository.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Native Git tags |
+| Forks | Native Git branches |
+| Byte-range reads | Yes |
+| Multipart upload | Through Code Storage commit streaming |
+| Enforced upload limits | No |
+| User metadata | No |
+| Signed URLs | No |

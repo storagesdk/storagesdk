@@ -32,7 +32,7 @@ export default function Hero() {
           <span className="eyebrow-arrow">→</span>
         </a>
         <h1 className="headline">
-          Universal API for{' '}
+          A Better S3 API for{' '}
           <span className="ticker">
             <em
               key={TICKER_WORDS[tickerIndex]}
