@@ -83,6 +83,56 @@ describe('mesa bookmark mapping', () => {
     expect(mockMesa.bookmarks.delete).not.toHaveBeenCalled();
   });
 
+  it('rejects opening the active bookmark or snapshot bookmarks as forks', async () => {
+    const adapter = mesa({
+      repo: 'app',
+      apiKey: 'mesa_test',
+      bookmark: 'work',
+    });
+
+    await expect(
+      adapter.forks.get('work').upload('file.txt', 'body')
+    ).rejects.toMatchObject({
+      code: 'NotFound',
+    });
+    await expect(
+      adapter.forks
+        .get('storagesdk/snapshots/work/snap-1')
+        .upload('file.txt', 'body')
+    ).rejects.toMatchObject({ code: 'NotFound' });
+    expect(mockMesa.bookmarks.move).not.toHaveBeenCalled();
+  });
+
+  it('uses snapshot name as the snapshot id', async () => {
+    const adapter = mesa({
+      repo: 'app',
+      apiKey: 'mesa_test',
+      bookmark: 'work',
+    });
+
+    await expect(
+      adapter.snapshots.create({ name: 'pre-migration' })
+    ).resolves.toMatchObject({ id: 'pre-migration', name: 'pre-migration' });
+    expect(mockMesa.bookmarks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'storagesdk/snapshots/work/pre-migration',
+      })
+    );
+  });
+
+  it('rejects fork names in the snapshot namespace', async () => {
+    const adapter = mesa({
+      repo: 'app',
+      apiKey: 'mesa_test',
+      bookmark: 'work',
+    });
+
+    await expect(
+      adapter.forks.create({ name: 'storagesdk/snapshots/work/fork' })
+    ).rejects.toMatchObject({ code: 'InvalidArgument' });
+    expect(mockMesa.bookmarks.create).not.toHaveBeenCalled();
+  });
+
   it('returns fromSnapshot when a fork points at a snapshot change', async () => {
     const adapter = mesa({
       repo: 'app',

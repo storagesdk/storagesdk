@@ -81,7 +81,8 @@ function impl(
   config: MesaConfig,
   raw: Mesa,
   initialBookmark: string | undefined,
-  fixedChangeId?: string
+  fixedChangeId?: string,
+  validateBookmark?: (bookmark: string) => Promise<void>
 ): Adapter<MesaRaw> {
   let cachedRepo: MesaRepo | undefined;
   let cachedBookmark = initialBookmark;
@@ -107,9 +108,11 @@ function impl(
   };
 
   const resolveBookmark = async (): Promise<string> => {
-    if (cachedBookmark !== undefined) return cachedBookmark;
-    const repo = await resolveRepo();
-    cachedBookmark = repo.default_bookmark;
+    if (cachedBookmark === undefined) {
+      const repo = await resolveRepo();
+      cachedBookmark = repo.default_bookmark;
+    }
+    await validateBookmark?.(cachedBookmark);
     return cachedBookmark;
   };
 
@@ -296,7 +299,7 @@ function impl(
         checkSignal(opts?.signal);
         const bookmark = await resolveBookmark();
         const changeId = await resolveChangeId();
-        const id = `${bookmark}-${Date.now().toString(36)}`;
+        const id = opts?.name ?? `${bookmark}-${Date.now().toString(36)}`;
         try {
           await raw.bookmarks.create({
             ...repoInput,
@@ -372,6 +375,12 @@ function impl(
     forks: {
       async create(opts): Promise<ForkInfo> {
         checkSignal(opts.signal);
+        if (opts.name.startsWith(`${SNAPSHOT_BOOKMARK_NAMESPACE}/`)) {
+          throw new StorageError({
+            code: 'InvalidArgument',
+            message: `Refusing to create fork in snapshot namespace ${opts.name}`,
+          });
+        }
         try {
           const bookmark = await resolveBookmark();
           const changeId = opts.fromSnapshot
@@ -478,7 +487,18 @@ function impl(
       },
 
       get(name): Adapter<MesaRaw> {
-        return impl(config, raw, name);
+        return impl(config, raw, name, undefined, async (bookmark) => {
+          const repo = await resolveRepo();
+          const activeBookmark = await resolveBookmark();
+          if (
+            !isForkBookmark(bookmark, repo.default_bookmark, activeBookmark)
+          ) {
+            throw notFound(bookmark);
+          }
+          await raw.bookmarks.get({ ...repoInput, bookmark }).catch((err) => {
+            throw asStorageError(err, bookmark);
+          });
+        });
       },
     },
   };
