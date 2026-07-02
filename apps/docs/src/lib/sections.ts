@@ -104,6 +104,12 @@ export const SECTIONS: Record<SectionId, Section> = {
               href: '/adapters/code-storage',
             },
             {
+              id: 'mesa',
+              label: 'Mesa',
+              badge: 'native',
+              href: '/adapters/mesa',
+            },
+            {
               id: 'gcs',
               label: 'Google Cloud Storage',
               href: '/adapters/gcs',

@@ -28,6 +28,10 @@
       "types": "./dist/code-storage/index.d.ts",
       "default": "./dist/code-storage/index.js"
     },
+    "./mesa": {
+      "types": "./dist/mesa/index.d.ts",
+      "default": "./dist/mesa/index.js"
+    },
     "./minio": {
       "types": "./dist/minio/index.d.ts",
       "default": "./dist/minio/index.js"
@@ -117,6 +121,7 @@
     "r2",
     "archil",
     "code-storage",
+    "mesa",
     "minio",
     "tigris",
     "fly",
@@ -156,6 +161,7 @@
     "@aws-sdk/s3-request-presigner": "^3.0.0",
     "@azure/storage-blob": "^12.0.0",
     "@google-cloud/storage": "^7.0.0",
+    "@mesadev/sdk": "^0.38.0",
     "@octokit/rest": "^21.0.0",
     "@pierre/storage": "^1.13.0",
     "@tigrisdata/storage": "^3.11.0",
@@ -180,6 +186,9 @@
       "optional": true
     },
     "@google-cloud/storage": {
+      "optional": true
+    },
+    "@mesadev/sdk": {
       "optional": true
     },
     "@octokit/rest": {
@@ -208,6 +217,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1053.0",
     "@azure/storage-blob": "^12.31.0",
     "@google-cloud/storage": "^7.19.0",
+    "@mesadev/sdk": "^0.38.0",
     "@octokit/rest": "^21.1.1",
     "@pierre/storage": "^1.13.0",
     "@tigrisdata/storage": "^3.11.0",
