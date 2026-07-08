@@ -227,12 +227,12 @@ function impl(
         const content = await raw.content.get({
           ...repoInput,
           path: prefix,
-          depth: 10,
           change_id: await resolveChangeId(),
         });
         const metas = entriesFromContent(content)
           .filter((entry) => entry.type === 'file' || entry.type === 'symlink')
-          .map(metaFromEntry);
+          .map(metaFromEntry)
+          .sort((a, b) => a.path.localeCompare(b.path));
         const items = metas.slice(offset, offset + limit);
         const next =
           offset + limit < metas.length ? String(offset + limit) : undefined;

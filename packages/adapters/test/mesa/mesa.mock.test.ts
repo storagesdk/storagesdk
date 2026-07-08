@@ -157,4 +157,47 @@ describe('mesa bookmark mapping', () => {
       adapter.forks.create({ name: 'forked', fromSnapshot: 'missing' })
     ).rejects.toMatchObject({ code: 'Provider' });
   });
+
+  it('lists all depths in stable path order before slicing pages', async () => {
+    mockMesa.content.get.mockResolvedValue({
+      type: 'dir',
+      path: '',
+      entries: [
+        {
+          type: 'dir',
+          path: 'z',
+          entries: [
+            {
+              type: 'dir',
+              path: 'z/a',
+              entries: [
+                { type: 'file', path: 'z/a/file.txt', size: 1, sha: 'z' },
+              ],
+            },
+          ],
+        },
+        { type: 'file', path: 'a.txt', size: 1, sha: 'a' },
+        { type: 'file', path: 'm.txt', size: 1, sha: 'm' },
+      ],
+    });
+
+    const adapter = mesa({
+      repo: 'app',
+      apiKey: 'mesa_test',
+      bookmark: 'work',
+    });
+
+    await expect(adapter.list({ limit: 2 })).resolves.toMatchObject({
+      items: [{ path: 'a.txt' }, { path: 'm.txt' }],
+      cursor: '2',
+    });
+    await expect(
+      adapter.list({ limit: 2, cursor: '2' })
+    ).resolves.toMatchObject({
+      items: [{ path: 'z/a/file.txt' }],
+    });
+    expect(mockMesa.content.get).toHaveBeenCalledWith(
+      expect.not.objectContaining({ depth: expect.anything() })
+    );
+  });
 });
