@@ -4,7 +4,9 @@ import {
   type Adapter,
   bodyToBytes,
   checkSignal,
+  type DiffOptions,
   defineAdapter,
+  type ForkDiff,
   type ForkInfo,
   isAbortError,
   type ListOptions,
@@ -174,7 +176,7 @@ function impl(
     }
   };
 
-  return {
+  const adapter: Adapter<MesaRaw> = {
     name: 'mesa',
     raw,
 
@@ -486,8 +488,135 @@ function impl(
           });
         });
       },
+
+      async merge(name, opts): Promise<SnapshotInfo> {
+        return mergeBookmarks(name, opts, 'merge');
+      },
+
+      async rebase(name, opts): Promise<SnapshotInfo> {
+        return mergeBookmarks(name, opts, 'rebase');
+      },
+
+      async diff(name, opts: DiffOptions | undefined): Promise<ForkDiff> {
+        checkSignal(opts?.signal);
+        const direction = opts?.direction ?? 'ahead';
+        const parentBookmark = await resolveBookmark();
+        const baseBookmark = direction === 'ahead' ? parentBookmark : name;
+        const headBookmark = direction === 'ahead' ? name : parentBookmark;
+
+        let baseChangeId: string;
+        let headChangeId: string;
+        try {
+          const [baseInfo, headInfo] = await Promise.all([
+            raw.bookmarks.get({ ...repoInput, bookmark: baseBookmark }),
+            raw.bookmarks.get({ ...repoInput, bookmark: headBookmark }),
+          ]);
+          baseChangeId = baseInfo.change_id;
+          headChangeId = headInfo.change_id;
+        } catch (err) {
+          throw asStorageError(err, name);
+        }
+        checkSignal(opts?.signal);
+
+        let res: Awaited<ReturnType<typeof raw.diffs.get>>;
+        try {
+          res = await raw.diffs.get({
+            ...repoInput,
+            base_change_id: baseChangeId,
+            head_change_id: headChangeId,
+          });
+        } catch (err) {
+          throw asStorageError(err, name);
+        }
+        // The Mesa API caps entries per response. Surface truncation
+        // loudly instead of silently returning an incomplete diff.
+        if (res.truncated) {
+          throw new StorageError({
+            code: 'NotSupported',
+            message: `mesa diff between ${baseBookmark} and ${headBookmark} exceeded the server's entry limit; the response is truncated`,
+          });
+        }
+
+        const added: string[] = [];
+        const modified: string[] = [];
+        const deleted: string[] = [];
+        for (const entry of res.entries) {
+          switch (entry.status) {
+            case 'added':
+              added.push(entry.path);
+              break;
+            case 'modified':
+              modified.push(entry.path);
+              break;
+            case 'deleted':
+              deleted.push(entry.path);
+              break;
+            case 'renamed':
+              // Other adapters can't detect renames — they see a
+              // delete + add. Split to match.
+              if (entry.old_path) deleted.push(entry.old_path);
+              added.push(entry.path);
+              break;
+          }
+        }
+        return { added, modified, deleted };
+      },
     },
   };
+
+  /** Shared body for `merge` and `rebase`. `mergeBookmark` is symmetric:
+   *  the target bookmark is updated to hold the merged result, the
+   *  source bookmark is left untouched. For `merge` we integrate the
+   *  fork into the parent; for `rebase` we swap and pull the parent's
+   *  changes into the fork. The post-op snapshot is created directly
+   *  at the returned `change_id` under the target's snapshot namespace. */
+  async function mergeBookmarks(
+    forkName: string,
+    opts: { signal?: AbortSignal } | undefined,
+    op: 'merge' | 'rebase'
+  ): Promise<SnapshotInfo> {
+    checkSignal(opts?.signal);
+    const parentBookmark = await resolveBookmark();
+    const target = op === 'merge' ? parentBookmark : forkName;
+    const source = op === 'merge' ? forkName : parentBookmark;
+
+    let res: Awaited<ReturnType<typeof raw.bookmarks.merge>>;
+    try {
+      res = await raw.bookmarks.merge({ ...repoInput, target, source });
+    } catch (err) {
+      // Mesa returns MERGE_CONFLICT as a 400 with an error code; the
+      // default asStorageError mapping would surface it as
+      // InvalidArgument — override to Conflict.
+      if (err instanceof MesaApiError) {
+        const body = (
+          err as unknown as { body?: { error?: { code?: string } } }
+        ).body;
+        if (body?.error?.code === 'MERGE_CONFLICT') {
+          throw new StorageError({
+            code: 'Conflict',
+            message: `${op} conflict between ${source} and ${target}`,
+            cause: err,
+          });
+        }
+      }
+      throw asStorageError(err, forkName);
+    }
+    checkSignal(opts?.signal);
+
+    const snapshotId = `${target}-${Date.now().toString(36)}`;
+    try {
+      await raw.bookmarks.create({
+        ...repoInput,
+        name: snapshotBookmarkName(target, snapshotId),
+        change_id: res.change_id,
+      });
+    } catch (err) {
+      throw asStorageError(err, forkName);
+    }
+    return { id: snapshotId, createdAt: new Date() } satisfies SnapshotInfo;
+  }
+
+  return adapter;
 }
 
 function snapshotReader(

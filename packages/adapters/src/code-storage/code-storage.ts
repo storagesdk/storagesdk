@@ -10,6 +10,9 @@ import {
   type Adapter,
   bodyToBytes,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   type ForkInfo,
   type ListOptions,
@@ -235,7 +238,7 @@ function impl(
     return snapshots;
   };
 
-  return {
+  const adapter: Adapter<CodeStorageRaw> = {
     name: 'code-storage',
     raw,
 
@@ -514,8 +517,13 @@ function impl(
           }
         });
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 function snapshotReader(

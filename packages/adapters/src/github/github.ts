@@ -6,6 +6,7 @@ import {
   checkSignal,
   type DownloadOptions,
   defineAdapter,
+  type ForkDiff,
   type ForkInfo,
   type ForkOptions,
   type ListOptions,
@@ -685,7 +686,7 @@ function impl(
     };
   }
 
-  return defineAdapter<GithubRaw>({
+  const adapter: Adapter<GithubRaw> = {
     name: 'github',
     raw: octokit,
 
@@ -1120,8 +1121,162 @@ function impl(
         }
         return impl(config, octokit, name);
       },
+
+      async merge(name, opts): Promise<SnapshotInfo> {
+        return mergeRefs(name, opts, 'merge');
+      },
+
+      async rebase(name, opts): Promise<SnapshotInfo> {
+        return mergeRefs(name, opts, 'rebase');
+      },
+
+      async diff(name, opts): Promise<ForkDiff> {
+        checkSignal(opts?.signal);
+        const direction = opts?.direction ?? 'ahead';
+        const parentBranch = await resolveBranch(opts?.signal);
+
+        const base = direction === 'ahead' ? parentBranch : name;
+        const head = direction === 'ahead' ? name : parentBranch;
+
+        let files: Array<{
+          filename: string;
+          status: string;
+          previous_filename?: string;
+        }>;
+        try {
+          const res = await octokit.repos.compareCommitsWithBasehead({
+            owner,
+            repo,
+            basehead: `${base}...${head}`,
+            ...req(opts?.signal),
+          });
+          files = res.data.files ?? [];
+          // GitHub caps the response's `files` array at 300 entries.
+          // Surface the truncation loudly instead of silently
+          // returning an incomplete diff — callers should split the
+          // range or reach for the polyfill via `defaultDiff`.
+          if (files.length >= 300) {
+            throw new StorageError({
+              code: 'NotSupported',
+              message: `github diff between ${base} and ${head} exceeds github's 300-file compare cap; split the range or fall back to defaultDiff for a full walk`,
+            });
+          }
+        } catch (err) {
+          if (err instanceof StorageError) throw err;
+          throw asStorageError(err);
+        }
+
+        const added: string[] = [];
+        const modified: string[] = [];
+        const deleted: string[] = [];
+        for (const f of files) {
+          switch (f.status) {
+            case 'added':
+              added.push(f.filename);
+              break;
+            case 'removed':
+              deleted.push(f.filename);
+              break;
+            case 'modified':
+            case 'changed':
+              modified.push(f.filename);
+              break;
+            case 'renamed':
+              // Other adapters can't detect renames — they see a
+              // delete + add. Split to match.
+              if (f.previous_filename) deleted.push(f.previous_filename);
+              added.push(f.filename);
+              break;
+            case 'copied':
+              added.push(f.filename);
+              break;
+            // 'unchanged' — skip
+          }
+        }
+        return { added, modified, deleted };
+      },
     },
-  });
+  };
+
+  /** Shared body for `merge` and `rebase`. They differ only in which side
+   *  is `base` and which is `head` in `repos.merge`, and which side's
+   *  snapshot namespace owns the post-op tag.
+   *
+   *  - `op === 'merge'`: parent ← fork. Post-op snapshot tagged on parent.
+   *  - `op === 'rebase'`: fork ← parent. Post-op snapshot tagged on fork. */
+  async function mergeRefs(
+    name: string,
+    opts: { signal?: AbortSignal } | undefined,
+    op: 'merge' | 'rebase'
+  ): Promise<SnapshotInfo> {
+    checkSignal(opts?.signal);
+    const parentBranch = await resolveBranch(opts?.signal);
+
+    const baseRef = op === 'merge' ? parentBranch : name;
+    const headRef = op === 'merge' ? name : parentBranch;
+    const destBranch = op === 'merge' ? parentBranch : name;
+
+    let resultSha: string;
+    try {
+      const res = await octokit.repos.merge({
+        owner,
+        repo,
+        base: baseRef,
+        head: headRef,
+        ...req(opts?.signal),
+      });
+      // 204 No Content = head already contained in base (nothing to
+      // merge). Octokit's response typing only covers the 201 success
+      // shape, so check the runtime payload — when GitHub returns 204,
+      // `data` is an empty body and `sha` is missing.
+      const data = res.data as { sha?: string } | undefined;
+      if (data?.sha) {
+        resultSha = data.sha;
+      } else {
+        const { data: refData } = await octokit.git.getRef({
+          owner,
+          repo,
+          ref: `heads/${destBranch}`,
+          ...req(opts?.signal),
+        });
+        resultSha = refData.object.sha;
+      }
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 409) {
+        throw new StorageError({
+          code: 'Conflict',
+          message: `${op} conflict between ${name} and ${parentBranch}`,
+        });
+      }
+      if (status === 404) {
+        throw new StorageError({
+          code: 'NotFound',
+          message: `${op} source not found (${name})`,
+        });
+      }
+      throw asStorageError(err);
+    }
+
+    const snapshotId = generateSnapshotName();
+    const tagName = snapshotTagName(destBranch, snapshotId);
+    try {
+      await octokit.git.createRef({
+        owner,
+        repo,
+        ref: `refs/tags/${tagName}`,
+        sha: resultSha,
+        ...req(opts?.signal),
+      });
+    } catch (err) {
+      throw asStorageError(err);
+    }
+    deletedSnapshots.delete(snapshotId);
+    createdSnapshots.add(snapshotId);
+    return { id: snapshotId, name: snapshotId, createdAt: new Date() };
+  }
+
+  return defineAdapter(adapter);
 }
 
 function refAsApiRef(branchOrTag: string): string {

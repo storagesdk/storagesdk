@@ -164,7 +164,7 @@
     "@mesadev/sdk": "^0.38.0",
     "@octokit/rest": "^21.0.0",
     "@pierre/storage": "^1.13.0",
-    "@tigrisdata/storage": "^3.11.0",
+    "@tigrisdata/storage": "^3.17.1",
     "@vercel/blob": "^2.3.0",
     "vitest": "^4.0.0",
     "webdav": "^5.10.0"
@@ -220,7 +220,7 @@
     "@mesadev/sdk": "^0.38.0",
     "@octokit/rest": "^21.1.1",
     "@pierre/storage": "^1.13.0",
-    "@tigrisdata/storage": "^3.11.0",
+    "@tigrisdata/storage": "^3.17.1",
     "@vercel/blob": "^2.4.0",
     "webdav": "^5.10.0"
   }

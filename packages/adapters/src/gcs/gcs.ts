@@ -7,6 +7,9 @@ import {
   type Adapter,
   bodyToBytes,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -115,7 +118,7 @@ function impl(
 ): Adapter<GcsStorage> {
   const bucket = client.bucket(bucketName);
 
-  return {
+  const adapter: Adapter<GcsStorage> = {
     name: 'gcs',
     raw: client,
 
@@ -484,8 +487,13 @@ function impl(
       get(name): Adapter<GcsStorage> {
         return impl(client, name, getSourceLocation);
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 async function createSibling(

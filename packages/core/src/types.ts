@@ -136,9 +136,11 @@ export interface SnapshotInfo {
 export interface ForkInfo {
   readonly name: string;
   /**
-   * The snapshot the fork was seeded from. `undefined` when the fork was
-   * created directly from the parent's live state rather than from a
-   * captured snapshot (see `ForkOptions.fromSnapshot`).
+   * The snapshot the fork was seeded from. Always set on forks created
+   * through `forks.create()` (the SDK auto-snapshots if the caller
+   * didn't supply one) — `merge` and `rebase` use this as the base for
+   * their three-way diff. The `?` is kept for backwards compatibility
+   * with manifests written before this field was guaranteed.
    */
   readonly fromSnapshot?: string;
   readonly createdAt: Date;
@@ -161,11 +163,54 @@ export interface ForkOptions {
    * Seed the fork from a specific snapshot id. Omit to fork from the
    * parent's current live state — copy-based adapters (FS, S3) simply copy
    * the live source; native adapters (Tigris) pass the omission through
-   * to their fork API.
+   * to their fork API. Either way, the returned `ForkInfo.fromSnapshot`
+   * is populated (auto-snapshotting if the caller didn't supply one) so
+   * `merge` / `rebase` have a base to diff against.
    */
   fromSnapshot?: string;
   onProgress?: (event: ForkProgress) => void;
   signal?: AbortSignal;
+}
+
+export interface MergeOptions {
+  signal?: AbortSignal;
+}
+
+export interface RebaseOptions {
+  signal?: AbortSignal;
+}
+
+/**
+ * Options for `forks.diff`. Two-way tree diff between fork and parent
+ * in the chosen direction — not a strict merge/rebase preview. Merge
+ * and rebase apply a source-wins policy against the fork's base
+ * snapshot; a path reported here as `modified` may or may not be
+ * touched by the actual mutating op depending on that policy. Callers
+ * who need the exact write set should run the op on a throwaway
+ * snapshot fork.
+ *
+ * `direction`: which side is source.
+ * - `'ahead'` (default) — fork = source, parent = dest.
+ * - `'behind'` — parent = source, fork = dest.
+ */
+export interface DiffOptions {
+  direction?: 'ahead' | 'behind';
+  signal?: AbortSignal;
+}
+
+/**
+ * Result of `forks.diff` — the raw two-way tree difference between
+ * source and dest in the chosen direction. See `DiffOptions` for the
+ * "not a merge preview" caveat.
+ *
+ * - `added`: paths in source but not in dest.
+ * - `deleted`: paths in dest but not in source.
+ * - `modified`: paths in both, content differs.
+ */
+export interface ForkDiff {
+  readonly added: readonly string[];
+  readonly modified: readonly string[];
+  readonly deleted: readonly string[];
 }
 
 export interface ForkProgress {

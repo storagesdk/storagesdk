@@ -130,7 +130,13 @@ describe('mesa bookmark mapping', () => {
     await expect(
       adapter.forks.create({ name: 'storagesdk/snapshots/work/fork' })
     ).rejects.toMatchObject({ code: 'InvalidArgument' });
-    expect(mockMesa.bookmarks.create).not.toHaveBeenCalled();
+    // No bookmark was created for the offending fork name. (The
+    // parent-side auto-snapshot in `defineAdapter` may have created
+    // and then rolled back its own bookmark; that's not what this
+    // test asserts against.)
+    expect(mockMesa.bookmarks.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'storagesdk/snapshots/work/fork' })
+    );
   });
 
   it('does not infer fromSnapshot from matching change ids', async () => {
