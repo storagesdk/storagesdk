@@ -41,7 +41,7 @@ mesa({
 - Object reads use `mesa.content.get()`.
 - Writes create Mesa changes and advance the configured bookmark.
 - Snapshots are Mesa bookmarks under `storagesdk/snapshots/<bookmark>/<id>`.
-- Forks are Mesa bookmarks in the same repository.
+- Forks are Mesa bookmarks in the same repository. Mesa bookmarks do not persist fork provenance, so `forks.list()` and `forks.head()` omit `fromSnapshot`.
 - `url()` returns a deterministic `mesa://` locator, not a fetchable signed HTTP URL.
 - `uploadUrl()` throws `NotSupported`; Mesa does not expose object-style presigned upload URLs.
 

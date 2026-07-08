@@ -63,7 +63,7 @@ describe('mesa bookmark mapping', () => {
     });
 
     await expect(adapter.forks.list()).resolves.toEqual([
-      { name: 'forked', fromSnapshot: 'snap-1', createdAt: new Date(0) },
+      { name: 'forked', createdAt: new Date(0) },
     ]);
   });
 
@@ -133,16 +133,16 @@ describe('mesa bookmark mapping', () => {
     expect(mockMesa.bookmarks.create).not.toHaveBeenCalled();
   });
 
-  it('returns fromSnapshot when a fork points at a snapshot change', async () => {
+  it('does not infer fromSnapshot from matching change ids', async () => {
     const adapter = mesa({
       repo: 'app',
       apiKey: 'mesa_test',
       bookmark: 'work',
     });
 
-    await expect(adapter.forks.head('forked')).resolves.toMatchObject({
+    await expect(adapter.forks.head('forked')).resolves.toEqual({
       name: 'forked',
-      fromSnapshot: 'snap-1',
+      createdAt: new Date(0),
     });
   });
 

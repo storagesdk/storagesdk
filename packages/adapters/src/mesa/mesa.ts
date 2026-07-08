@@ -411,11 +411,6 @@ function impl(
       async list(): Promise<ForkInfo[]> {
         const repo = await resolveRepo();
         const activeBookmark = await resolveBookmark();
-        const snapshots = await snapshotChangeMap(
-          raw,
-          repoInput,
-          activeBookmark
-        );
         const forks: ForkInfo[] = [];
         let cursor: string | undefined;
         do {
@@ -428,10 +423,8 @@ function impl(
             if (
               isForkBookmark(item.name, repo.default_bookmark, activeBookmark)
             ) {
-              const fromSnapshot = snapshots.get(item.change_id);
               forks.push({
                 name: item.name,
-                ...(fromSnapshot !== undefined ? { fromSnapshot } : {}),
                 createdAt: new Date(0),
               });
             }
@@ -449,19 +442,12 @@ function impl(
           if (!isForkBookmark(name, repo.default_bookmark, activeBookmark)) {
             throw notFound(name);
           }
-          const fork = await raw.bookmarks.get({
+          await raw.bookmarks.get({
             ...repoInput,
             bookmark: name,
           });
-          const snapshots = await snapshotChangeMap(
-            raw,
-            repoInput,
-            activeBookmark
-          );
-          const fromSnapshot = snapshots.get(fork.change_id);
           return {
             name,
-            ...(fromSnapshot !== undefined ? { fromSnapshot } : {}),
             createdAt: new Date(0),
           };
         } catch (err) {
@@ -537,30 +523,6 @@ async function snapshotChangeId(
     bookmark: snapshotBookmarkName(bookmark, snapshotId),
   });
   return ref.change_id;
-}
-
-async function snapshotChangeMap(
-  raw: Mesa,
-  repoInput: MesaRepoInput,
-  bookmark: string
-): Promise<Map<string, string>> {
-  const prefix = snapshotBookmarkPrefix(bookmark);
-  const snapshots = new Map<string, string>();
-  let cursor: string | undefined;
-  do {
-    const page = await raw.bookmarks.list({
-      ...repoInput,
-      ...(cursor !== undefined ? { cursor } : {}),
-      limit: 100,
-    });
-    for (const item of page.bookmarks) {
-      if (item.name.startsWith(prefix)) {
-        snapshots.set(item.change_id, item.name.slice(prefix.length));
-      }
-    }
-    cursor = page.next_cursor ?? undefined;
-  } while (cursor !== undefined);
-  return snapshots;
 }
 
 function isForkBookmark(

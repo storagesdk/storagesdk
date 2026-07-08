@@ -44,7 +44,7 @@ mesa({
 - `bookmark` defaults to the repository default bookmark.
 - Writes create a Mesa change and move the working bookmark to that change.
 - Snapshots are bookmarks under `storagesdk/snapshots/<bookmark>/<id>`.
-- Forks are normal Mesa bookmarks.
+- Forks are normal Mesa bookmarks. Mesa bookmarks do not persist fork provenance, so `forks.list()` and `forks.head()` omit `fromSnapshot`.
 - `url()` returns a deterministic `mesa://` locator, not a fetchable signed HTTP URL.
 - `uploadUrl()` throws `NotSupported`; Mesa does not expose object-style presigned upload URLs.
 
