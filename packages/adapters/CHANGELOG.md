@@ -1,5 +1,11 @@
 # @storagesdk/adapters
 
+## 0.9.0
+
+### Minor Changes
+
+- 01a7309: Add the Mesa adapter for repository-backed storage.
+
 ## 0.8.0
 
 ### Minor Changes
