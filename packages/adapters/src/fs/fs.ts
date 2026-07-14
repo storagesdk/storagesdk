@@ -8,6 +8,9 @@ import { pathToFileURL } from 'node:url';
 import {
   type Adapter,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -167,7 +170,7 @@ async function* walk(dir: string, folderPath: string): AsyncGenerator<string> {
 function createImpl(config: FsConfig): Adapter {
   const folderPath = path.join(config.root, config.folder);
 
-  return {
+  const adapter: Adapter = {
     name: 'fs',
     raw: { root: config.root, folder: config.folder, folderPath },
 
@@ -550,6 +553,11 @@ function createImpl(config: FsConfig): Adapter {
         }
         return createImpl({ root: config.root, folder: name });
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }

@@ -62,6 +62,9 @@ function recordingAdapter(): {
       head: notUsed,
       delete: notUsed,
       get: notUsed,
+      merge: notUsed,
+      rebase: notUsed,
+      diff: notUsed,
     },
   };
   return { adapter, lastOpts: () => lastOpts };

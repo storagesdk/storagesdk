@@ -27,5 +27,5 @@ export {
   serializeManifest,
   writeManifest,
 } from './manifest.js';
-
+export { defaultDiff, defaultMerge, defaultRebase } from './merge.js';
 export { bodyToBytes, readStreamToBytes, toWebStream } from './streams.js';

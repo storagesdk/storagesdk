@@ -3,6 +3,7 @@ import {
   type BodyInput,
   bridgeSignalToController,
   checkSignal,
+  defaultDiff,
   defineAdapter,
   type ForkInfo,
   type ListOptions,
@@ -29,7 +30,9 @@ import {
   getSignedUploadUrl,
   listBucketSnapshots,
   listForks,
+  mergeFork,
   put,
+  rebaseFork,
   remove,
   removeBucket,
   copy as tigrisCopy,
@@ -133,7 +136,7 @@ function impl(
 ): Adapter<TigrisRaw> {
   const bucket = config.bucket;
 
-  return {
+  const adapter: Adapter<TigrisRaw> = {
     name: 'tigris',
     raw: makeRaw(config),
 
@@ -445,8 +448,27 @@ function impl(
         // `forks.get`, so the result is a single-wrapped adapter.
         return impl({ ...config, bucket: name }, getSourceLocations);
       },
+
+      async merge(name, opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
+        const res = await mergeFork(name, bucket, { config });
+        checkSignal(opts?.signal);
+        const data = unwrap(res);
+        return { id: data.snapshotVersion, createdAt: new Date() };
+      },
+
+      async rebase(name, opts): Promise<SnapshotInfo> {
+        checkSignal(opts?.signal);
+        const res = await rebaseFork(name, { config });
+        checkSignal(opts?.signal);
+        const data = unwrap(res);
+        return { id: data.snapshotVersion, createdAt: new Date() };
+      },
+
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
 
 function snapshotReader(

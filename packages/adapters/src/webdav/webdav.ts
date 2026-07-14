@@ -5,6 +5,9 @@ import {
   bodyToBytes,
   type CreateSnapshotOptions,
   checkSignal,
+  defaultDiff,
+  defaultMerge,
+  defaultRebase,
   defineAdapter,
   emptyManifest,
   type ForkInfo,
@@ -148,6 +151,10 @@ function createImpl(
   config: WebdavConfig,
   client: WebDAVClient
 ): Adapter<WebdavRaw> {
+  // Forward declaration so merge/rebase/diff can reference the const
+  // built below — `adapter` is assigned before any of those arrow bodies
+  // can be invoked.
+  let adapter: Adapter<WebdavRaw>;
   const folderPath = posix.join(config.root, config.folder);
   // Single-shot mkcol cache. WebDAV's `createDirectory` with
   // `{recursive: true}` is cheap on each call but still a round-trip;
@@ -243,7 +250,7 @@ function createImpl(
     return out;
   };
 
-  return {
+  adapter = {
     name: 'webdav',
     raw: client,
 
@@ -659,6 +666,11 @@ function createImpl(
         resolveSiblingSafe(config.root, name);
         return createImpl({ ...config, folder: name }, client);
       },
+
+      merge: (name, opts) => defaultMerge(adapter, name, opts),
+      rebase: (name, opts) => defaultRebase(adapter, name, opts),
+      diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+  return adapter;
 }
