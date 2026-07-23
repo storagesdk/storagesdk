@@ -6,6 +6,8 @@
 npm install @storagesdk/core @storagesdk/adapters tensorlake
 ```
 
+> **Requires Node.js >= 22.** This adapter depends on the `tensorlake` SDK, which declares `engines.node >= 22`. storagesdk core itself has no such requirement.
+
 ```ts
 import { Storage } from '@storagesdk/core';
 import { tensorlake } from '@storagesdk/adapters/tensorlake';
