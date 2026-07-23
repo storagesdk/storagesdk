@@ -60,6 +60,10 @@
       "types": "./dist/tigris/index.d.ts",
       "default": "./dist/tigris/index.js"
     },
+    "./tensorlake": {
+      "types": "./dist/tensorlake/index.d.ts",
+      "default": "./dist/tensorlake/index.js"
+    },
     "./fly": {
       "types": "./dist/fly/index.d.ts",
       "default": "./dist/fly/index.js"
@@ -124,6 +128,7 @@
     "mesa",
     "minio",
     "tigris",
+    "tensorlake",
     "fly",
     "railway",
     "azure",
@@ -166,6 +171,7 @@
     "@pierre/storage": "^1.13.0",
     "@tigrisdata/storage": "^3.17.1",
     "@vercel/blob": "^2.3.0",
+    "tensorlake": "^0.5.85",
     "vitest": "^4.0.0",
     "webdav": "^5.10.0"
   },
@@ -203,6 +209,9 @@
     "@vercel/blob": {
       "optional": true
     },
+    "tensorlake": {
+      "optional": true
+    },
     "vitest": {
       "optional": true
     },
@@ -222,6 +231,7 @@
     "@pierre/storage": "^1.13.0",
     "@tigrisdata/storage": "^3.17.1",
     "@vercel/blob": "^2.4.0",
+    "tensorlake": "^0.5.85",
     "webdav": "^5.10.0"
   }
 }
