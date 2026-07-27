@@ -472,9 +472,9 @@ function impl(
 
       /**
        * Native listings are directory-scoped. Walk them in global path order
-       * and stop once this page has one lookahead item. On later pages, prune
-       * complete subtrees that sort before the path cursor instead of rescanning
-       * the complete filesystem.
+       * and stop once this page has one lookahead item. Prune subtrees that
+       * cannot contain the requested prefix and, on later pages, complete
+       * subtrees that sort before the path cursor.
        */
       async function* walk(
         directory: string | undefined
@@ -490,6 +490,13 @@ function impl(
           if (isTensorlakeInternalPath(entry.path)) continue;
           if (entry.isDir) {
             const subtreePrefix = `${entry.path}/`;
+            if (
+              prefix !== '' &&
+              !prefix.startsWith(subtreePrefix) &&
+              !subtreePrefix.startsWith(prefix)
+            ) {
+              continue;
+            }
             if (
               cursor !== '' &&
               subtreePrefix <= cursor &&

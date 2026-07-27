@@ -398,6 +398,7 @@ for (const filesystem of [
   'mock-transient-fork-conflict-volume',
   'mock-external-base-volume',
   'mock-list-pagination-volume',
+  'mock-list-prefix-pruning-volume',
 ]) {
   await mockClient.create(filesystem);
 }
@@ -515,6 +516,47 @@ it('does not rescan the complete tree for every list page', async () => {
     [...files.keys()].sort().slice(0, 20)
   );
   expect(nativeCalls.listFiles).toBeLessThanOrEqual(10);
+});
+
+it('prunes list subtrees that cannot match plain or partial prefixes', async () => {
+  const filesystem = await mockClient.get('mock-list-prefix-pruning-volume');
+  const files = new Map<string, string>();
+  for (let directory = 0; directory < 50; directory++) {
+    files.set(
+      `other-${String(directory).padStart(2, '0')}/item.txt`,
+      `${directory}`
+    );
+    files.set(
+      `tree/${String(directory).padStart(2, '0')}/item.txt`,
+      `${directory}`
+    );
+  }
+  files.set('target/item.txt', 'target');
+  files.set('target-ish/item.txt', 'target-ish');
+  files.set('tree/42-root.txt', 'root');
+  files.set('tree/420/item.txt', '420');
+  await filesystem.writeFiles(files);
+  const adapter = tensorlake({
+    filesystem: 'mock-list-prefix-pruning-volume',
+    apiKey: 'test',
+  });
+
+  nativeCalls.listFiles = 0;
+  const plain = await adapter.list({ prefix: 'target', limit: 100 });
+  expect(plain.items.map((item) => item.path)).toEqual([
+    'target-ish/item.txt',
+    'target/item.txt',
+  ]);
+  expect(nativeCalls.listFiles).toBeLessThanOrEqual(3);
+
+  nativeCalls.listFiles = 0;
+  const partial = await adapter.list({ prefix: 'tree/42', limit: 100 });
+  expect(partial.items.map((item) => item.path)).toEqual([
+    'tree/42-root.txt',
+    'tree/42/item.txt',
+    'tree/420/item.txt',
+  ]);
+  expect(nativeCalls.listFiles).toBeLessThanOrEqual(3);
 });
 
 it('does not list, inspect, or delete snapshots owned by another client', async () => {
