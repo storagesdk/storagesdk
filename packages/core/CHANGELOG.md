@@ -1,5 +1,38 @@
 # @storagesdk/core
 
+## 0.5.0
+
+### Minor Changes
+
+- ddf8685: Forks gain `merge`, `rebase`, and `diff` — three-way merge/rebase against the fork's base snapshot, and a two-way diff preview.
+
+  `merge` and `rebase` propagate adds, modifications (etag or `lastModified` disambiguates overlap; newest wins), and deletes. Both return a `SnapshotInfo` of the destination's post-op state — `merge` snapshots the parent; `rebase` snapshots the fork.
+
+  `diff` is a two-way tree diff between fork and parent in the chosen direction (`'ahead'` = fork vs parent, `'behind'` = parent vs fork). Not a strict merge preview — the mutating ops apply a source-wins-with-tiebreakers policy against the fork's base, so a path reported as `modified` may or may not be touched by an actual merge. Callers who need the exact write set should run the op on a throwaway snapshot fork.
+
+  `MergeOptions`, `RebaseOptions`, and `DiffOptions` carry only `signal` (plus `direction` on diff). No source-side snapshot overrides — the two-op "reset to snapshot, then merge/rebase" workflow covers the milestone-pinning use case explicitly.
+
+  `Storage.forks.create({ name })` auto-snapshots the parent when no `fromSnapshot` is passed, so the three-way diff always has a base for the mutating ops. The auto-snapshot appears in `snapshots.list()`.
+
+  `AdapterForks.merge`, `.rebase`, and `.diff` are required on the contract. `defaultMerge`, `defaultRebase`, and `defaultDiff` are exported from `@storagesdk/core/adapter` for adapters that want the polyfills. Merge/rebase polyfill's per-path classifier is etag-first — content-hash (git blob SHA, S3 etag, GCS/Azure content-hash) is the primary discriminator; `lastModified` is a fallback for adapters that only surface mtime. Diff polyfill is a straight source-vs-dest tree walk.
+
+  Adapters with native APIs override:
+  - **Tigris** — `mergeFork` for merge, `rebaseFork` for rebase. Diff on polyfill.
+  - **GitHub** — `repos.merge` for both merge and rebase (swapped base/head); `compareCommitsWithBasehead` for diff, splitting renames into delete+add for parity with rename-blind adapters. Truncation at github's 300-file cap surfaces as `NotSupported`.
+  - **Mesa** — `bookmarks.merge` for both merge and rebase (swapped target/source); `diffs.get` for diff. Same renames-split and truncation-surface behavior.
+
+  CLI: `storage fork merge <name>`, `storage fork rebase <name>`, `storage fork diff <name>` (`--direction ahead|behind`).
+
+  Bumps `@tigrisdata/storage` to `^3.17.1` for `mergeFork` / `rebaseFork`.
+
+### Patch Changes
+
+- a937504: Add a `tensorlake` adapter for Tensorlake Cloud Volumes, available via `@storagesdk/adapters/tensorlake` and `buildAdapter('tensorlake')`.
+
+  One Tensorlake filesystem maps to one storagesdk location. Uploads send checksum-attested parts directly to blob storage; stream bodies remain memory-bounded through Tensorlake's local-path publication API; downloads return bytes, content identity, and size in one request with server-side range support; copy and move reuse immutable content references; snapshots are metadata-only retention points with time-travel reads; and forks share the source filesystem's storage network without copying bytes. `merge`/`rebase`/`diff` use the core polyfills (native content id as etag). `contentType`/`metadata` aren't persisted, `url()` returns a non-fetchable `tensorlake://` scheme URL, and `uploadUrl()` is unsupported. Configure via `TENSORLAKE_FILESYSTEM`, `TENSORLAKE_API_KEY` (falls back to `TENSORLAKE_PAT`), and optional `TENSORLAKE_API_URL` / `TENSORLAKE_ORGANIZATION_ID` / `TENSORLAKE_PROJECT_ID`.
+
+  Tensorlake retains an automatically resolved live-fork base when physical fork creation fails because the content-addressed retention point may already be shared. Other adapters continue to roll back newly created bases. Tensorlake fork names use independent hidden records so concurrent fork mutations compose without a shared-manifest race, and transient native fork-topology conflicts are retried.
+
 ## 0.4.2
 
 ### Patch Changes
