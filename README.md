@@ -4,7 +4,7 @@
 [![CI](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml/badge.svg)](https://github.com/storagesdk/storagesdk/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/@storagesdk/core)](./LICENSE)
 
-A unified TypeScript SDK for storage with first-class support for snapshotting, forking across Tigris, Amazon S3, Cloudflare R2, Archil, Code Storage, Mesa, GCS, Azure Blob, Vercel Blob and many more.
+A unified TypeScript SDK for storage with first-class support for snapshotting and forking across Tigris, Tensorlake Cloud Volumes, Amazon S3, Cloudflare R2, Archil, Code Storage, Mesa, GCS, Azure Blob, Vercel Blob and many more.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
@@ -37,7 +37,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 
 ## What you get
 
-- **Snapshots and forks as primitives.** Take a snapshot of a bucket, get a read-only handle, fork from it as a writable branch. Native APIs where available (Tigris); sibling buckets/folders otherwise.
+- **Snapshots and forks as primitives.** Take a snapshot of a bucket, get a read-only handle, fork from it as a writable branch. Native APIs where available (including Tigris and Tensorlake); sibling buckets/folders otherwise.
 - **Typed escape hatch.** `storage.raw` is typed to the underlying SDK (e.g. `S3Client` on the S3 adapter) for provider-specific operations storagesdk doesn't surface.
 - **Agent-ready.** [`@storagesdk/ai`](./packages/ai/README.md) wraps every verb (plus the full snapshot and fork roster) as AI tool definitions for the Vercel AI SDK — hand a `Storage` to your agent runtime and get a ready-to-register tool set back.
 - **Runtime adapter selection.** [`@storagesdk/adapters`](./packages/adapters/README.md#runtime-adapter-selection)'s root export ships `ADAPTERS`, `buildAdapter(name)`, and `getAdapterEnvVars(name)` — CLIs and scripts pick any adapter by name, reading config from adapter-native env vars (`TIGRIS_*`, `S3_*`, etc.) with backend-native fallbacks (`AWS_*`, `BLOB_READ_WRITE_TOKEN`, `GOOGLE_CLOUD_PROJECT`).
@@ -54,6 +54,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | Code Storage | [`@storagesdk/adapters/code-storage`](./packages/adapters/src/code-storage/README.md) | [Code Storage](https://code.storage/) repositories — snapshots are tags, forks are branches. |
 | Archil | [`@storagesdk/adapters/archil`](./packages/adapters/src/archil/README.md) | [Archil](https://archil.com/) disks via Archil's S3-compatible API. |
 | Mesa | [`@storagesdk/adapters/mesa`](./packages/adapters/src/mesa/README.md) | [Mesa](https://mesa.dev/) repositories — snapshots and forks are bookmarks. |
+| Tensorlake | [`@storagesdk/adapters/tensorlake`](./packages/adapters/src/tensorlake/README.md) | [Tensorlake Cloud Volumes](https://docs.tensorlake.ai/) — direct-to-blob uploads with metadata-only snapshots, copies, moves, and forks. |
 | GCS | [`@storagesdk/adapters/gcs`](./packages/adapters/src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
 | Azure Blob | [`@storagesdk/adapters/azure`](./packages/adapters/src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
 | Vercel Blob | [`@storagesdk/adapters/vercel`](./packages/adapters/src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |

@@ -104,6 +104,23 @@ await storage.upload('hello.txt', 'Hello, storage SDK!', {
 });
 
 const text = await storage.download('hello.txt', { as: 'text' });`,
+    tensorlake: `import { Storage } from '@storagesdk/core';
+import { tensorlake } from '@storagesdk/adapters/tensorlake';
+
+const storage = new Storage({
+  adapter: tensorlake({
+    filesystem: 'agent-runs',
+    apiKey: process.env.TENSORLAKE_API_KEY,
+    organizationId: process.env.TENSORLAKE_ORGANIZATION_ID,
+    projectId: process.env.TENSORLAKE_PROJECT_ID,
+  }),
+});
+
+await storage.upload('hello.txt', 'Hello, storage SDK!', {
+  contentType: 'text/plain',
+});
+
+const text = await storage.download('hello.txt', { as: 'text' });`,
     gcs: `import { Storage } from '@storagesdk/core';
 import { gcs } from '@storagesdk/adapters/gcs';
 

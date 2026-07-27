@@ -110,6 +110,12 @@ export const SECTIONS: Record<SectionId, Section> = {
               href: '/adapters/mesa',
             },
             {
+              id: 'tensorlake',
+              label: 'Tensorlake',
+              badge: 'native',
+              href: '/adapters/tensorlake',
+            },
+            {
               id: 'gcs',
               label: 'Google Cloud Storage',
               href: '/adapters/gcs',

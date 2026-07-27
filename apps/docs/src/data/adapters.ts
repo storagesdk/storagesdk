@@ -51,6 +51,13 @@ export const ADAPTERS: AdapterEntry[] = [
     native: true,
   },
   {
+    name: 'Tensorlake Cloud Volumes',
+    short: 'Tensorlake',
+    key: 'tensorlake',
+    sub: '@storagesdk/adapters/tensorlake',
+    native: true,
+  },
+  {
     name: 'Google Cloud Storage',
     short: 'GCS',
     key: 'gcs',
@@ -146,6 +153,7 @@ const FEATURED_KEYS = new Set([
   'tigris',
   's3',
   'r2',
+  'tensorlake',
   'gcs',
   'azure',
   'vercel',

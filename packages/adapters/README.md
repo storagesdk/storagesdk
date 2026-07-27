@@ -18,7 +18,7 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 | Code Storage | [`@storagesdk/adapters/code-storage`](./src/code-storage/README.md) | [Code Storage](https://code.storage/) repositories — snapshots are tags, forks are branches. |
 | Archil | [`@storagesdk/adapters/archil`](./src/archil/README.md) | [Archil](https://archil.com/) disks via Archil's S3-compatible API. |
 | Mesa | [`@storagesdk/adapters/mesa`](./src/mesa/README.md) | [Mesa](https://mesa.dev/) repositories — snapshots and forks are bookmarks. |
-| Tensorlake | [`@storagesdk/adapters/tensorlake`](./src/tensorlake/README.md) | [Tensorlake Cloud Volumes](https://docs.tensorlake.ai/) — versioned filesystems where snapshots are native commits and forks are sibling filesystems. |
+| Tensorlake | [`@storagesdk/adapters/tensorlake`](./src/tensorlake/README.md) | [Tensorlake Cloud Volumes](https://docs.tensorlake.ai/) — direct-to-blob uploads with metadata-only snapshots, copies, moves, and forks. |
 | GCS | [`@storagesdk/adapters/gcs`](./src/gcs/README.md) | [Google Cloud Storage](https://cloud.google.com/storage). |
 | Azure Blob | [`@storagesdk/adapters/azure`](./src/azure/README.md) | [Azure Blob Storage](https://azure.microsoft.com/products/storage/blobs). |
 | Vercel Blob | [`@storagesdk/adapters/vercel`](./src/vercel/README.md) | [Vercel Blob](https://vercel.com/docs/vercel-blob). |
@@ -69,7 +69,7 @@ See [storagesdk.dev/adapters](https://storagesdk.dev/adapters) for the full env-
 
 ## Snapshots and forks
 
-Every adapter implements `snapshots` and `forks` against the same contract. Backends that don't offer native primitives use a sibling-bucket / sibling-container convention (server-side copy + a per-bucket manifest); Tigris uses its native snapshot/fork APIs.
+Every adapter implements `snapshots` and `forks` against the same contract. Backends that don't offer native primitives use a sibling-bucket / sibling-container convention (server-side copy + a per-bucket manifest); Tigris and Tensorlake use native metadata-only snapshot/fork APIs.
 
 See each adapter's README for the specifics — naming convention, what the manifest contains, and what's enforced server-side vs in the SDK.
 
