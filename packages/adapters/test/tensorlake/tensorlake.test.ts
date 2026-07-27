@@ -13,7 +13,7 @@ const PROJECT_ID = process.env.TENSORLAKE_PROJECT_ID;
 const configured = Boolean(FILESYSTEM && API_KEY);
 
 // Load the adapter — and the `tensorlake` SDK it imports — lazily, only when
-// the live suite is configured. tensorlake@0.5.85 declares `engines.node
+// the live suite is configured. tensorlake@0.5.89 declares `engines.node
 // >= 22`, so a static import would evaluate the SDK on the Node 20 CI job even
 // though the suite is skipped there.
 if (configured) {
@@ -33,6 +33,7 @@ if (configured) {
   storageAdapterTestSuite({
     name: 'tensorlake adapter',
     skip: false,
+    testTimeoutMs: 30_000,
     adapter: buildAdapter,
     capabilities: {
       userMetadata: false,

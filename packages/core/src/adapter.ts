@@ -206,17 +206,12 @@ export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
         const snap = await impl.snapshots.create(
           opts.signal ? { signal: opts.signal } : undefined
         );
-        try {
-          return await impl.forks.create({ ...opts, fromSnapshot: snap.id });
-        } catch (err) {
-          // Roll back the auto-snapshot so a failed fork (duplicate
-          // name, abort, network error) doesn't leave a dangling
-          // snapshot in `snapshots.list()`. Best-effort: don't mask the
-          // original error if cleanup itself fails, and don't thread
-          // the caller's signal through — it might already be aborted.
-          await impl.snapshots.delete(snap.id).catch(() => {});
-          throw err;
-        }
+        // Snapshot ids may be content-addressed and therefore may name a
+        // retention point that existed before this fork attempt. Never delete
+        // the base on failure: doing so can invalidate another fork or a
+        // user-created snapshot. Backends may leave one harmless retained
+        // base behind when physical fork creation fails.
+        return impl.forks.create({ ...opts, fromSnapshot: snap.id });
       },
       list: () => impl.forks.list(),
       head: (name, opts) => impl.forks.head(name, opts),

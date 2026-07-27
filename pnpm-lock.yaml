@@ -129,8 +129,8 @@ importers:
         specifier: ^2.4.0
         version: 2.4.0
       tensorlake:
-        specifier: ^0.5.85
-        version: 0.5.85
+        specifier: ^0.5.89
+        version: 0.5.89
       webdav:
         specifier: ^5.10.0
         version: 5.10.0
@@ -4171,8 +4171,8 @@ packages:
     resolution: {integrity: sha512-resvxdc6Mgb7YEThw6G6bExlXKkv6+YbuzGg9xuXxSgxJF7Ozs+o8Y9+2R3sArdWdW8nOokoQb1yrpFB0pQK2g==}
     engines: {node: '>=14'}
 
-  tensorlake@0.5.85:
-    resolution: {integrity: sha512-205AKHh4aR8eSmEL/9Z+DwpD1cxNEBok4hyK8csoYn7kHexXpJaM/5nWurzZcIA018GUzikMZI/mOkSDKKwubg==}
+  tensorlake@0.5.89:
+    resolution: {integrity: sha512-ibLb35jxG0B77Rpmu6trjYYJ+qEBU5YhtQvzCYrTtkA3d8tCJIOYkKTfwULTyz6sgNO7lj5JPFA+vHnSHZvszw==}
     engines: {node: '>=22.0.0'}
     hasBin: true
 
@@ -9635,7 +9635,7 @@ snapshots:
       - encoding
       - supports-color
 
-  tensorlake@0.5.85:
+  tensorlake@0.5.89:
     dependencies:
       undici: 8.3.0
       ws: 8.21.0

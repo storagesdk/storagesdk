@@ -13,7 +13,8 @@ function codeForStatus(status: number): StorageErrorCode {
   if (status === 401 || status === 403) return 'Unauthorized';
   if (status === 404) return 'NotFound';
   if (status === 409) return 'Conflict';
-  if (status === 400 || status === 422) return 'InvalidArgument';
+  if (status === 400 || status === 416 || status === 422)
+    return 'InvalidArgument';
   return 'Provider';
 }
 

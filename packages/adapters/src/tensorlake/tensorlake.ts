@@ -1,6 +1,10 @@
-import { posix as pathPosix } from 'node:path';
+import { createHash } from 'node:crypto';
+import { mkdtemp, open, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, posix as pathPosix } from 'node:path';
 import {
   type Adapter,
+  type BodyInput,
   bodyToBytes,
   checkSignal,
   defaultDiff,
@@ -24,8 +28,14 @@ import {
   type UrlOptions,
   writeManifest,
 } from '@storagesdk/core/adapter';
-import type { FileEntry, Filesystem, Snapshot } from 'tensorlake';
-import { FilesystemClient } from 'tensorlake';
+import {
+  type FileEntry,
+  type Filesystem,
+  FilesystemClient,
+  type FilesystemFileRead,
+  type FilesystemSnapshot,
+  type FilesystemSnapshotInfo,
+} from 'tensorlake';
 import { asStorageError } from './errors.js';
 
 export interface TensorlakeConfig {
@@ -43,10 +53,13 @@ export interface TensorlakeConfig {
 
 export type TensorlakeRaw = FilesystemClient;
 
-const FORK_INFIX = '-fork-';
+const SNAPSHOT_MESSAGE_PREFIX = 'storagesdk:snapshot:v1:';
 
 const forkFilesystemName = (parent: string, name: string): string =>
-  `${parent}${FORK_INFIX}${name}`;
+  `storagesdk-fork-${createHash('sha256')
+    .update(JSON.stringify([parent, name]))
+    .digest('hex')
+    .slice(0, 32)}`;
 
 /** Directory a key lives in, or `undefined` for a root-level key. */
 function dirOf(key: string): string | undefined {
@@ -59,9 +72,9 @@ function metaFromEntry(entry: FileEntry, key: string): StorageItemMeta {
     path: key,
     size: entry.size ?? 0,
     contentType: 'application/octet-stream',
-    // The git blob oid is a content hash — stable across filesystems for
-    // identical bytes, which is what the default merge/diff rely on.
-    etag: entry.oid,
+    // The native content id is stable across filesystems for identical bytes,
+    // which is what the default merge/diff rely on.
+    etag: entry.contentId,
     // Tensorlake listings don't carry a per-file mtime; epoch signals
     // "no meaningful timestamp" to the merge/diff polyfill so it falls
     // back to the content etag.
@@ -69,13 +82,120 @@ function metaFromEntry(entry: FileEntry, key: string): StorageItemMeta {
   };
 }
 
+const snapshotMessage = (name: string | undefined): string =>
+  `${SNAPSHOT_MESSAGE_PREFIX}${JSON.stringify({ name: name ?? null })}`;
+
+function snapshotInfo(snapshot: FilesystemSnapshotInfo): SnapshotInfo {
+  let name: string | undefined;
+  if (!snapshot.message.startsWith(SNAPSHOT_MESSAGE_PREFIX)) {
+    return {
+      id: snapshot.id,
+      createdAt: snapshot.createdAt,
+    };
+  }
+  try {
+    const decoded = JSON.parse(
+      snapshot.message.slice(SNAPSHOT_MESSAGE_PREFIX.length)
+    ) as { name?: unknown };
+    name = typeof decoded.name === 'string' ? decoded.name : undefined;
+  } catch {
+    // A malformed storagesdk-prefixed message still names a valid native
+    // retention point. Surface it without a logical name instead of making
+    // its immutable version unreachable through snapshots.head().
+  }
+  return {
+    id: snapshot.id,
+    createdAt: snapshot.createdAt,
+    ...(name !== undefined ? { name } : {}),
+  };
+}
+
+const isStoragesdkSnapshot = (snapshot: FilesystemSnapshotInfo): boolean =>
+  snapshot.message.startsWith(SNAPSHOT_MESSAGE_PREFIX);
+
+async function materializeStream(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal | undefined
+): Promise<{ directory: string; path: string; size: number }> {
+  const directory = await mkdtemp(
+    join(tmpdir(), 'storagesdk-tensorlake-upload-')
+  );
+  const path = join(directory, 'payload');
+  try {
+    const reader = body.getReader();
+    const onAbort = (): void => {
+      void reader.cancel(signal?.reason).catch(() => {});
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    try {
+      const handle = await open(path, 'wx');
+      let failure: unknown;
+      let size = 0;
+      try {
+        while (true) {
+          checkSignal(signal);
+          const { done, value } = await reader.read();
+          if (done) break;
+          let offset = 0;
+          while (offset < value.byteLength) {
+            const { bytesWritten } = await handle.write(
+              value,
+              offset,
+              value.byteLength - offset,
+              size
+            );
+            if (bytesWritten === 0) {
+              throw new StorageError({
+                code: 'Provider',
+                message: 'temporary upload file made no write progress',
+              });
+            }
+            offset += bytesWritten;
+            size += bytesWritten;
+          }
+        }
+        checkSignal(signal);
+      } catch (err) {
+        failure = err;
+        throw err;
+      } finally {
+        await handle.close().catch((err) => {
+          if (failure === undefined) throw err;
+        });
+      }
+      return { directory, path, size };
+    } finally {
+      signal?.removeEventListener('abort', onAbort);
+      reader.releaseLock();
+    }
+  } catch (err) {
+    // Cleanup is best-effort and must never mask the stream/read failure.
+    await rm(directory, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
+}
+
+async function isUnbornFilesystemError(
+  fs: Filesystem,
+  err: unknown
+): Promise<boolean> {
+  if (asStorageError(err).code !== 'InvalidArgument') return false;
+  try {
+    return (await fs.status()).versionId === null;
+  } catch {
+    // Preserve the original operation failure when the status probe itself
+    // fails; it carries the more relevant path and operation context.
+    return false;
+  }
+}
+
 /**
  * Tensorlake Cloud Volumes adapter. One Tensorlake filesystem maps to one
- * storagesdk location. Snapshots are native commits (time-travel reads via
- * `version`); forks are sibling filesystems (`<fs>-fork-<name>`) seeded by
- * copying files from the source snapshot. `contentType`/`metadata` aren't
- * persisted, `url()` returns a non-fetchable `tensorlake://` scheme URL, and
- * `uploadUrl()` is unsupported.
+ * storagesdk location. Uploads go directly to blob storage; copy, move,
+ * snapshots, and forks publish metadata only. Snapshot readers use native
+ * version ids, while forks are deterministic, opaque sibling filesystems.
+ * `contentType`/`metadata` aren't persisted, `url()` returns a non-fetchable
+ * `tensorlake://` scheme URL, and `uploadUrl()` is unsupported.
  */
 export function tensorlake(config: TensorlakeConfig): Adapter<TensorlakeRaw> {
   const client = new FilesystemClient({
@@ -127,6 +247,12 @@ function impl(
     try {
       entries = await fs.listFiles(dirOf(key), version);
     } catch (err) {
+      if (await isUnbornFilesystemError(fs, err)) {
+        throw new StorageError({
+          code: 'NotFound',
+          message: `${key} not found`,
+        });
+      }
       throw asStorageError(err, key);
     }
     const base = pathPosix.basename(key);
@@ -137,37 +263,6 @@ function impl(
     return entry;
   };
 
-  /**
-   * Read every file under the filesystem at `ver` into memory. Errors
-   * propagate so an invalid `fromSnapshot` fails loudly; when reading the
-   * live head (`ver === undefined`) a missing tree is treated as empty.
-   */
-  const collectTree = async (
-    fs: Filesystem,
-    ver: string | undefined
-  ): Promise<Map<string, Uint8Array>> => {
-    const out = new Map<string, Uint8Array>();
-    const walk = async (dir: string | undefined): Promise<void> => {
-      let entries: FileEntry[];
-      try {
-        entries = await fs.listFiles(dir, ver);
-      } catch (err) {
-        const mapped = asStorageError(err);
-        if (ver === undefined && mapped.code === 'NotFound') return;
-        throw mapped;
-      }
-      for (const entry of entries) {
-        if (entry.isDir) {
-          await walk(entry.path);
-        } else if (!isInternalKey(entry.path)) {
-          out.set(entry.path, await fs.readFile(entry.path, ver));
-        }
-      }
-    };
-    await walk(undefined);
-    return out;
-  };
-
   const adapter: Adapter<TensorlakeRaw> = {
     name: 'tensorlake',
     raw: client,
@@ -175,35 +270,61 @@ function impl(
     async upload(key, body, opts?: UploadOptions): Promise<StorageItemMeta> {
       checkSignal(opts?.signal);
       ensureWritable();
-      const bytes = await bodyToBytes(body);
       const fs = await resolveFs();
+      let loaded: number;
       try {
-        await fs.writeFile(key, bytes);
+        if (body instanceof ReadableStream) {
+          const source = await materializeStream(body, opts?.signal);
+          try {
+            checkSignal(opts?.signal);
+            await fs.writeFileFromPath(key, source.path);
+            loaded = source.size;
+          } finally {
+            // Publication may already be durable. A local cleanup failure must
+            // not turn that success into an unknown outcome for the caller.
+            await rm(source.directory, { recursive: true, force: true }).catch(
+              () => {}
+            );
+          }
+        } else {
+          const bytes = await bodyToBytes(body as BodyInput);
+          await fs.writeFile(key, bytes);
+          loaded = bytes.byteLength;
+        }
       } catch (err) {
         throw asStorageError(err, key);
       }
-      opts?.onProgress?.({ loaded: bytes.byteLength, total: bytes.byteLength });
+      opts?.onProgress?.({ loaded, total: loaded });
       return metaFromEntry(await headEntry(key), key);
     },
 
     async download(key, opts): Promise<StorageItem> {
       checkSignal(opts?.signal);
       const fs = await resolveFs();
-      const [bytes, entry] = await Promise.all([
-        fs.readFile(key, version).catch((err) => {
-          throw asStorageError(err, key);
-        }),
-        headEntry(key),
-      ]);
-      const meta = metaFromEntry(entry, key);
-      if (opts?.range) {
-        const { offset, length } = opts.range;
-        const view = bytes.subarray(offset, offset + length);
-        const sliced = new Uint8Array(view.byteLength);
-        sliced.set(view);
-        return { ...meta, size: sliced.byteLength, body: sliced };
+      let read: FilesystemFileRead;
+      try {
+        read = await fs.readFileWithMetadata(key, {
+          ...(version !== undefined ? { version } : {}),
+          ...(opts?.range !== undefined ? { range: opts.range } : {}),
+        });
+      } catch (err) {
+        if (await isUnbornFilesystemError(fs, err)) {
+          throw new StorageError({
+            code: 'NotFound',
+            message: `${key} not found`,
+          });
+        }
+        throw asStorageError(err, key);
       }
-      return { ...meta, size: bytes.byteLength, body: new Uint8Array(bytes) };
+      const bytes = new Uint8Array(read.data);
+      return {
+        path: key,
+        size: bytes.byteLength,
+        contentType: 'application/octet-stream',
+        etag: read.contentId,
+        lastModified: new Date(0),
+        body: bytes,
+      };
     },
 
     async head(key, opts): Promise<StorageItemMeta> {
@@ -219,24 +340,39 @@ function impl(
       const fs = await resolveFs();
 
       const items: StorageItemMeta[] = [];
-      const walk = async (dir: string | undefined): Promise<void> => {
-        let entries: FileEntry[];
-        try {
-          entries = await fs.listFiles(dir, version);
-        } catch (err) {
-          const mapped = asStorageError(err);
-          if (mapped.code === 'NotFound') return;
-          throw mapped;
-        }
-        for (const entry of entries) {
-          if (entry.isDir) {
-            await walk(entry.path);
-          } else if (!isInternalKey(entry.path)) {
-            items.push(metaFromEntry(entry, entry.path));
+      const prefixSlash = prefix.lastIndexOf('/');
+      let directories: Array<string | undefined> = [
+        prefixSlash >= 0 ? prefix.slice(0, prefixSlash) : undefined,
+      ];
+      while (directories.length > 0) {
+        const next: string[] = [];
+        for (let start = 0; start < directories.length; start += 16) {
+          checkSignal(opts?.signal);
+          const batch = directories.slice(start, start + 16);
+          const pages = await Promise.all(
+            batch.map(async (dir) => {
+              try {
+                return await fs.listFiles(dir, version);
+              } catch (err) {
+                if (await isUnbornFilesystemError(fs, err)) return [];
+                const mapped = asStorageError(err);
+                if (mapped.code === 'NotFound') return [];
+                throw mapped;
+              }
+            })
+          );
+          for (const entries of pages) {
+            for (const entry of entries) {
+              if (entry.isDir) {
+                next.push(entry.path);
+              } else if (!isInternalKey(entry.path)) {
+                items.push(metaFromEntry(entry, entry.path));
+              }
+            }
           }
         }
-      };
-      await walk(undefined);
+        directories = next;
+      }
 
       const matching = items
         .filter((m) => m.path.startsWith(prefix) && m.path > cursor)
@@ -265,16 +401,10 @@ function impl(
       checkSignal(opts?.signal);
       ensureWritable();
       const fs = await resolveFs();
-      let bytes: Uint8Array;
       try {
-        bytes = await fs.readFile(from);
+        await fs.copyFile(from, to);
       } catch (err) {
         throw asStorageError(err, from);
-      }
-      try {
-        await fs.writeFile(to, bytes);
-      } catch (err) {
-        throw asStorageError(err, to);
       }
     },
 
@@ -282,16 +412,10 @@ function impl(
       checkSignal(opts?.signal);
       ensureWritable();
       const fs = await resolveFs();
-      let bytes: Uint8Array;
       try {
-        bytes = await fs.readFile(from);
+        await fs.moveFile(from, to);
       } catch (err) {
         throw asStorageError(err, from);
-      }
-      try {
-        await fs.writeFiles({ [to]: bytes }, undefined, [from]);
-      } catch (err) {
-        throw asStorageError(err, to);
       }
     },
 
@@ -319,57 +443,96 @@ function impl(
         checkSignal(opts?.signal);
         ensureWritable();
         const fs = await resolveFs();
-        let snap: Snapshot;
+        let snap: FilesystemSnapshot;
         try {
-          snap = await fs.snapshot(
-            opts?.name !== undefined
-              ? `storagesdk snapshot ${opts.name}`
-              : 'storagesdk snapshot'
-          );
+          snap = await fs.snapshot(snapshotMessage(opts?.name));
         } catch (err) {
-          throw asStorageError(err);
+          const mapped = asStorageError(err);
+          if (mapped.code !== 'Conflict' || opts?.name !== undefined) {
+            throw mapped;
+          }
+          // Native version ids are content-addressed. The generic live-fork
+          // path asks for an unnamed base, which may already be retained under
+          // a user-supplied name. Reuse that exact current head instead of
+          // mutating or deleting its retention lifetime.
+          try {
+            const [status, snapshots] = await Promise.all([
+              fs.status(),
+              fs.listSnapshots(),
+            ]);
+            const retained =
+              status.versionId === null
+                ? undefined
+                : snapshots.find(
+                    (snapshot) => snapshot.id === status.versionId
+                  );
+            if (retained !== undefined) return snapshotInfo(retained);
+          } catch (lookupErr) {
+            throw asStorageError(lookupErr);
+          }
+          throw mapped;
         }
-        const info: SnapshotInfo = {
-          id: snap.commit,
+        return {
+          id: snap.id,
           createdAt: new Date(),
           ...(opts?.name !== undefined ? { name: opts.name } : {}),
         };
-        // Recording the snapshot writes the manifest, which advances the
-        // head commit — so the next `create()` pins a distinct commit even
-        // with no user writes in between.
-        const manifest = await readManifest(adapter);
-        manifest.snapshots.push(info);
-        await writeManifest(adapter, manifest);
-        return info;
       },
 
       async list(): Promise<SnapshotInfo[]> {
-        return (await readManifest(adapter)).snapshots;
+        const fs = await resolveFs();
+        try {
+          return (await fs.listSnapshots())
+            .filter(isStoragesdkSnapshot)
+            .map(snapshotInfo);
+        } catch (err) {
+          throw asStorageError(err);
+        }
       },
 
       async head(id, opts): Promise<SnapshotInfo> {
         checkSignal(opts?.signal);
-        const found = (await readManifest(adapter)).snapshots.find(
-          (s) => s.id === id
-        );
+        const fs = await resolveFs();
+        let found: FilesystemSnapshotInfo | undefined;
+        try {
+          found = (await fs.listSnapshots()).find(
+            (snapshot) => snapshot.id === id && isStoragesdkSnapshot(snapshot)
+          );
+        } catch (err) {
+          throw asStorageError(err);
+        }
         if (found === undefined) {
           throw new StorageError({
             code: 'NotFound',
             message: `snapshot ${id} not found`,
           });
         }
-        return found;
+        return snapshotInfo(found);
       },
 
       async delete(id, opts): Promise<void> {
         checkSignal(opts?.signal);
         ensureWritable();
-        // The SDK can't delete an individual permanent commit, so this only
-        // drops the manifest reference; the underlying commit persists until
-        // the whole filesystem is deleted.
-        const manifest = await readManifest(adapter);
-        manifest.snapshots = manifest.snapshots.filter((s) => s.id !== id);
-        await writeManifest(adapter, manifest);
+        const fs = await resolveFs();
+        let found: FilesystemSnapshotInfo | undefined;
+        try {
+          found = (await fs.listSnapshots()).find(
+            (snapshot) => snapshot.id === id && isStoragesdkSnapshot(snapshot)
+          );
+        } catch (err) {
+          throw asStorageError(err);
+        }
+        if (found === undefined) {
+          throw new StorageError({
+            code: 'NotFound',
+            message: `snapshot ${id} not found`,
+          });
+        }
+        try {
+          await fs.deleteSnapshot(id);
+        } catch (err) {
+          throw asStorageError(err, id);
+        }
       },
 
       get(id): ReadOnlyAdapter {
@@ -389,42 +552,20 @@ function impl(
         ensureWritable();
         const forkFs = forkFilesystemName(fsName, opts.name);
 
-        const manifest = await readManifest(adapter);
-        if (manifest.forks.some((f) => f.name === opts.name)) {
+        const { manifest, forks } = await readForkRegistry();
+        if (forks.some((f) => f.name === opts.name)) {
           throw new StorageError({
             code: 'Conflict',
             message: `fork ${opts.name} already exists`,
           });
         }
 
-        // Read the seed BEFORE creating the fork filesystem so an unknown
-        // `fromSnapshot` fails without leaving an empty fork behind.
-        const fs = await resolveFs();
-        let seed: Map<string, Uint8Array>;
         try {
-          seed = await collectTree(fs, opts.fromSnapshot);
-        } catch (err) {
-          throw asStorageError(err, opts.fromSnapshot);
-        }
-
-        let forkHandle: Filesystem;
-        try {
-          forkHandle = await client.create(forkFs);
+          await client.fork(forkFs, fsName, opts.fromSnapshot);
         } catch (err) {
           throw asStorageError(err);
         }
         try {
-          if (seed.size > 0) {
-            await forkHandle.writeFiles(seed);
-          }
-          const forkImpl = impl(client, forkFs);
-          await writeManifest(
-            forkImpl,
-            emptyManifest({
-              location: fsName,
-              snapshotId: opts.fromSnapshot ?? null,
-            })
-          );
           const info: ForkInfo = {
             name: opts.name,
             createdAt: new Date(),
@@ -432,6 +573,10 @@ function impl(
               ? { fromSnapshot: opts.fromSnapshot }
               : {}),
           };
+          // A native fork shares the parent's hidden manifest too. Replace
+          // any inherited sibling entries with the registry proven to belong
+          // to this filesystem before adding its new child.
+          manifest.forks = forks;
           manifest.forks.push(info);
           await writeManifest(adapter, manifest);
           return info;
@@ -442,12 +587,12 @@ function impl(
       },
 
       async list(): Promise<ForkInfo[]> {
-        return (await readManifest(adapter)).forks;
+        return (await readForkRegistry()).forks;
       },
 
       async head(name, opts): Promise<ForkInfo> {
         checkSignal(opts?.signal);
-        const found = (await readManifest(adapter)).forks.find(
+        const found = (await readForkRegistry()).forks.find(
           (f) => f.name === name
         );
         if (found === undefined) {
@@ -462,8 +607,8 @@ function impl(
       async delete(name, opts): Promise<void> {
         checkSignal(opts?.signal);
         ensureWritable();
-        const manifest = await readManifest(adapter);
-        manifest.forks = manifest.forks.filter((f) => f.name !== name);
+        const { manifest, forks } = await readForkRegistry();
+        manifest.forks = forks.filter((f) => f.name !== name);
         try {
           await client.delete(forkFilesystemName(fsName, name));
         } catch (err) {
@@ -483,6 +628,62 @@ function impl(
       diff: (name, opts) => defaultDiff(adapter, name, opts),
     },
   };
+
+  /**
+   * Native forks share the source tree, including its hidden storagesdk
+   * manifest. Accept a registry row only when its exact physical child exists
+   * under this filesystem's namespace; that prevents a child from treating
+   * the parent's sibling rows as its own children. Resolve exact names instead
+   * of using the project listing: that endpoint is paginated and may be served
+   * from a stale cross-pod cache.
+   */
+  async function readForkRegistry(): Promise<{
+    manifest: Awaited<ReturnType<typeof readManifest>>;
+    forks: ForkInfo[];
+  }> {
+    const manifest = await readTensorlakeManifest();
+    const forks: ForkInfo[] = [];
+    for (let start = 0; start < manifest.forks.length; start += 16) {
+      const batch = manifest.forks.slice(start, start + 16);
+      const present = await Promise.all(
+        batch.map(async (fork) => {
+          try {
+            await client.get(forkFilesystemName(fsName, fork.name));
+            return true;
+          } catch (err) {
+            const mapped = asStorageError(err);
+            if (mapped.code === 'NotFound') return false;
+            throw mapped;
+          }
+        })
+      );
+      for (let i = 0; i < batch.length; i++) {
+        const fork = batch[i];
+        if (present[i] === true && fork !== undefined) forks.push(fork);
+      }
+    }
+    return { manifest, forks };
+  }
+
+  async function readTensorlakeManifest(): Promise<
+    Awaited<ReturnType<typeof readManifest>>
+  > {
+    try {
+      return await readManifest(adapter);
+    } catch (err) {
+      if (err instanceof StorageError && err.code === 'InvalidArgument') {
+        const fs = await resolveFs();
+        let status: Awaited<ReturnType<Filesystem['status']>>;
+        try {
+          status = await fs.status();
+        } catch (statusErr) {
+          throw asStorageError(statusErr);
+        }
+        if (status.versionId === null) return emptyManifest();
+      }
+      throw err;
+    }
+  }
 
   return adapter;
 }
