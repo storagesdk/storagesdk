@@ -799,6 +799,13 @@ function impl(
   async function readForkRecord(name: string): Promise<ForkInfo | undefined> {
     const path = forkRecordPath(name);
     const fs = await resolveFs();
+    return readForkRecordAtPath(fs, path);
+  }
+
+  async function readForkRecordAtPath(
+    fs: Filesystem,
+    path: string
+  ): Promise<ForkInfo | undefined> {
     let text: string;
     try {
       text = await fs.readText(path, version);
@@ -831,11 +838,11 @@ function impl(
     for (let start = 0; start < paths.length; start += 16) {
       const batch = paths.slice(start, start + 16);
       const decoded = await Promise.all(
-        batch.map(async (path) =>
-          parseForkRecord(path, await fs.readText(path, version))
-        )
+        batch.map((path) => readForkRecordAtPath(fs, path))
       );
-      records.push(...decoded);
+      records.push(
+        ...decoded.filter((record): record is ForkInfo => record !== undefined)
+      );
     }
     return records;
   }

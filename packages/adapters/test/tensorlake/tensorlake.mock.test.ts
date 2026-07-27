@@ -18,6 +18,13 @@ const nativeCalls = vi.hoisted(() => ({
         directory: string | undefined;
         version: string | undefined;
       }) => Promise<void>),
+  beforeReadText: undefined as
+    | undefined
+    | ((args: {
+        filesystem: string;
+        path: string;
+        version: string | undefined;
+      }) => Promise<void>),
 }));
 
 /**
@@ -232,6 +239,15 @@ vi.mock('tensorlake', () => {
       };
     }
     async readText(path: string, version?: string): Promise<string> {
+      const beforeReadText = nativeCalls.beforeReadText;
+      if (beforeReadText !== undefined) {
+        nativeCalls.beforeReadText = undefined;
+        await beforeReadText({
+          filesystem: this.name,
+          path,
+          version,
+        });
+      }
       return new TextDecoder().decode(await this.readFile(path, version));
     }
     async listFiles(dirPath?: string, version?: string): Promise<FileEntry[]> {
@@ -378,6 +394,7 @@ for (const filesystem of [
   'mock-upload-race-volume',
   'mock-concurrent-forks-volume',
   'mock-concurrent-fork-delete-volume',
+  'mock-fork-list-delete-race-volume',
   'mock-transient-fork-conflict-volume',
   'mock-external-base-volume',
   'mock-list-pagination-volume',
@@ -570,6 +587,27 @@ it('composes a fork create with a different fork delete', async () => {
   expect((await adapter.forks.list()).map((fork) => fork.name)).toEqual([
     'new',
   ]);
+});
+
+it('skips a fork record deleted between list and read', async () => {
+  const filesystemName = 'mock-fork-list-delete-race-volume';
+  const adapter = tensorlake({
+    filesystem: filesystemName,
+    apiKey: 'test',
+  });
+  await adapter.upload('seed.txt', 'seed');
+  await adapter.forks.create({ name: 'first' });
+  await adapter.forks.create({ name: 'second' });
+
+  nativeCalls.beforeReadText = async ({ filesystem, path, version }) => {
+    expect(filesystem).toBe(filesystemName);
+    expect(version).toBeUndefined();
+    await (await mockClient.get(filesystem)).deleteFile(path);
+  };
+
+  const listed = await adapter.forks.list();
+  expect(listed).toHaveLength(1);
+  expect(['first', 'second']).toContain(listed[0]?.name);
 });
 
 it('retries a transient native fork topology conflict', async () => {
