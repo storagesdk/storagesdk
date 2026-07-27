@@ -42,6 +42,13 @@ export interface AdapterSnapshots {
   head(id: string, opts?: { signal?: AbortSignal }): Promise<SnapshotInfo>;
   delete(id: string, opts?: { signal?: AbortSignal }): Promise<void>;
   get(id: string): ReadOnlyAdapter;
+  /**
+   * Adapter-author lifecycle hook used only by `defineAdapter` when physical
+   * fork creation fails after the wrapper auto-created its base snapshot.
+   * Implementations that reuse content-addressed retention points can retain
+   * the shared base here; other adapters use the default `delete()` rollback.
+   */
+  cleanupAutoSnapshotAfterForkFailure?(snapshot: SnapshotInfo): Promise<void>;
 }
 
 /**
@@ -206,12 +213,21 @@ export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
         const snap = await impl.snapshots.create(
           opts.signal ? { signal: opts.signal } : undefined
         );
-        // Snapshot ids may be content-addressed and therefore may name a
-        // retention point that existed before this fork attempt. Never delete
-        // the base on failure: doing so can invalidate another fork or a
-        // user-created snapshot. Backends may leave one harmless retained
-        // base behind when physical fork creation fails.
-        return impl.forks.create({ ...opts, fromSnapshot: snap.id });
+        try {
+          return await impl.forks.create({ ...opts, fromSnapshot: snap.id });
+        } catch (err) {
+          // Most adapters create a fresh physical snapshot here, so roll it
+          // back. Content-addressed adapters may have returned a retention
+          // point shared with another fork or a user-created snapshot; their
+          // lifecycle hook decides whether cleanup is safe.
+          const cleanup = impl.snapshots.cleanupAutoSnapshotAfterForkFailure;
+          if (cleanup !== undefined) {
+            await cleanup(snap).catch(() => {});
+          } else {
+            await impl.snapshots.delete(snap.id).catch(() => {});
+          }
+          throw err;
+        }
       },
       list: () => impl.forks.list(),
       head: (name, opts) => impl.forks.head(name, opts),

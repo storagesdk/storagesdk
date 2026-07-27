@@ -42,6 +42,59 @@ if (configured) {
       fetchableSignedUrls: false,
     },
   });
+
+  describe('tensorlake adapter implementation', { timeout: 30_000 }, () => {
+    it('composes concurrent fork registry mutations', async () => {
+      const adapter = buildAdapter();
+      const suffix = crypto.randomUUID();
+      const seedPath = `concurrency/${suffix}.txt`;
+      const first = `concurrent-first-${suffix}`;
+      const second = `concurrent-second-${suffix}`;
+      const third = `concurrent-third-${suffix}`;
+      let snapshotId: string | undefined;
+
+      try {
+        await adapter.upload(seedPath, 'seed');
+        snapshotId = (await adapter.snapshots.create()).id;
+        await Promise.all([
+          adapter.forks.create({ name: first, fromSnapshot: snapshotId }),
+          adapter.forks.create({ name: second, fromSnapshot: snapshotId }),
+        ]);
+        expect(
+          (await adapter.forks.list())
+            .filter((fork) => fork.name === first || fork.name === second)
+            .map((fork) => fork.name)
+            .sort()
+        ).toEqual([first, second].sort());
+
+        await Promise.all([
+          adapter.forks.delete(first),
+          adapter.forks.create({ name: third, fromSnapshot: snapshotId }),
+        ]);
+        expect(
+          (await adapter.forks.list())
+            .filter(
+              (fork) =>
+                fork.name === first ||
+                fork.name === second ||
+                fork.name === third
+            )
+            .map((fork) => fork.name)
+            .sort()
+        ).toEqual([second, third].sort());
+      } finally {
+        await Promise.allSettled([
+          adapter.forks.delete(first),
+          adapter.forks.delete(second),
+          adapter.forks.delete(third),
+        ]);
+        if (snapshotId !== undefined) {
+          await adapter.snapshots.delete(snapshotId).catch(() => {});
+        }
+        await adapter.delete(seedPath);
+      }
+    });
+  });
 } else {
   describe('tensorlake adapter (skipped)', () => {
     it('skipped: TENSORLAKE_FILESYSTEM / TENSORLAKE_API_KEY not set', () => {

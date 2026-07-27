@@ -11,13 +11,11 @@ import {
   defaultMerge,
   defaultRebase,
   defineAdapter,
-  emptyManifest,
   type ForkInfo,
   isInternalKey,
   type ListOptions,
   type ListResult,
   type ReadOnlyAdapter,
-  readManifest,
   type SnapshotInfo,
   StorageError,
   type StorageItem,
@@ -26,11 +24,11 @@ import {
   type UploadUrlOptions,
   type UploadUrlResult,
   type UrlOptions,
-  writeManifest,
 } from '@storagesdk/core/adapter';
 import {
   type FileEntry,
   type Filesystem,
+  FilesystemAPIError,
   FilesystemClient,
   type FilesystemFileRead,
   type FilesystemSnapshot,
@@ -54,12 +52,34 @@ export interface TensorlakeConfig {
 export type TensorlakeRaw = FilesystemClient;
 
 const SNAPSHOT_MESSAGE_PREFIX = 'storagesdk:snapshot:v1:';
+const TENSORLAKE_INTERNAL_DIRECTORY = '.storagesdk';
+const FORK_RECORD_DIRECTORY = `${TENSORLAKE_INTERNAL_DIRECTORY}/forks`;
+const FORK_RECORD_VERSION = 1;
+const TRANSIENT_FORK_CONFLICT = 'network reachability changed while forking';
+const MAX_FORK_ATTEMPTS = 4;
+
+interface ForkRecord {
+  version: typeof FORK_RECORD_VERSION;
+  name: string;
+  createdAt: string;
+  fromSnapshot?: string;
+}
 
 const forkFilesystemName = (parent: string, name: string): string =>
   `storagesdk-fork-${createHash('sha256')
     .update(JSON.stringify([parent, name]))
     .digest('hex')
     .slice(0, 32)}`;
+
+const forkRecordPath = (name: string): string =>
+  `${FORK_RECORD_DIRECTORY}/${createHash('sha256')
+    .update(JSON.stringify(name))
+    .digest('hex')}.json`;
+
+const isTensorlakeInternalPath = (path: string): boolean =>
+  isInternalKey(path) ||
+  path === TENSORLAKE_INTERNAL_DIRECTORY ||
+  path.startsWith(`${TENSORLAKE_INTERNAL_DIRECTORY}/`);
 
 /** Directory a key lives in, or `undefined` for a root-level key. */
 function dirOf(key: string): string | undefined {
@@ -112,6 +132,73 @@ function snapshotInfo(snapshot: FilesystemSnapshotInfo): SnapshotInfo {
 
 const isStoragesdkSnapshot = (snapshot: FilesystemSnapshotInfo): boolean =>
   snapshot.message.startsWith(SNAPSHOT_MESSAGE_PREFIX);
+
+function serializeForkRecord(info: ForkInfo): string {
+  const record: ForkRecord = {
+    version: FORK_RECORD_VERSION,
+    name: info.name,
+    createdAt: info.createdAt.toISOString(),
+    ...(info.fromSnapshot !== undefined
+      ? { fromSnapshot: info.fromSnapshot }
+      : {}),
+  };
+  return JSON.stringify(record);
+}
+
+function parseForkRecord(path: string, text: string): ForkInfo {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (cause) {
+    throw new StorageError({
+      code: 'InvalidArgument',
+      message: `invalid Tensorlake fork record at ${path}`,
+      cause: cause instanceof Error ? cause : undefined,
+    });
+  }
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('version' in value) ||
+    value.version !== FORK_RECORD_VERSION
+  ) {
+    throw new StorageError({
+      code: 'NotSupported',
+      message: `unsupported Tensorlake fork record at ${path}`,
+    });
+  }
+
+  const record = value as Partial<ForkRecord>;
+  const createdAt =
+    typeof record.createdAt === 'string'
+      ? new Date(record.createdAt)
+      : new Date(Number.NaN);
+  if (
+    typeof record.name !== 'string' ||
+    record.name.length === 0 ||
+    forkRecordPath(record.name) !== path ||
+    Number.isNaN(createdAt.getTime()) ||
+    (record.fromSnapshot !== undefined &&
+      typeof record.fromSnapshot !== 'string')
+  ) {
+    throw new StorageError({
+      code: 'InvalidArgument',
+      message: `invalid Tensorlake fork record at ${path}`,
+    });
+  }
+  return {
+    name: record.name,
+    createdAt,
+    ...(record.fromSnapshot !== undefined
+      ? { fromSnapshot: record.fromSnapshot }
+      : {}),
+  };
+}
+
+const isTransientForkConflict = (err: unknown): boolean =>
+  err instanceof FilesystemAPIError &&
+  err.statusCode === 409 &&
+  err.message.includes(TRANSIENT_FORK_CONFLICT);
 
 async function materializeStream(
   body: ReadableStream<Uint8Array>,
@@ -241,11 +328,35 @@ function impl(
     }
   };
 
-  const headEntry = async (key: string): Promise<FileEntry> => {
+  const createPhysicalFork = async (
+    forkFs: string,
+    fromSnapshot: string | undefined,
+    signal: AbortSignal | undefined
+  ): Promise<void> => {
+    for (let attempt = 1; attempt <= MAX_FORK_ATTEMPTS; attempt++) {
+      checkSignal(signal);
+      try {
+        await client.fork(forkFs, fsName, fromSnapshot);
+        return;
+      } catch (err) {
+        if (!isTransientForkConflict(err) || attempt === MAX_FORK_ATTEMPTS) {
+          throw err;
+        }
+        await new Promise((resolve) =>
+          setTimeout(resolve, 50 * 2 ** (attempt - 1))
+        );
+      }
+    }
+  };
+
+  const headEntry = async (
+    key: string,
+    readVersion: string | undefined = version
+  ): Promise<FileEntry> => {
     const fs = await resolveFs();
     let entries: FileEntry[];
     try {
-      entries = await fs.listFiles(dirOf(key), version);
+      entries = await fs.listFiles(dirOf(key), readVersion);
     } catch (err) {
       if (await isUnbornFilesystemError(fs, err)) {
         throw new StorageError({
@@ -272,12 +383,14 @@ function impl(
       ensureWritable();
       const fs = await resolveFs();
       let loaded: number;
+      let publishedVersion: string;
       try {
         if (body instanceof ReadableStream) {
           const source = await materializeStream(body, opts?.signal);
           try {
             checkSignal(opts?.signal);
-            await fs.writeFileFromPath(key, source.path);
+            const publication = await fs.writeFileFromPath(key, source.path);
+            publishedVersion = publication.versionId;
             loaded = source.size;
           } finally {
             // Publication may already be durable. A local cleanup failure must
@@ -288,14 +401,15 @@ function impl(
           }
         } else {
           const bytes = await bodyToBytes(body as BodyInput);
-          await fs.writeFile(key, bytes);
+          const publication = await fs.writeFile(key, bytes);
+          publishedVersion = publication.versionId;
           loaded = bytes.byteLength;
         }
       } catch (err) {
         throw asStorageError(err, key);
       }
       opts?.onProgress?.({ loaded, total: loaded });
-      return metaFromEntry(await headEntry(key), key);
+      return metaFromEntry(await headEntry(key, publishedVersion), key);
     },
 
     async download(key, opts): Promise<StorageItem> {
@@ -338,48 +452,67 @@ function impl(
       const limit = opts?.limit ?? 100;
       const cursor = opts?.cursor ?? '';
       const fs = await resolveFs();
-
-      const items: StorageItemMeta[] = [];
       const prefixSlash = prefix.lastIndexOf('/');
-      let directories: Array<string | undefined> = [
-        prefixSlash >= 0 ? prefix.slice(0, prefixSlash) : undefined,
-      ];
-      while (directories.length > 0) {
-        const next: string[] = [];
-        for (let start = 0; start < directories.length; start += 16) {
+      const startDirectory =
+        prefixSlash >= 0 ? prefix.slice(0, prefixSlash) : undefined;
+
+      const readDirectory = async (
+        directory: string | undefined
+      ): Promise<FileEntry[]> => {
+        checkSignal(opts?.signal);
+        try {
+          return await fs.listFiles(directory, version);
+        } catch (err) {
+          if (await isUnbornFilesystemError(fs, err)) return [];
+          const mapped = asStorageError(err);
+          if (mapped.code === 'NotFound') return [];
+          throw mapped;
+        }
+      };
+
+      /**
+       * Native listings are directory-scoped. Walk them in global path order
+       * and stop once this page has one lookahead item. On later pages, prune
+       * complete subtrees that sort before the path cursor instead of rescanning
+       * the complete filesystem.
+       */
+      async function* walk(
+        directory: string | undefined
+      ): AsyncGenerator<StorageItemMeta> {
+        const entries = await readDirectory(directory);
+        entries.sort((left, right) => {
+          const leftKey = left.isDir ? `${left.path}/` : left.path;
+          const rightKey = right.isDir ? `${right.path}/` : right.path;
+          return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+        });
+        for (const entry of entries) {
           checkSignal(opts?.signal);
-          const batch = directories.slice(start, start + 16);
-          const pages = await Promise.all(
-            batch.map(async (dir) => {
-              try {
-                return await fs.listFiles(dir, version);
-              } catch (err) {
-                if (await isUnbornFilesystemError(fs, err)) return [];
-                const mapped = asStorageError(err);
-                if (mapped.code === 'NotFound') return [];
-                throw mapped;
-              }
-            })
-          );
-          for (const entries of pages) {
-            for (const entry of entries) {
-              if (entry.isDir) {
-                next.push(entry.path);
-              } else if (!isInternalKey(entry.path)) {
-                items.push(metaFromEntry(entry, entry.path));
-              }
+          if (isTensorlakeInternalPath(entry.path)) continue;
+          if (entry.isDir) {
+            const subtreePrefix = `${entry.path}/`;
+            if (
+              cursor !== '' &&
+              subtreePrefix <= cursor &&
+              !cursor.startsWith(subtreePrefix)
+            ) {
+              continue;
             }
+            yield* walk(entry.path);
+          } else if (entry.path.startsWith(prefix) && entry.path > cursor) {
+            yield metaFromEntry(entry, entry.path);
           }
         }
-        directories = next;
       }
 
-      const matching = items
-        .filter((m) => m.path.startsWith(prefix) && m.path > cursor)
-        .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-      const page = matching.slice(0, limit);
+      const page: StorageItemMeta[] = [];
+      for await (const item of walk(startDirectory)) {
+        page.push(item);
+        if (page.length > limit) break;
+      }
+      const hasMore = page.length > limit;
+      if (hasMore) page.pop();
       const last = page[page.length - 1];
-      return matching.length > limit && last !== undefined
+      return hasMore && last !== undefined
         ? { items: page, cursor: last.path }
         : { items: page };
     },
@@ -496,12 +629,19 @@ function impl(
         let found: FilesystemSnapshotInfo | undefined;
         try {
           found = (await fs.listSnapshots()).find(
-            (snapshot) => snapshot.id === id && isStoragesdkSnapshot(snapshot)
+            (snapshot) => snapshot.id === id
           );
         } catch (err) {
           throw asStorageError(err);
         }
-        if (found === undefined) {
+        const isRecordedForkBase =
+          found !== undefined &&
+          !isStoragesdkSnapshot(found) &&
+          (await isForkBaseSnapshot(id));
+        if (
+          found === undefined ||
+          (!isStoragesdkSnapshot(found) && !isRecordedForkBase)
+        ) {
           throw new StorageError({
             code: 'NotFound',
             message: `snapshot ${id} not found`,
@@ -544,6 +684,12 @@ function impl(
           url: (p, o) => reader.url(p, o),
         };
       },
+
+      async cleanupAutoSnapshotAfterForkFailure(): Promise<void> {
+        // Native snapshot ids are content-addressed. The unnamed base may have
+        // been retained previously by another fork or by a user-created
+        // snapshot, so failed physical fork creation cannot safely release it.
+      },
     },
 
     forks: {
@@ -552,16 +698,8 @@ function impl(
         ensureWritable();
         const forkFs = forkFilesystemName(fsName, opts.name);
 
-        const { manifest, forks } = await readForkRegistry();
-        if (forks.some((f) => f.name === opts.name)) {
-          throw new StorageError({
-            code: 'Conflict',
-            message: `fork ${opts.name} already exists`,
-          });
-        }
-
         try {
-          await client.fork(forkFs, fsName, opts.fromSnapshot);
+          await createPhysicalFork(forkFs, opts.fromSnapshot, opts.signal);
         } catch (err) {
           throw asStorageError(err);
         }
@@ -573,12 +711,7 @@ function impl(
               ? { fromSnapshot: opts.fromSnapshot }
               : {}),
           };
-          // A native fork shares the parent's hidden manifest too. Replace
-          // any inherited sibling entries with the registry proven to belong
-          // to this filesystem before adding its new child.
-          manifest.forks = forks;
-          manifest.forks.push(info);
-          await writeManifest(adapter, manifest);
+          await writeForkRecord(info);
           return info;
         } catch (err) {
           await client.delete(forkFs).catch(() => {});
@@ -587,15 +720,13 @@ function impl(
       },
 
       async list(): Promise<ForkInfo[]> {
-        return (await readForkRegistry()).forks;
+        return readForkRegistry();
       },
 
       async head(name, opts): Promise<ForkInfo> {
         checkSignal(opts?.signal);
-        const found = (await readForkRegistry()).forks.find(
-          (f) => f.name === name
-        );
-        if (found === undefined) {
+        const found = await readForkRecord(name);
+        if (found === undefined || !(await physicalForkExists(name))) {
           throw new StorageError({
             code: 'NotFound',
             message: `fork ${name} not found`,
@@ -607,15 +738,16 @@ function impl(
       async delete(name, opts): Promise<void> {
         checkSignal(opts?.signal);
         ensureWritable();
-        const { manifest, forks } = await readForkRegistry();
-        manifest.forks = forks.filter((f) => f.name !== name);
+        // Remove discoverability first. A concurrent recreation cannot succeed
+        // until the old physical child is gone, and its later record write then
+        // wins without being erased by this delete.
+        await deleteForkRecord(name);
         try {
           await client.delete(forkFilesystemName(fsName, name));
         } catch (err) {
           const mapped = asStorageError(err);
           if (mapped.code !== 'NotFound') throw mapped;
         }
-        await writeManifest(adapter, manifest);
       },
 
       get(name): Adapter<TensorlakeRaw> {
@@ -630,59 +762,106 @@ function impl(
   };
 
   /**
-   * Native forks share the source tree, including its hidden storagesdk
-   * manifest. Accept a registry row only when its exact physical child exists
-   * under this filesystem's namespace; that prevents a child from treating
-   * the parent's sibling rows as its own children. Resolve exact names instead
-   * of using the project listing: that endpoint is paginated and may be served
-   * from a stale cross-pod cache.
+   * Each fork owns a separate hidden record path, allowing the server's
+   * non-overlapping-path publication to compose concurrent creates and deletes.
+   * Native forks inherit their parent's records, so accept a row only when its
+   * exact physical child exists under this filesystem's namespace.
    */
-  async function readForkRegistry(): Promise<{
-    manifest: Awaited<ReturnType<typeof readManifest>>;
-    forks: ForkInfo[];
-  }> {
-    const manifest = await readTensorlakeManifest();
+  async function readForkRegistry(): Promise<ForkInfo[]> {
+    const records = await listForkRecords();
     const forks: ForkInfo[] = [];
-    for (let start = 0; start < manifest.forks.length; start += 16) {
-      const batch = manifest.forks.slice(start, start + 16);
+    for (let start = 0; start < records.length; start += 16) {
+      const batch = records.slice(start, start + 16);
       const present = await Promise.all(
-        batch.map(async (fork) => {
-          try {
-            await client.get(forkFilesystemName(fsName, fork.name));
-            return true;
-          } catch (err) {
-            const mapped = asStorageError(err);
-            if (mapped.code === 'NotFound') return false;
-            throw mapped;
-          }
-        })
+        batch.map((fork) => physicalForkExists(fork.name))
       );
       for (let i = 0; i < batch.length; i++) {
         const fork = batch[i];
         if (present[i] === true && fork !== undefined) forks.push(fork);
       }
     }
-    return { manifest, forks };
+    return forks.sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0
+    );
   }
 
-  async function readTensorlakeManifest(): Promise<
-    Awaited<ReturnType<typeof readManifest>>
-  > {
+  async function physicalForkExists(name: string): Promise<boolean> {
     try {
-      return await readManifest(adapter);
+      await client.get(forkFilesystemName(fsName, name));
+      return true;
     } catch (err) {
-      if (err instanceof StorageError && err.code === 'InvalidArgument') {
-        const fs = await resolveFs();
-        let status: Awaited<ReturnType<Filesystem['status']>>;
-        try {
-          status = await fs.status();
-        } catch (statusErr) {
-          throw asStorageError(statusErr);
-        }
-        if (status.versionId === null) return emptyManifest();
-      }
-      throw err;
+      const mapped = asStorageError(err);
+      if (mapped.code === 'NotFound') return false;
+      throw mapped;
     }
+  }
+
+  async function readForkRecord(name: string): Promise<ForkInfo | undefined> {
+    const path = forkRecordPath(name);
+    const fs = await resolveFs();
+    let text: string;
+    try {
+      text = await fs.readText(path, version);
+    } catch (err) {
+      const mapped = asStorageError(err, path);
+      if (mapped.code === 'NotFound') return undefined;
+      if (await isUnbornFilesystemError(fs, err)) return undefined;
+      throw mapped;
+    }
+    return parseForkRecord(path, text);
+  }
+
+  async function listForkRecords(): Promise<ForkInfo[]> {
+    const fs = await resolveFs();
+    let entries: FileEntry[];
+    try {
+      entries = await fs.listFiles(FORK_RECORD_DIRECTORY, version);
+    } catch (err) {
+      const mapped = asStorageError(err);
+      if (mapped.code === 'NotFound') return [];
+      if (await isUnbornFilesystemError(fs, err)) return [];
+      throw mapped;
+    }
+
+    const paths = entries
+      .filter((entry) => !entry.isDir && entry.path.endsWith('.json'))
+      .map((entry) => entry.path)
+      .sort();
+    const records: ForkInfo[] = [];
+    for (let start = 0; start < paths.length; start += 16) {
+      const batch = paths.slice(start, start + 16);
+      const decoded = await Promise.all(
+        batch.map(async (path) =>
+          parseForkRecord(path, await fs.readText(path, version))
+        )
+      );
+      records.push(...decoded);
+    }
+    return records;
+  }
+
+  async function writeForkRecord(info: ForkInfo): Promise<void> {
+    const fs = await resolveFs();
+    try {
+      await fs.writeFile(forkRecordPath(info.name), serializeForkRecord(info));
+    } catch (err) {
+      throw asStorageError(err);
+    }
+  }
+
+  async function deleteForkRecord(name: string): Promise<void> {
+    const fs = await resolveFs();
+    const path = forkRecordPath(name);
+    try {
+      await fs.deleteFile(path);
+    } catch (err) {
+      const mapped = asStorageError(err, path);
+      if (mapped.code !== 'NotFound') throw mapped;
+    }
+  }
+
+  async function isForkBaseSnapshot(id: string): Promise<boolean> {
+    return (await readForkRegistry()).some((fork) => fork.fromSnapshot === id);
   }
 
   return adapter;

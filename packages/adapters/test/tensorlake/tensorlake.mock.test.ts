@@ -7,7 +7,18 @@ import type {
 } from 'tensorlake';
 import { expect, it, vi } from 'vitest';
 
-const nativeCalls = vi.hoisted(() => ({ pathWrites: 0 }));
+const nativeCalls = vi.hoisted(() => ({
+  pathWrites: 0,
+  listFiles: 0,
+  forkTransientConflicts: 0,
+  beforeListFiles: undefined as
+    | undefined
+    | ((args: {
+        filesystem: string;
+        directory: string | undefined;
+        version: string | undefined;
+      }) => Promise<void>),
+}));
 
 /**
  * In-memory stand-in for the `tensorlake` SDK's `FilesystemClient` /
@@ -224,6 +235,16 @@ vi.mock('tensorlake', () => {
       return new TextDecoder().decode(await this.readFile(path, version));
     }
     async listFiles(dirPath?: string, version?: string): Promise<FileEntry[]> {
+      nativeCalls.listFiles += 1;
+      const beforeListFiles = nativeCalls.beforeListFiles;
+      if (beforeListFiles !== undefined) {
+        nativeCalls.beforeListFiles = undefined;
+        await beforeListFiles({
+          filesystem: this.name,
+          directory: dirPath,
+          version,
+        });
+      }
       const store = this.store();
       if (store.head === undefined) {
         throw new FilesystemAPIError(400, 'native filesystem head is unborn');
@@ -297,6 +318,13 @@ vi.mock('tensorlake', () => {
       base: string,
       snapshot?: string
     ): Promise<Filesystem> {
+      if (nativeCalls.forkTransientConflicts > 0) {
+        nativeCalls.forkTransientConflicts -= 1;
+        throw new FilesystemAPIError(
+          409,
+          `network reachability changed while forking ${base}`
+        );
+      }
       if (filesystems.has(name)) {
         throw new FilesystemAPIError(409, `filesystem ${name} already exists`);
       }
@@ -347,6 +375,12 @@ for (const filesystem of [
   'mock-fork-registry-volume',
   'mock-live-fork-base-volume',
   'mock-nested-fork-volume',
+  'mock-upload-race-volume',
+  'mock-concurrent-forks-volume',
+  'mock-concurrent-fork-delete-volume',
+  'mock-transient-fork-conflict-volume',
+  'mock-external-base-volume',
+  'mock-list-pagination-volume',
 ]) {
   await mockClient.create(filesystem);
 }
@@ -384,6 +418,29 @@ it('uses the bounded local-path publication API for stream bodies', async () => 
   ).toBe('streamed payload');
 });
 
+it('returns upload metadata from the exact published version', async () => {
+  const adapter = tensorlake({
+    filesystem: 'mock-upload-race-volume',
+    apiKey: 'test',
+  });
+  nativeCalls.beforeListFiles = async ({ filesystem, version }) => {
+    expect(filesystem).toBe('mock-upload-race-volume');
+    expect(version).toBeDefined();
+    const raw = await mockClient.get(filesystem);
+    await raw.writeFile('race.txt', 'second-writer');
+  };
+
+  try {
+    const published = await adapter.upload('race.txt', 'first');
+    expect(published.size).toBe(5);
+    expect(
+      new TextDecoder().decode((await adapter.download('race.txt')).body)
+    ).toBe('second-writer');
+  } finally {
+    nativeCalls.beforeListFiles = undefined;
+  }
+});
+
 it('rejects a range offset past EOF', async () => {
   const adapter = tensorlake({
     filesystem: 'mock-range-volume',
@@ -409,6 +466,38 @@ it('treats an unborn filesystem as empty storage', async () => {
   await expect(adapter.download('missing.txt')).rejects.toMatchObject({
     code: 'NotFound',
   });
+});
+
+it('does not rescan the complete tree for every list page', async () => {
+  const filesystem = await mockClient.get('mock-list-pagination-volume');
+  const files = new Map<string, string>();
+  for (let directory = 0; directory < 50; directory++) {
+    for (let file = 0; file < 5; file++) {
+      files.set(
+        `tree/${String(directory).padStart(2, '0')}/${file}.txt`,
+        `${directory}-${file}`
+      );
+    }
+  }
+  await filesystem.writeFiles(files);
+  const adapter = tensorlake({
+    filesystem: 'mock-list-pagination-volume',
+    apiKey: 'test',
+  });
+
+  nativeCalls.listFiles = 0;
+  const first = await adapter.list({ prefix: 'tree/', limit: 10 });
+  if (first.cursor === undefined) throw new Error('first page has no cursor');
+  const second = await adapter.list({
+    prefix: 'tree/',
+    limit: 10,
+    cursor: first.cursor,
+  });
+
+  expect([...first.items, ...second.items].map((item) => item.path)).toEqual(
+    [...files.keys()].sort().slice(0, 20)
+  );
+  expect(nativeCalls.listFiles).toBeLessThanOrEqual(10);
 });
 
 it('does not list, inspect, or delete snapshots owned by another client', async () => {
@@ -447,6 +536,56 @@ it("does not expose a parent's fork registry as a child's forks", async () => {
   expect(await adapter.forks.get('second-child').forks.list()).toEqual([]);
 });
 
+it('preserves concurrent fork creates in separate registry records', async () => {
+  const adapter = tensorlake({
+    filesystem: 'mock-concurrent-forks-volume',
+    apiKey: 'test',
+  });
+  await adapter.upload('seed.txt', 'seed');
+
+  await Promise.all([
+    adapter.forks.create({ name: 'first' }),
+    adapter.forks.create({ name: 'second' }),
+  ]);
+
+  expect((await adapter.forks.list()).map((fork) => fork.name)).toEqual([
+    'first',
+    'second',
+  ]);
+});
+
+it('composes a fork create with a different fork delete', async () => {
+  const adapter = tensorlake({
+    filesystem: 'mock-concurrent-fork-delete-volume',
+    apiKey: 'test',
+  });
+  await adapter.upload('seed.txt', 'seed');
+  await adapter.forks.create({ name: 'old' });
+
+  await Promise.all([
+    adapter.forks.create({ name: 'new' }),
+    adapter.forks.delete('old'),
+  ]);
+
+  expect((await adapter.forks.list()).map((fork) => fork.name)).toEqual([
+    'new',
+  ]);
+});
+
+it('retries a transient native fork topology conflict', async () => {
+  const adapter = tensorlake({
+    filesystem: 'mock-transient-fork-conflict-volume',
+    apiKey: 'test',
+  });
+  await adapter.upload('seed.txt', 'seed');
+  nativeCalls.forkTransientConflicts = 1;
+
+  await expect(
+    adapter.forks.create({ name: 'retried-child' })
+  ).resolves.toMatchObject({ name: 'retried-child' });
+  expect(nativeCalls.forkTransientConflicts).toBe(0);
+});
+
 it('keeps nested fork names distinct from root fork names', async () => {
   const adapter = tensorlake({
     filesystem: 'mock-nested-fork-volume',
@@ -483,4 +622,36 @@ it('reuses a retained live-fork base without deleting it on failure', async () =
     code: 'Conflict',
   });
   expect((await adapter.snapshots.head(baseline.id)).name).toBe('baseline');
+});
+
+it('uses an externally retained head as an internal live-fork base', async () => {
+  const filesystem = await mockClient.get('mock-external-base-volume');
+  await filesystem.writeFile('seed.txt', 'seed');
+  const external = await filesystem.snapshot('another client');
+  const adapter = tensorlake({
+    filesystem: 'mock-external-base-volume',
+    apiKey: 'test',
+  });
+
+  const child = await adapter.forks.create({ name: 'child' });
+  expect(child.fromSnapshot).toBe(external.id);
+  expect(await adapter.forks.head('child')).toMatchObject({
+    name: 'child',
+    fromSnapshot: external.id,
+  });
+  await expect(adapter.snapshots.head(external.id)).resolves.toMatchObject({
+    id: external.id,
+  });
+  const fork = adapter.forks.get('child');
+  await fork.upload('from-fork.txt', 'fork');
+
+  await adapter.forks.merge('child');
+  expect(
+    new TextDecoder().decode((await adapter.download('from-fork.txt')).body)
+  ).toBe('fork');
+  expect(
+    (await filesystem.listSnapshots()).find(
+      (snapshot) => snapshot.id === external.id
+    )?.message
+  ).toBe('another client');
 });

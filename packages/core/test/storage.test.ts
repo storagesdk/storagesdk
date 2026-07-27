@@ -280,7 +280,7 @@ describe('Storage', () => {
       expect((await storage.forks.list()).length).toBe(0);
     });
 
-    it('retains an auto-snapshot when live fork creation fails', async () => {
+    it('rolls back an auto-snapshot when live fork creation fails', async () => {
       await storage.upload('a', 'x');
       await storage.forks.create({ name: 'exp' });
       const before = await storage.snapshots.list();
@@ -292,10 +292,7 @@ describe('Storage', () => {
       );
 
       const after = await storage.snapshots.list();
-      expect(after).toHaveLength(before.length + 1);
-      expect(after.map((snapshot) => snapshot.id)).toEqual(
-        expect.arrayContaining(before.map((snapshot) => snapshot.id))
-      );
+      expect(after).toEqual(before);
     });
   });
 
