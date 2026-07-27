@@ -279,6 +279,21 @@ describe('Storage', () => {
       await storage.forks.delete('exp');
       expect((await storage.forks.list()).length).toBe(0);
     });
+
+    it('rolls back an auto-snapshot when live fork creation fails', async () => {
+      await storage.upload('a', 'x');
+      await storage.forks.create({ name: 'exp' });
+      const before = await storage.snapshots.list();
+
+      await expect(storage.forks.create({ name: 'exp' })).rejects.toMatchObject(
+        {
+          code: 'Conflict',
+        }
+      );
+
+      const after = await storage.snapshots.list();
+      expect(after).toEqual(before);
+    });
   });
 
   describe('escape hatch', () => {

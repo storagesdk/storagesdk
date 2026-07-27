@@ -42,6 +42,13 @@ export interface AdapterSnapshots {
   head(id: string, opts?: { signal?: AbortSignal }): Promise<SnapshotInfo>;
   delete(id: string, opts?: { signal?: AbortSignal }): Promise<void>;
   get(id: string): ReadOnlyAdapter;
+  /**
+   * Adapter-author lifecycle hook used only by `defineAdapter` when physical
+   * fork creation fails after the wrapper auto-created its base snapshot.
+   * Implementations that reuse content-addressed retention points can retain
+   * the shared base here; other adapters use the default `delete()` rollback.
+   */
+  cleanupAutoSnapshotAfterForkFailure?(snapshot: SnapshotInfo): Promise<void>;
 }
 
 /**
@@ -209,12 +216,16 @@ export function defineAdapter<Raw = unknown>(impl: Adapter<Raw>): Adapter<Raw> {
         try {
           return await impl.forks.create({ ...opts, fromSnapshot: snap.id });
         } catch (err) {
-          // Roll back the auto-snapshot so a failed fork (duplicate
-          // name, abort, network error) doesn't leave a dangling
-          // snapshot in `snapshots.list()`. Best-effort: don't mask the
-          // original error if cleanup itself fails, and don't thread
-          // the caller's signal through — it might already be aborted.
-          await impl.snapshots.delete(snap.id).catch(() => {});
+          // Most adapters create a fresh physical snapshot here, so roll it
+          // back. Content-addressed adapters may have returned a retention
+          // point shared with another fork or a user-created snapshot; their
+          // lifecycle hook decides whether cleanup is safe.
+          const cleanup = impl.snapshots.cleanupAutoSnapshotAfterForkFailure;
+          if (cleanup !== undefined) {
+            await cleanup(snap).catch(() => {});
+          } else {
+            await impl.snapshots.delete(snap.id).catch(() => {});
+          }
           throw err;
         }
       },

@@ -18,6 +18,10 @@ import { RAILWAY_ENV_VARS, railwayConfigFromEnv } from './railway/env.js';
 import { S3_ENV_VARS, s3ConfigFromEnv } from './s3/env.js';
 import { SPACES_ENV_VARS, spacesConfigFromEnv } from './spaces/env.js';
 import { SUPABASE_ENV_VARS, supabaseConfigFromEnv } from './supabase/env.js';
+import {
+  TENSORLAKE_ENV_VARS,
+  tensorlakeConfigFromEnv,
+} from './tensorlake/env.js';
 import { TIGRIS_ENV_VARS, tigrisConfigFromEnv } from './tigris/env.js';
 import { VERCEL_ENV_VARS, vercelConfigFromEnv } from './vercel/env.js';
 import { WASABI_ENV_VARS, wasabiConfigFromEnv } from './wasabi/env.js';
@@ -36,6 +40,7 @@ export const ADAPTERS = [
   'mesa',
   'minio',
   'tigris',
+  'tensorlake',
   'azure',
   'gcs',
   'vercel',
@@ -73,6 +78,7 @@ const ENV_VARS: Record<AdapterName, readonly AdapterEnvVar[]> = {
   mesa: MESA_ENV_VARS,
   minio: MINIO_ENV_VARS,
   tigris: TIGRIS_ENV_VARS,
+  tensorlake: TENSORLAKE_ENV_VARS,
   azure: AZURE_ENV_VARS,
   gcs: GCS_ENV_VARS,
   vercel: VERCEL_ENV_VARS,
@@ -96,6 +102,7 @@ const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
   mesa: mesaConfigFromEnv,
   minio: minioConfigFromEnv,
   tigris: tigrisConfigFromEnv,
+  tensorlake: tensorlakeConfigFromEnv,
   azure: azureConfigFromEnv,
   gcs: gcsConfigFromEnv,
   vercel: vercelConfigFromEnv,
@@ -159,6 +166,8 @@ async function loadAdapterFactory(
       return (await import('./minio/index.js')).minio as never;
     case 'tigris':
       return (await import('./tigris/index.js')).tigris as never;
+    case 'tensorlake':
+      return (await import('./tensorlake/index.js')).tensorlake as never;
     case 'azure':
       return (await import('./azure/index.js')).azure as never;
     case 'gcs':

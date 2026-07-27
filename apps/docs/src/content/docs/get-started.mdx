@@ -69,7 +69,7 @@ Per-agent sandboxes; reproducible runs.
 <CodeBlock client:load filename="snapshot-and-fork.ts" snippets={SNIPPETS.hero} />
 
 <Note>
-  On Tigris this is zero-copy and instant. On every other provider the SDK emulates
+  On Tigris and Tensorlake this is zero-copy and metadata-only. On providers without native snapshots and forks the SDK emulates
   snapshots and forks as sibling buckets it manages for you.
 </Note>
 

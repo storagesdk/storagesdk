@@ -1,0 +1,77 @@
+---
+title: Tensorlake
+eyebrow: Adapters
+description: Tensorlake Cloud Volumes adapter for storagesdk — direct-to-blob uploads and native metadata-only snapshots, copies, moves, and forks.
+section: adapters
+---
+
+## Overview
+
+[Tensorlake Cloud Volumes](https://docs.tensorlake.ai/) are durable, versioned file trees. One
+Tensorlake filesystem maps to one storagesdk location.
+
+Uploads use checksum-attested URLs, so bytes flow directly from the SDK process to blob storage and
+do not traverse the Tensorlake API server. `ReadableStream` bodies are spooled to a temporary local
+file first, keeping multi-GiB uploads bounded in memory. Copy, move, snapshot, and fork operations
+reuse immutable content references and publish metadata only.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { tensorlake } from '@storagesdk/adapters/tensorlake';
+
+const storage = new Storage({
+  adapter: tensorlake({
+    filesystem: 'agent-runs',
+    apiKey: process.env.TENSORLAKE_API_KEY,
+    organizationId: process.env.TENSORLAKE_ORGANIZATION_ID,
+    projectId: process.env.TENSORLAKE_PROJECT_ID,
+  }),
+});
+```
+
+```ts
+tensorlake({
+  filesystem: string;
+  apiKey?: string;          // falls back to TENSORLAKE_API_KEY / TENSORLAKE_PAT
+  apiUrl?: string;
+  organizationId?: string;
+  projectId?: string;
+});
+```
+
+Create the filesystem with the Tensorlake CLI or `FilesystemClient.create()` before constructing
+the adapter.
+
+## Native fast paths
+
+- `upload()` publishes bytes directly to blob storage, then atomically advances the durable live
+  head.
+- `copy()` and `move()` reuse immutable content references without downloading or re-uploading.
+- `snapshots.create()` retains the current head permanently in one metadata-only server call.
+- `forks.create()` joins the source storage network and creates only a new ownership root and head
+  pointer, whether it starts from the live head or a retained snapshot.
+- Mounted and SDK-created files share the same directory, recipe, snapshot, and content-location
+  formats, so unchanged bytes remain reusable across both workflows.
+
+## Notes
+
+- Peer dependency: `tensorlake >= 0.5.89 < 0.6.0` (Node.js 22+).
+- `merge`, `rebase`, and `diff` use storagesdk's content-hash-based polyfills.
+- `contentType` and user metadata are accepted but not persisted.
+- Range reads execute server-side and return the requested bytes plus immutable content identity in one request.
+- `url()` returns a deterministic `tensorlake://` locator; it is not a fetchable signed URL.
+- `uploadUrl()` is not supported because direct publication includes an atomic filesystem commit.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Uploads | Native direct-to-blob publication |
+| Copy / move | Native metadata-only mutations |
+| Snapshots | Native metadata-only retention |
+| Forks | Native shared-storage-network fork |
+| Byte-range reads | Server-side HTTP range |
+| User metadata | Not persisted |
+| Signed URLs | Non-fetchable locator only |

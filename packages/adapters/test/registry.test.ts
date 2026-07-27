@@ -23,6 +23,7 @@ describe('ADAPTERS', () => {
       'mesa',
       'minio',
       'tigris',
+      'tensorlake',
       'azure',
       'gcs',
       'vercel',

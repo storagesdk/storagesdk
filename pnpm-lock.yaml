@@ -128,6 +128,9 @@ importers:
       '@vercel/blob':
         specifier: ^2.4.0
         version: 2.4.0
+      tensorlake:
+        specifier: ^0.5.89
+        version: 0.5.89
       webdav:
         specifier: ^5.10.0
         version: 5.10.0
@@ -4168,6 +4171,11 @@ packages:
     resolution: {integrity: sha512-resvxdc6Mgb7YEThw6G6bExlXKkv6+YbuzGg9xuXxSgxJF7Ozs+o8Y9+2R3sArdWdW8nOokoQb1yrpFB0pQK2g==}
     engines: {node: '>=14'}
 
+  tensorlake@0.5.89:
+    resolution: {integrity: sha512-ibLb35jxG0B77Rpmu6trjYYJ+qEBU5YhtQvzCYrTtkA3d8tCJIOYkKTfwULTyz6sgNO7lj5JPFA+vHnSHZvszw==}
+    engines: {node: '>=22.0.0'}
+    hasBin: true
+
   term-size@2.2.1:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
@@ -4275,6 +4283,10 @@ packages:
   undici@6.26.0:
     resolution: {integrity: sha512-4yqz8a3n5HmGTlsbADNtr/dJlhkh/55Rq798G6ibiULcXbDtaLpTl1pvdqcbFfeoj3iSi52lePFM7h9H21cw/A==}
     engines: {node: '>=18.17'}
+
+  undici@8.3.0:
+    resolution: {integrity: sha512-TkUDgb6tl7KOGZ+7e8E3d2FYgUQgF6z5YypqjWmixVQSQERFcVrVg0ySADm2LVLRh5ljAaHTCR5Fmz3Q34rB7Q==}
+    engines: {node: '>=22.19.0'}
 
   unicorn-magic@0.3.0:
     resolution: {integrity: sha512-+QBBXBCvifc56fsbuxZQ6Sic3wqqc3WWaqxs58gvJrcOuN83HGTCwz3oS5phzU9LthRNE9VrJCFCLUgHeeFnfA==}
@@ -9623,6 +9635,14 @@ snapshots:
       - encoding
       - supports-color
 
+  tensorlake@0.5.89:
+    dependencies:
+      undici: 8.3.0
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   term-size@2.2.1: {}
 
   throttleit@2.1.0: {}
@@ -9706,6 +9726,8 @@ snapshots:
   undici-types@7.24.6: {}
 
   undici@6.26.0: {}
+
+  undici@8.3.0: {}
 
   unicorn-magic@0.3.0: {}
 

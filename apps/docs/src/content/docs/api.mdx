@@ -268,7 +268,7 @@ See [Adapters](/adapters) for which providers enforce `maxSize` / `minSize` serv
 
 <h2 id="snapshots">Snapshots</h2>
 
-A snapshot is a frozen, read-only view of a bucket at a moment in time. Native on Tigris (zero-copy via `createBucketSnapshot`); emulated as sibling buckets/containers/folders on every other provider via server-side copy.
+A snapshot is a frozen, read-only view of a bucket at a moment in time. Native on Tigris (zero-copy via `createBucketSnapshot`) and Tensorlake (metadata-only head retention); emulated as sibling buckets/containers/folders on providers without native snapshots via server-side copy.
 
 ```ts
 type SnapshotInfo = {
@@ -291,13 +291,13 @@ snap.name;      // 'pre-migration'
 snap.createdAt; // Date
 ```
 
-Captures the bucket's current state. The `id` is always backend-generated (Tigris assigns one; copy-based adapters compose it as the parent name plus a `-snapshot-` separator and a 25-digit timestamp + random suffix). `name` is a human-readable label you provide.
+Captures the bucket's current state. The `id` is always backend-generated (Tigris and Tensorlake assign one; copy-based adapters compose it as the parent name plus a `-snapshot-` separator and a 25-digit timestamp + random suffix). `name` is a human-readable label you provide.
 
 | Option | Type | Notes |
 | --- | --- | --- |
 | `name` | `string` | Human-readable label. Stored on `SnapshotInfo`; useful for retrieval-by-name in your own code. |
-| `onProgress` | `(e: { scanned, total? }) => void` | Copy-based adapters fire this as they iterate keys. Tigris finishes in one call so it isn't called. |
-| `signal` | `AbortSignal` | Cancels mid-copy on copy-based adapters; cancels the API call on Tigris. |
+| `onProgress` | `(e: { scanned, total? }) => void` | Copy-based adapters fire this as they iterate keys. Native adapters finish in one call, so it isn't called. |
+| `signal` | `AbortSignal` | Cancels mid-copy on copy-based adapters; cancels the API call on native adapters. |
 
 <h3 id="snapshots-list">snapshots.list()</h3>
 
@@ -337,7 +337,7 @@ storage.snapshots.delete(id: string, opts?: { signal? }): Promise<void>;
 await storage.snapshots.delete(snap.id);
 ```
 
-Deletes a snapshot. On Tigris this is one call; on copy-based adapters it removes the sibling bucket/folder. Forks that were created from this snapshot keep their data — `fromSnapshot` on `ForkInfo` will still point at the deleted id, but reads against the fork itself are unaffected.
+Deletes a snapshot. On Tigris and Tensorlake this is one metadata call; on copy-based adapters it removes the sibling bucket/folder. Forks that were created from this snapshot keep their data — `fromSnapshot` on `ForkInfo` will still point at the deleted id, but reads against the fork itself are unaffected.
 
 <h3 id="snapshots-get">snapshots.get()</h3>
 
@@ -359,7 +359,7 @@ Returns a `ReadOnlyStorage` bound to the snapshot — the same overloaded `downl
 
 <h2 id="forks">Forks</h2>
 
-A fork is a writable branch of a bucket — your own isolated namespace, seeded from a snapshot or from the parent's live state. Native on Tigris (zero-copy via `createBucket({ sourceBucketName, sourceBucketSnapshot })`); emulated as sibling buckets/containers/folders on every other provider.
+A fork is a writable branch of a bucket — your own isolated namespace, seeded from a snapshot or from the parent's live state. Native on Tigris (zero-copy via `createBucket({ sourceBucketName, sourceBucketSnapshot })`) and Tensorlake (shared storage network plus a new metadata root/head); emulated as sibling buckets/containers/folders on providers without native forks.
 
 ```ts
 type ForkInfo = {
@@ -393,7 +393,7 @@ Creates a writable fork. With `fromSnapshot`, the fork starts at exactly that fr
 | `name` | `string` | Required. Must be unique within the parent. Used as the fork's identifier in every other `forks.*` call. |
 | `fromSnapshot` | `string` | Snapshot id to seed from. Omit to seed from the parent's live state. |
 | `onProgress` | `(e: { copied, total, bytes? }) => void` | Copy-based adapters fire this per object copied. |
-| `signal` | `AbortSignal` | Cancels mid-copy on copy-based adapters; cancels the API call on Tigris. |
+| `signal` | `AbortSignal` | Cancels mid-copy on copy-based adapters; cancels the API call on native adapters. |
 
 <h3 id="forks-list">forks.list()</h3>
 
