@@ -1,13 +1,14 @@
-import type { S3Client } from '@aws-sdk/client-s3';
-import type { Adapter } from '@storagesdk/core/adapter';
+import { HeadBucketCommand, type S3Client } from '@aws-sdk/client-s3';
+import type { Adapter, ForkOptions } from '@storagesdk/core/adapter';
+import { StorageError } from '@storagesdk/core/adapter';
 import { s3 } from '../s3/s3.js';
 
 export interface NeonConfig {
   /** Bucket the adapter operates on (must already exist). */
   bucket: string;
   /**
-   * Branch S3 endpoint URL. Get it from the Neon Console or API:
-   * `https://console.neon.tech/api/v2/projects/{project_id}/branches/{branch_id}/storage`.
+   * Branch S3 storage endpoint URL. Get the branch endpoint from the Neon
+   * Console or API, then pass the S3 endpoint itself, not the Console API URL.
    */
   endpoint: string;
   /** S3 access key (Neon credential `token_id`). */
@@ -32,7 +33,7 @@ export interface NeonConfig {
  *  - `region: 'us-east-2'` when omitted.
  */
 export function neon(config: NeonConfig): Adapter<S3Client> {
-  return s3({
+  const adapter = s3({
     bucket: config.bucket,
     region: config.region ?? 'us-east-2',
     endpoint: config.endpoint,
@@ -43,4 +44,23 @@ export function neon(config: NeonConfig): Adapter<S3Client> {
       secretAccessKey: config.secretAccessKey,
     },
   });
+
+  return {
+    ...adapter,
+    forks: {
+      ...adapter.forks,
+      async create(opts: ForkOptions) {
+        try {
+          await adapter.raw.send(new HeadBucketCommand({ Bucket: opts.name }));
+          throw new StorageError({
+            code: 'Conflict',
+            message: `fork ${opts.name} already exists`,
+          });
+        } catch (error) {
+          if (error instanceof StorageError) throw error;
+          return adapter.forks.create(opts);
+        }
+      },
+    },
+  };
 }
