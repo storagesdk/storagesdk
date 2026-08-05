@@ -1,6 +1,7 @@
 import { HeadBucketCommand, type S3Client } from '@aws-sdk/client-s3';
 import type { Adapter, ForkOptions } from '@storagesdk/core/adapter';
 import { StorageError } from '@storagesdk/core/adapter';
+import { asStorageError } from '../s3/errors.js';
 import { s3 } from '../s3/s3.js';
 
 export interface NeonConfig {
@@ -33,18 +34,22 @@ export interface NeonConfig {
  *  - `region: 'us-east-2'` when omitted.
  */
 export function neon(config: NeonConfig): Adapter<S3Client> {
-  const adapter = s3({
-    bucket: config.bucket,
-    region: config.region ?? 'us-east-2',
-    endpoint: config.endpoint,
-    forcePathStyle: true,
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  });
+  return withNeonForkGuard(
+    s3({
+      bucket: config.bucket,
+      region: config.region ?? 'us-east-2',
+      endpoint: config.endpoint,
+      forcePathStyle: true,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    })
+  );
+}
 
+function withNeonForkGuard(adapter: Adapter<S3Client>): Adapter<S3Client> {
   return {
     ...adapter,
     forks: {
@@ -52,14 +57,21 @@ export function neon(config: NeonConfig): Adapter<S3Client> {
       async create(opts: ForkOptions) {
         try {
           await adapter.raw.send(new HeadBucketCommand({ Bucket: opts.name }));
-          throw new StorageError({
-            code: 'Conflict',
-            message: `fork ${opts.name} already exists`,
-          });
         } catch (error) {
-          if (error instanceof StorageError) throw error;
-          return adapter.forks.create(opts);
+          const mapped = asStorageError(error);
+          if (mapped.code === 'NotFound') {
+            return adapter.forks.create(opts);
+          }
+          throw mapped;
         }
+
+        throw new StorageError({
+          code: 'Conflict',
+          message: `fork ${opts.name} already exists`,
+        });
+      },
+      get(name) {
+        return withNeonForkGuard(adapter.forks.get(name));
       },
     },
   };
