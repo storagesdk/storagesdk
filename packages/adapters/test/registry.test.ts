@@ -36,6 +36,7 @@ describe('ADAPTERS', () => {
       'linode',
       'fly',
       'railway',
+      'neon',
     ]);
   });
 });

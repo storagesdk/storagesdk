@@ -74,6 +74,12 @@ export interface S3Config {
   endpoint?: string;
   /** Force path-style addressing. Required by MinIO and most S3-compatible providers. */
   forcePathStyle?: boolean;
+  /**
+   * When the AWS SDK computes request checksums. Set to `'WHEN_REQUIRED'` for
+   * S3-compatible backends whose presigned PUT URLs reject uploads that include
+   * a checksum computed from an empty body.
+   */
+  requestChecksumCalculation?: 'WHEN_REQUIRED' | 'WHEN_SUPPORTED';
 }
 
 /**
@@ -107,6 +113,9 @@ export function s3(config: S3Config): Adapter<S3Client> {
       : {}),
     ...(config.credentials !== undefined
       ? { credentials: config.credentials }
+      : {}),
+    ...(config.requestChecksumCalculation !== undefined
+      ? { requestChecksumCalculation: config.requestChecksumCalculation }
       : {}),
   });
 
