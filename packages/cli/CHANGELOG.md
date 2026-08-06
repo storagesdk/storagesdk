@@ -1,5 +1,13 @@
 # @storagesdk/cli
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [8bc0813]
+  - @storagesdk/adapters@0.11.0
+  - @storagesdk/ai@0.4.1
+
 ## 0.2.0
 
 ### Minor Changes
