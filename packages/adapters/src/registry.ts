@@ -13,6 +13,7 @@ import { GITHUB_ENV_VARS, githubConfigFromEnv } from './github/env.js';
 import { LINODE_ENV_VARS, linodeConfigFromEnv } from './linode/env.js';
 import { MESA_ENV_VARS, mesaConfigFromEnv } from './mesa/env.js';
 import { MINIO_ENV_VARS, minioConfigFromEnv } from './minio/env.js';
+import { NEON_ENV_VARS, neonConfigFromEnv } from './neon/env.js';
 import { R2_ENV_VARS, r2ConfigFromEnv } from './r2/env.js';
 import { RAILWAY_ENV_VARS, railwayConfigFromEnv } from './railway/env.js';
 import { S3_ENV_VARS, s3ConfigFromEnv } from './s3/env.js';
@@ -53,6 +54,7 @@ export const ADAPTERS = [
   'linode',
   'fly',
   'railway',
+  'neon',
 ] as const;
 
 export type AdapterName = (typeof ADAPTERS)[number];
@@ -77,6 +79,7 @@ const ENV_VARS: Record<AdapterName, readonly AdapterEnvVar[]> = {
   'code-storage': CODE_STORAGE_ENV_VARS,
   mesa: MESA_ENV_VARS,
   minio: MINIO_ENV_VARS,
+  neon: NEON_ENV_VARS,
   tigris: TIGRIS_ENV_VARS,
   tensorlake: TENSORLAKE_ENV_VARS,
   azure: AZURE_ENV_VARS,
@@ -101,6 +104,7 @@ const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
   'code-storage': codeStorageConfigFromEnv,
   mesa: mesaConfigFromEnv,
   minio: minioConfigFromEnv,
+  neon: neonConfigFromEnv,
   tigris: tigrisConfigFromEnv,
   tensorlake: tensorlakeConfigFromEnv,
   azure: azureConfigFromEnv,
@@ -164,6 +168,8 @@ async function loadAdapterFactory(
       return (await import('./mesa/index.js')).mesa as never;
     case 'minio':
       return (await import('./minio/index.js')).minio as never;
+    case 'neon':
+      return (await import('./neon/index.js')).neon as never;
     case 'tigris':
       return (await import('./tigris/index.js')).tigris as never;
     case 'tensorlake':

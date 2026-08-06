@@ -63,6 +63,7 @@ await fork.upload('hello.txt', 'mutated in fork only');
 | WebDAV | [`@storagesdk/adapters/webdav`](./packages/adapters/src/webdav/README.md) | Any WebDAV server — Nextcloud, ownCloud, Apache mod_dav, nginx-dav, NAS, pCloud, mailbox.org, kDrive. Snapshots/forks via native server-side `COPY`. |
 | Fly.io | [`@storagesdk/adapters/fly`](./packages/adapters/src/fly/README.md) | Fly-managed Tigris buckets — branded alias of the Tigris adapter. |
 | Railway | [`@storagesdk/adapters/railway`](./packages/adapters/src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
+| Neon | [`@storagesdk/adapters/neon`](./packages/adapters/src/neon/README.md) | [Neon Object Storage](https://neon.com/docs/storage/overview) — S3-compatible storage isolated per database branch. |
 | Filesystem | [`@storagesdk/adapters/fs`](./packages/adapters/src/fs/README.md) | Local `node:fs/promises`. For development and tests. |
 
 For the full, up-to-date list see **[storagesdk.dev/adapters](https://storagesdk.dev/adapters)**.
