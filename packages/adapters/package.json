@@ -96,6 +96,10 @@
       "types": "./dist/neon/index.d.ts",
       "default": "./dist/neon/index.js"
     },
+    "./mosaic": {
+      "types": "./dist/mosaic/index.d.ts",
+      "default": "./dist/mosaic/index.js"
+    },
     "./test-suite": {
       "types": "./dist/test-suite.d.ts",
       "default": "./dist/test-suite.js"
