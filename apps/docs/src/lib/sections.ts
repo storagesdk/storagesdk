@@ -135,6 +135,11 @@ export const SECTIONS: Record<SectionId, Section> = {
             },
             { id: 'wasabi', label: 'Wasabi', href: '/adapters/wasabi' },
             {
+              id: 'mosaic',
+              label: 'Mosaic Object Storage',
+              href: '/adapters/mosaic',
+            },
+            {
               id: 'supabase',
               label: 'Supabase Storage',
               href: '/adapters/supabase',

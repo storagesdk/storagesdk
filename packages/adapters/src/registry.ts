@@ -13,6 +13,7 @@ import { GITHUB_ENV_VARS, githubConfigFromEnv } from './github/env.js';
 import { LINODE_ENV_VARS, linodeConfigFromEnv } from './linode/env.js';
 import { MESA_ENV_VARS, mesaConfigFromEnv } from './mesa/env.js';
 import { MINIO_ENV_VARS, minioConfigFromEnv } from './minio/env.js';
+import { MOSAIC_ENV_VARS, mosaicConfigFromEnv } from './mosaic/env.js';
 import { NEON_ENV_VARS, neonConfigFromEnv } from './neon/env.js';
 import { R2_ENV_VARS, r2ConfigFromEnv } from './r2/env.js';
 import { RAILWAY_ENV_VARS, railwayConfigFromEnv } from './railway/env.js';
@@ -55,6 +56,7 @@ export const ADAPTERS = [
   'fly',
   'railway',
   'neon',
+  'mosaic',
 ] as const;
 
 export type AdapterName = (typeof ADAPTERS)[number];
@@ -94,6 +96,7 @@ const ENV_VARS: Record<AdapterName, readonly AdapterEnvVar[]> = {
   linode: LINODE_ENV_VARS,
   fly: FLY_ENV_VARS,
   railway: RAILWAY_ENV_VARS,
+  mosaic: MOSAIC_ENV_VARS,
 };
 
 const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
@@ -119,6 +122,7 @@ const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
   linode: linodeConfigFromEnv,
   fly: flyConfigFromEnv,
   railway: railwayConfigFromEnv,
+  mosaic: mosaicConfigFromEnv,
 };
 
 /**
@@ -198,5 +202,7 @@ async function loadAdapterFactory(
       return (await import('./fly/index.js')).fly as never;
     case 'railway':
       return (await import('./railway/index.js')).railway as never;
+    case 'mosaic':
+      return (await import('./mosaic/index.js')).mosaic as never;
   }
 }

@@ -100,6 +100,12 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/wasabi',
   },
   {
+    name: 'Mosaic Object Storage',
+    short: 'Mosaic',
+    key: 'mosaic',
+    sub: '@storagesdk/adapters/mosaic',
+  },
+  {
     name: 'Supabase Storage',
     short: 'Supabase',
     key: 'supabase',

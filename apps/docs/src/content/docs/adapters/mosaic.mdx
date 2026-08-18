@@ -1,0 +1,43 @@
+---
+title: Mosaic Object Storage
+eyebrow: Adapters
+description: Mosaic Object Storage adapter for storagesdk — thin wrapper over S3 with Mosaic defaults.
+section: adapters
+---
+
+## Overview
+
+[Mosaic Object Storage](https://storage.mosaicos.com) is an S3-compatible object store with self-serve signup. This adapter is a thin wrapper over `@storagesdk/adapters/s3` with Mosaic's defaults baked in — the endpoint, path-style addressing, and a placeholder region — and the rest of the surface is identical to the S3 adapter.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { mosaic } from '@storagesdk/adapters/mosaic';
+
+const storage = new Storage({
+  adapter: mosaic({
+    bucket: 'photos',
+    accessKeyId: process.env.MOSAIC_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.MOSAIC_SECRET_ACCESS_KEY!,
+  }),
+});
+```
+
+```ts
+mosaic({
+  bucket: string;            // bucket the adapter operates on (must already exist)
+  accessKeyId: string;       // Mosaic S3 access key id
+  secretAccessKey: string;   // secret for that access key
+  region?: string;           // defaults to 'auto'; Mosaic places data itself
+  endpoint?: string;         // override; defaults to https://storage.mosaicos.com
+});
+```
+
+Sign up at [storage.mosaicos.com/signup](https://storage.mosaicos.com/signup/) for an API key, then mint the S3 pair with `POST /v1/api-keys/<id>/sigv4`. The secret is shown only once.
+
+## Notes
+
+- Snapshots and forks are emulated as sibling buckets via `CopyObject` (S3-standard).
+- Self-serve accounts cap objects at 64 MB and requests at 60 per minute.
+- `storage.raw` is the underlying `@aws-sdk/client-s3` `S3Client` for any S3 operation the adapter doesn't surface.
