@@ -1,5 +1,13 @@
 # @storagesdk/adapters
 
+## 0.12.0
+
+### Minor Changes
+
+- 31c7fb1: Add a Mosaic Object Storage adapter (`@storagesdk/adapters/mosaic`), reachable
+  from the registry as `'mosaic'` and configurable with `MOSAIC_*` env vars. It
+  takes an access key and secret and defaults to `https://storage.mosaicos.com`.
+
 ## 0.11.0
 
 ### Minor Changes
