@@ -47,6 +47,23 @@ describe('withRateLimitRetry', () => {
     expect(wait).toHaveBeenCalledTimes(5);
   });
 
+  it('does not wait when the signal aborts before the backoff', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const fn = vi.fn().mockImplementation(() => {
+        controller.abort();
+        return Promise.reject(new BlobServiceRateLimited(60));
+      });
+      await expect(
+        withRateLimitRetry(fn, controller.signal)
+      ).rejects.toBeInstanceOf(StorageError);
+      expect(fn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('stops retrying once the signal aborts', async () => {
     const controller = new AbortController();
     const abortingWait = vi.fn(async (_ms: number, _signal?: AbortSignal) => {

@@ -12,6 +12,7 @@ export type RateLimitSleep = (
 
 const sleep: RateLimitSleep = (ms, signal) =>
   new Promise((resolve) => {
+    checkSignal(signal);
     const timer = setTimeout(done, ms);
     const onAbort = (): void => done();
     function done(): void {
