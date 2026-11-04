@@ -144,6 +144,10 @@ function impl(
           access: raw.access,
           addRandomSuffix: false,
           allowOverwrite: true,
+          // `@vercel/blob` splits the body into parts and uploads them in
+          // parallel when `multipart` is set. It has no part-size or
+          // concurrency knobs, so `partSize`/`concurrency` don't apply.
+          ...(opts?.multipart === true ? { multipart: true } : {}),
           ...(opts?.contentType !== undefined
             ? { contentType: opts.contentType }
             : {}),
