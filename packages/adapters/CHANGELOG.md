@@ -1,5 +1,15 @@
 # @storagesdk/adapters
 
+## 0.12.1
+
+### Patch Changes
+
+- 22306aa: The Vercel Blob adapter now honors `multipart`: multipart uploads, including
+  streams and bodies over `multipartThreshold`, are sent with `@vercel/blob`'s
+  `put({ multipart: true })`, which uploads the parts in parallel and retries
+  failed ones. Before, every upload was one PUT, which fails for large objects.
+- 22306aa: Vercel Blob: retry rate-limited calls during snapshot/fork copy and cleanup.
+
 ## 0.12.0
 
 ### Minor Changes
