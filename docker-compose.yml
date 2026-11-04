@@ -1,8 +1,10 @@
 services:
   minio:
-    image: minio/minio:latest
+    # `minio/minio` is no longer published to Docker Hub; bitnamilegacy
+    # carries the last freely pullable MinIO images. Bitnami's default
+    # entrypoint already runs `server` on :9000 with the console on :9001.
+    image: bitnamilegacy/minio:latest
     container_name: storagesdk-minio
-    command: server /data --console-address :9001
     ports:
       - 9000:9000
       - 9001:9001

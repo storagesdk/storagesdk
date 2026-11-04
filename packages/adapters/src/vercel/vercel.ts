@@ -37,6 +37,7 @@ import {
   put,
 } from '@vercel/blob';
 import { asStorageError } from './errors.js';
+import { withRateLimitRetry } from './retry.js';
 
 export interface VercelBlobConfig {
   /**
@@ -144,6 +145,10 @@ function impl(
           access: raw.access,
           addRandomSuffix: false,
           allowOverwrite: true,
+          // `@vercel/blob` splits the body into parts and uploads them in
+          // parallel when `multipart` is set. It has no part-size or
+          // concurrency knobs, so `partSize`/`concurrency` don't apply.
+          ...(opts?.multipart === true ? { multipart: true } : {}),
           ...(opts?.contentType !== undefined
             ? { contentType: opts.contentType }
             : {}),
@@ -590,21 +595,29 @@ async function copyAllBlobs(
   const toPrefix = `${toBucket}/`;
   let cursor: string | undefined;
   do {
-    const page = await blobList({
-      prefix: fromPrefix,
-      ...(cursor !== undefined ? { cursor } : {}),
-      ...(signal ? { abortSignal: signal } : {}),
-      ...tokenSpread,
-    });
+    const page = await withRateLimitRetry(
+      () =>
+        blobList({
+          prefix: fromPrefix,
+          ...(cursor !== undefined ? { cursor } : {}),
+          ...(signal ? { abortSignal: signal } : {}),
+          ...tokenSpread,
+        }),
+      signal
+    );
     for (const blob of page.blobs) {
       const relative = blob.pathname.slice(fromPrefix.length);
       if (isInternalKey(relative)) continue;
-      await blobCopy(blob.pathname, `${toPrefix}${relative}`, {
-        access: raw.access,
-        addRandomSuffix: false,
-        ...(signal ? { abortSignal: signal } : {}),
-        ...tokenSpread,
-      });
+      await withRateLimitRetry(
+        () =>
+          blobCopy(blob.pathname, `${toPrefix}${relative}`, {
+            access: raw.access,
+            addRandomSuffix: false,
+            ...(signal ? { abortSignal: signal } : {}),
+            ...tokenSpread,
+          }),
+        signal
+      );
     }
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor !== undefined);
@@ -624,14 +637,16 @@ async function destroySibling(
   try {
     let cursor: string | undefined;
     do {
-      const page = await blobList({
-        prefix,
-        ...(cursor !== undefined ? { cursor } : {}),
-        ...tokenSpread,
-      });
+      const page = await withRateLimitRetry(() =>
+        blobList({
+          prefix,
+          ...(cursor !== undefined ? { cursor } : {}),
+          ...tokenSpread,
+        })
+      );
       const pathnames = page.blobs.map((b) => b.pathname);
       if (pathnames.length > 0) {
-        await del(pathnames, tokenSpread);
+        await withRateLimitRetry(() => del(pathnames, tokenSpread));
       }
       cursor = page.hasMore ? page.cursor : undefined;
     } while (cursor !== undefined);
