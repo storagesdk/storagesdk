@@ -62,7 +62,33 @@ describe('neon config', () => {
     }
   });
 
-  it('defaults the region to Neon’s beta region', async () => {
+  it('takes the region from the branch endpoint', async () => {
+    const adapter = neon({
+      bucket: 'photos',
+      endpoint:
+        'https://br-cool-darkness-a1b2c3d4.storage.c-1.eu-central-1.aws.neon.tech',
+      accessKeyId: 'token-id',
+      secretAccessKey: 'secret',
+    });
+
+    expect(adapter.name).toBe('s3');
+    expect(await adapter.raw.config.region()).toBe('eu-central-1');
+  });
+
+  it('prefers an explicit region over the endpoint', async () => {
+    const adapter = neon({
+      bucket: 'photos',
+      endpoint:
+        'https://br-cool-darkness-a1b2c3d4.storage.c-1.eu-central-1.aws.neon.tech',
+      accessKeyId: 'token-id',
+      secretAccessKey: 'secret',
+      region: 'us-east-1',
+    });
+
+    expect(await adapter.raw.config.region()).toBe('us-east-1');
+  });
+
+  it('defaults the region to us-east-2 for other endpoints', async () => {
     const adapter = neon({
       bucket: 'photos',
       endpoint: 'https://branch.storage.example',
@@ -70,7 +96,6 @@ describe('neon config', () => {
       secretAccessKey: 'secret',
     });
 
-    expect(adapter.name).toBe('s3');
     expect(await adapter.raw.config.region()).toBe('us-east-2');
   });
 });
