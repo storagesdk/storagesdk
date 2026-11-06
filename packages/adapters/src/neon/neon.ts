@@ -8,19 +8,34 @@ export interface NeonConfig {
   /** Bucket the adapter operates on (must already exist). */
   bucket: string;
   /**
-   * Branch S3 storage endpoint URL. Get the branch endpoint from the Neon
-   * Console or API, then pass the S3 endpoint itself, not the Console API URL.
+   * Branch S3 endpoint URL (`AWS_ENDPOINT_URL_S3`), e.g.
+   * `https://br-xxx.storage.c-2.us-east-2.aws.neon.tech`. Each branch has
+   * its own endpoint; not the Console API URL.
    */
   endpoint: string;
-  /** S3 access key (Neon credential `token_id`). */
+  /** S3 access key (`AWS_ACCESS_KEY_ID`, the Neon credential `token_id`). */
   accessKeyId: string;
-  /** S3 secret access key (Neon credential `s3_secret_access_key`). */
+  /**
+   * S3 secret access key (`AWS_SECRET_ACCESS_KEY`, the Neon credential
+   * `s3_secret_access_key`).
+   */
   secretAccessKey: string;
   /**
-   * Region. Defaults to `us-east-2`, the only region where Neon Object
-   * Storage is available during the beta.
+   * Region (`AWS_REGION`). Defaults to the region in the endpoint hostname,
+   * or `us-east-2` when the endpoint doesn't name one.
    */
   region?: string;
+}
+
+// Branch endpoints look like `br-xxx.storage.c-2.us-east-2.aws.neon.tech`.
+const ENDPOINT_REGION = /\.([a-z]{2}-[a-z]+-\d+)\.aws\.neon\.tech$/;
+
+function regionFromEndpoint(endpoint: string): string | undefined {
+  try {
+    return new URL(endpoint).hostname.match(ENDPOINT_REGION)?.[1];
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -31,13 +46,15 @@ export interface NeonConfig {
  *  - `forcePathStyle: true` (required by Neon endpoints).
  *  - `requestChecksumCalculation: 'WHEN_REQUIRED'` (prevents the AWS SDK
  *    from embedding an empty-body checksum in presigned PUT URLs).
- *  - `region: 'us-east-2'` when omitted.
+ *  - `region` taken from the endpoint hostname when omitted, falling back
+ *    to `us-east-2`.
  */
 export function neon(config: NeonConfig): Adapter<S3Client> {
   return withNeonForkGuard(
     s3({
       bucket: config.bucket,
-      region: config.region ?? 'us-east-2',
+      region:
+        config.region ?? regionFromEndpoint(config.endpoint) ?? 'us-east-2',
       endpoint: config.endpoint,
       forcePathStyle: true,
       requestChecksumCalculation: 'WHEN_REQUIRED',
