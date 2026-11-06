@@ -1,0 +1,55 @@
+---
+title: Neon Object Storage
+eyebrow: Adapters
+description: Neon Object Storage adapter for storagesdk — thin wrapper over S3 with Neon defaults.
+section: adapters
+---
+
+## Overview
+
+[Neon Object Storage](https://neon.com/docs/storage/overview) is S3-compatible storage built into a Neon project, with each database branch getting its own view of storage. This adapter is a thin wrapper over `@storagesdk/adapters/s3` with Neon's defaults baked in — path-style addressing, checksums only when required, and the region read from the branch endpoint — and the rest of the surface is identical to the S3 adapter.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { neon } from '@storagesdk/adapters/neon';
+
+const storage = new Storage({
+  adapter: neon({
+    bucket: 'photos',
+    endpoint: process.env.AWS_ENDPOINT_URL_S3!,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  }),
+});
+```
+
+```ts
+neon({
+  bucket: string;            // bucket the adapter operates on (must already exist)
+  endpoint: string;          // branch S3 endpoint
+  accessKeyId: string;       // Neon credential token_id
+  secretAccessKey: string;   // Neon credential s3_secret_access_key
+  region?: string;           // defaults to the region in the endpoint
+});
+```
+
+`neon env pull` writes the branch endpoint and a storage credential to `.env.local` as `AWS_ENDPOINT_URL_S3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION`. Create the bucket first with `neon buckets create <name>` or any S3 client.
+
+## Notes
+
+- Snapshots and forks are emulated as sibling buckets on the same branch via `CopyObject` (S3-standard). They are separate from Neon branches.
+- `storage.raw` is the underlying `@aws-sdk/client-s3` `S3Client` for any S3 operation the adapter doesn't surface.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling buckets via server-side `CopyObject` |
+| Forks | Sibling buckets via server-side `CopyObject` |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✓ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |
