@@ -4,16 +4,9 @@ import {
   bodyToBytes,
   checkSignal,
   defineAdapter,
-  emptyManifest,
-  type ForkInfo,
-  type ForkOptions,
   isInternalKey,
   type ListOptions,
   type ListResult,
-  nextSnapshotId,
-  type ReadOnlyAdapter,
-  readManifest,
-  type SnapshotInfo,
   StorageError,
   type StorageItem,
   type StorageItemMeta,
@@ -21,9 +14,9 @@ import {
   type UploadUrlOptions,
   type UploadUrlResult,
   type UrlOptions,
-  writeManifest,
 } from '@storagesdk/core/adapter';
 import { asStorageError, BunnyHttpError } from './errors.js';
+import { siblings } from './siblings.js';
 
 /**
  * Primary storage region of a Bunny storage zone. The `de` (Falkenstein)
@@ -571,156 +564,15 @@ function impl(ctx: Ctx, bucketName: string): Adapter<BunnyRaw> {
       });
     },
 
-    snapshots: {
-      async create(opts): Promise<SnapshotInfo> {
-        checkSignal(opts?.signal);
-        const id = nextSnapshotId(bucketName);
-        try {
-          await copyAllBlobs(ctx, bucketName, id, opts?.signal);
-
-          const snapImpl = impl(ctx, id);
-          await writeManifest(
-            snapImpl,
-            emptyManifest({ location: bucketName, snapshotId: null })
-          );
-
-          const thisImpl = impl(ctx, bucketName);
-          const meta = await readManifest(thisImpl);
-          const info: SnapshotInfo = {
-            id,
-            createdAt: new Date(),
-            ...(opts?.name !== undefined ? { name: opts.name } : {}),
-          };
-          meta.snapshots.push(info);
-          await writeManifest(thisImpl, meta);
-          return info;
-        } catch (err) {
-          await destroySibling(ctx, id, opts?.signal).catch(() => {});
-          throw asStorageError(err);
-        }
+    ...siblings<BunnyRaw>(
+      {
+        at: (bucket) => impl(ctx, bucket),
+        copyAll: (from, to, signal) => copyAllBlobs(ctx, from, to, signal),
+        destroy: (prefix, signal) => destroySibling(ctx, prefix, signal),
+        asStorageError,
       },
-
-      async list(): Promise<SnapshotInfo[]> {
-        return (await readManifest(impl(ctx, bucketName))).snapshots;
-      },
-
-      async head(id, opts): Promise<SnapshotInfo> {
-        checkSignal(opts?.signal);
-        const meta = await readManifest(impl(ctx, bucketName));
-        const found = meta.snapshots.find((s) => s.id === id);
-        if (!found) {
-          throw new StorageError({
-            code: 'NotFound',
-            message: `snapshot ${id} not found`,
-          });
-        }
-        return found;
-      },
-
-      async delete(id, opts): Promise<void> {
-        checkSignal(opts?.signal);
-        const thisImpl = impl(ctx, bucketName);
-        const meta = await readManifest(thisImpl);
-        meta.snapshots = meta.snapshots.filter((s) => s.id !== id);
-        await destroySibling(ctx, id, opts?.signal);
-        await writeManifest(thisImpl, meta);
-      },
-
-      get(id): ReadOnlyAdapter {
-        const snapImpl = impl(ctx, id);
-        return {
-          download: (p, opts) => snapImpl.download(p, opts),
-          head: (p, opts) => snapImpl.head(p, opts),
-          list: (opts) => snapImpl.list(opts),
-          url: (p, opts) => snapImpl.url(p, opts),
-        };
-      },
-    },
-
-    forks: {
-      async create(opts: ForkOptions): Promise<ForkInfo> {
-        checkSignal(opts.signal);
-        const parent = impl(ctx, bucketName);
-        const existing = await readManifest(parent);
-        // A Bunny zone has no native bucket guard, so two forks with the
-        // same name would write to the same prefix. Pre-check the manifest
-        // so duplicates surface as `Conflict`.
-        if (existing.forks.some((f) => f.name === opts.name)) {
-          throw new StorageError({
-            code: 'Conflict',
-            message: `fork ${opts.name} already exists`,
-          });
-        }
-        if (
-          opts.fromSnapshot !== undefined &&
-          !existing.snapshots.some((s) => s.id === opts.fromSnapshot)
-        ) {
-          throw new StorageError({
-            code: 'NotFound',
-            message: `snapshot ${opts.fromSnapshot} not found`,
-          });
-        }
-        const source = opts.fromSnapshot ?? bucketName;
-        try {
-          await copyAllBlobs(ctx, source, opts.name, opts.signal);
-
-          const forkImpl = impl(ctx, opts.name);
-          await writeManifest(
-            forkImpl,
-            emptyManifest({
-              location: bucketName,
-              snapshotId: opts.fromSnapshot ?? null,
-            })
-          );
-
-          const thisImpl = impl(ctx, bucketName);
-          const meta = await readManifest(thisImpl);
-          const info: ForkInfo = {
-            name: opts.name,
-            createdAt: new Date(),
-            ...(opts.fromSnapshot !== undefined
-              ? { fromSnapshot: opts.fromSnapshot }
-              : {}),
-          };
-          meta.forks.push(info);
-          await writeManifest(thisImpl, meta);
-          return info;
-        } catch (err) {
-          await destroySibling(ctx, opts.name, opts.signal).catch(() => {});
-          throw asStorageError(err);
-        }
-      },
-
-      async list(): Promise<ForkInfo[]> {
-        return (await readManifest(impl(ctx, bucketName))).forks;
-      },
-
-      async head(name, opts): Promise<ForkInfo> {
-        checkSignal(opts?.signal);
-        const meta = await readManifest(impl(ctx, bucketName));
-        const found = meta.forks.find((f) => f.name === name);
-        if (!found) {
-          throw new StorageError({
-            code: 'NotFound',
-            message: `fork ${name} not found`,
-          });
-        }
-        return found;
-      },
-
-      async delete(name, opts): Promise<void> {
-        checkSignal(opts?.signal);
-        const thisImpl = impl(ctx, bucketName);
-        const meta = await readManifest(thisImpl);
-        meta.forks = meta.forks.filter((f) => f.name !== name);
-        await destroySibling(ctx, name, opts?.signal);
-        await writeManifest(thisImpl, meta);
-      },
-
-      get(name): Adapter<BunnyRaw> {
-        return impl(ctx, name);
-      },
-    },
+      bucketName
+    ),
   };
 }
 

@@ -38,6 +38,8 @@ describe('ADAPTERS', () => {
       'railway',
       'neon',
       'mosaic',
+      'bunny',
+      'bunny-s3',
     ]);
   });
 });

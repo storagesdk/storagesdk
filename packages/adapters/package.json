@@ -104,6 +104,10 @@
       "types": "./dist/bunny/index.d.ts",
       "default": "./dist/bunny/index.js"
     },
+    "./bunny-s3": {
+      "types": "./dist/bunny-s3/index.d.ts",
+      "default": "./dist/bunny-s3/index.js"
+    },
     "./test-suite": {
       "types": "./dist/test-suite.d.ts",
       "default": "./dist/test-suite.js"
