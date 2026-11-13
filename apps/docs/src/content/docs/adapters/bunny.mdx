@@ -1,0 +1,61 @@
+---
+title: Bunny Storage
+eyebrow: Adapters
+description: Bunny Storage adapter for storagesdk, built on the Edge Storage HTTP API.
+section: adapters
+---
+
+## Overview
+
+[Bunny Storage](https://docs.bunny.net/storage) zones are a single key namespace, so the adapter maps each storagesdk `bucket` to a key prefix (`<bucket>/<key>`). Several logical buckets can share one zone; snapshots and forks land at sibling prefixes.
+
+This adapter talks to the Edge Storage HTTP API with `fetch` and works on any storage zone. For zones created with S3 compatibility, see [Bunny Storage (S3)](/adapters/bunny-s3).
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { bunny } from '@storagesdk/adapters/bunny';
+
+const storage = new Storage({
+  adapter: bunny({
+    zone: 'my-storage-zone',
+    bucket: 'agent-runs',
+    accessKey: process.env.BUNNY_STORAGE_ACCESS_KEY,
+    pullZone: 'my-zone.b-cdn.net',
+  }),
+});
+```
+
+```ts
+bunny({
+  zone: string;        // storage zone name
+  bucket: string;      // logical bucket, becomes a key prefix inside the zone
+  accessKey?: string;  // storage-zone password; defaults to BUNNY_STORAGE_ACCESS_KEY env var
+  region?: 'de' | 'uk' | 'ny' | 'la' | 'sg' | 'se' | 'br' | 'jh' | 'syd';  // default 'de'
+  endpoint?: string;   // override the storage origin
+  pullZone?: string;   // pull-zone hostname for public url()
+});
+```
+
+## Notes
+
+- No peer dependency.
+- `accessKey` is the storage-zone password, not the account API key.
+- Per-object `metadata` on `upload()` is **silently dropped** — the Edge Storage API has no user-metadata field.
+- `uploadUrl()` throws `NotSupported` — there are no presigned uploads.
+- `url()` returns the Pull Zone URL when `pullZone` is set. Without it, it returns the storage URL, which needs the `AccessKey` header to fetch. Neither is signed, and `expiresIn` is ignored.
+- There is no server-side copy, so `copy`, `move`, and snapshot/fork seeding send every byte through the client.
+- `forks.create` throws `Conflict` when the fork's prefix already holds objects.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling prefixes inside one storage zone |
+| Forks | Sibling prefixes inside one storage zone |
+| Byte-range reads | ✓ |
+| Multipart upload | ✗ |
+| Enforced upload limits | ✗ |
+| User metadata | ✗ |
+| Signed URLs | ✗ |

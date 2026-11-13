@@ -29,6 +29,8 @@ Each provider's SDK is an optional peer dependency. Install only the SDKs for ad
 | Railway | [`@storagesdk/adapters/railway`](./src/railway/README.md) | [Railway Buckets](https://docs.railway.com/storage-buckets) — branded alias of the Tigris adapter. |
 | Neon | [`@storagesdk/adapters/neon`](./src/neon/README.md) | [Neon Object Storage](https://neon.com/docs/storage/overview) — S3-compatible storage isolated per database branch. |
 | Mosaic | [`@storagesdk/adapters/mosaic`](./src/mosaic/README.md) | [Mosaic Object Storage](https://storage.mosaicos.com) — S3-compatible object storage with self-serve signup. |
+| Bunny Storage | [`@storagesdk/adapters/bunny`](./src/bunny/README.md) | [Bunny Storage](https://docs.bunny.net/storage) over the Edge Storage HTTP API. No extra dependency. |
+| Bunny Storage (S3) | [`@storagesdk/adapters/bunny-s3`](./src/bunny-s3/README.md) | [Bunny Storage](https://docs.bunny.net/storage/s3) over its S3-compatible API, for zones created with S3 compatibility. |
 | Filesystem | [`@storagesdk/adapters/fs`](./src/fs/README.md) | Local `node:fs/promises`. For development and tests. |
 
 For the full, up-to-date list see **[storagesdk.dev/adapters](https://storagesdk.dev/adapters)**.
@@ -50,7 +52,8 @@ import {
 ADAPTERS
 // → readonly ['fs', 's3', 'r2', 'archil', 'code-storage', 'mesa', 'minio', 'tigris', 'tensorlake', 'azure', 'gcs',
 //             'vercel', 'github', 'webdav', 'backblaze', 'spaces',
-//             'wasabi', 'supabase', 'linode', 'fly', 'railway', 'neon', 'mosaic']
+//             'wasabi', 'supabase', 'linode', 'fly', 'railway', 'neon', 'mosaic',
+//             'bunny', 'bunny-s3']
 
 // What env vars does this adapter read?
 getAdapterEnvVars('tigris')

@@ -1,6 +1,8 @@
 # @storagesdk/adapters/bunny
 
-Adapter for [Bunny Edge Storage](https://docs.bunny.net/reference/storage-api).
+Adapter for [Bunny Storage](https://docs.bunny.net/storage) over the Edge Storage HTTP API. It works on any storage zone.
+
+If your zone was created with S3 compatibility turned on, [`@storagesdk/adapters/bunny-s3`](../bunny-s3/README.md) adds user metadata, presigned URLs, multipart uploads, and server-side copy. Both adapters lay the zone out the same way, so they can work on the same zone.
 
 ```sh
 npm install @storagesdk/core @storagesdk/adapters
@@ -68,6 +70,8 @@ await fork.upload('new.jpg', blob);
 
 `forks.create` without `fromSnapshot` forks from the parent's live state.
 
+A fork's name is its key prefix, and it shares the zone with every other logical bucket. `forks.create` throws `Conflict` when that prefix already holds objects, and `forks.delete` / `snapshots.delete` only remove prefixes this bucket created.
+
 Bunny has **no server-side copy**, so seeding a snapshot or fork streams every object's bytes through the client — cost is proportional to total bytes, not object count. The same is true of `copy` and `move`.
 
 ## What this adapter doesn't preserve
@@ -86,7 +90,7 @@ Bunny Edge Storage has no presigned-URL concept; public reads are served by a **
 
 ## Escape hatch
 
-`storage.raw` exposes a small frozen object with the adapter's resolved connection settings, so you can issue your own Edge Storage requests:
+`storage.raw` exposes the adapter's resolved connection settings, so you can issue your own Edge Storage requests:
 
 ```ts
 const { endpoint, zone, accessKey } = storage.raw;
@@ -98,6 +102,7 @@ await fetch(`${endpoint}/${zone}/photos/beach.jpg`, {
 ```
 
 There's no client object to expose — the adapter is built directly on `fetch`.
+
 ```ts
 interface BunnyRaw {
   endpoint: string;
@@ -106,3 +111,18 @@ interface BunnyRaw {
   pullZone?: string;
 }
 ```
+
+## Environment variables
+
+The runtime adapter registry accepts these variables:
+
+```sh
+BUNNY_STORAGE_ZONE=my-storage-zone
+BUNNY_STORAGE_BUCKET=photos
+BUNNY_STORAGE_ACCESS_KEY=<storage-zone-password>
+BUNNY_STORAGE_REGION=de
+BUNNY_STORAGE_ENDPOINT=https://storage.bunnycdn.com
+BUNNY_PULL_ZONE=my-zone.b-cdn.net
+```
+
+The first three are required.

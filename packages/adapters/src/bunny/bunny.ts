@@ -149,9 +149,14 @@ export function bunny(config: BunnyConfig): Adapter<BunnyRaw> {
         'bunny adapter: accessKey is required (pass config.accessKey or set BUNNY_STORAGE_ACCESS_KEY)',
     });
   }
-  const host = (
-    config.endpoint ?? `https://${REGION_HOSTS[config.region ?? 'de']}`
-  ).replace(/\/$/, '');
+  const regionHost = REGION_HOSTS[config.region ?? 'de'];
+  if (config.endpoint === undefined && regionHost === undefined) {
+    throw new StorageError({
+      code: 'InvalidArgument',
+      message: `bunny adapter: unknown region ${config.region} (expected one of ${Object.keys(REGION_HOSTS).join(', ')})`,
+    });
+  }
+  const host = (config.endpoint ?? `https://${regionHost}`).replace(/\/$/, '');
   const raw: BunnyRaw = {
     endpoint: host,
     zone: config.zone,
@@ -346,13 +351,20 @@ function impl(ctx: Ctx, bucketName: string): Adapter<BunnyRaw> {
     lastModified: obj.LastChanged ? new Date(obj.LastChanged) : new Date(0),
   });
 
-  /** Walk every object under this bucket prefix, keyed relative to it. */
+  /**
+   * Walk the objects that can match `prefix`, keyed relative to this
+   * bucket. Starts at the deepest folder the prefix names, so listing
+   * `a/b/` doesn't walk the rest of the bucket.
+   */
   const walkKeys = async (
+    prefix: string,
     signal: AbortSignal | undefined
   ): Promise<Array<{ key: string; obj: BunnyObject }>> => {
     const base = `${bucketName}/`;
     const out: Array<{ key: string; obj: BunnyObject }> = [];
-    const stack: string[] = [base];
+    const stack: string[] = [
+      `${base}${prefix.slice(0, prefix.lastIndexOf('/') + 1)}`,
+    ];
     while (stack.length > 0) {
       const dir = stack.pop() as string;
       const entries = await listDir(ctx, dir, signal);
@@ -484,7 +496,7 @@ function impl(ctx: Ctx, bucketName: string): Adapter<BunnyRaw> {
       const limit = opts?.limit ?? 1000;
       const cursor = opts?.cursor ?? '';
       try {
-        const all = await walkKeys(opts?.signal);
+        const all = await walkKeys(prefix, opts?.signal);
         const matching = all
           .filter(
             ({ key }) =>

@@ -51,4 +51,5 @@ const storage = new Storage({
 - Object operations delegate to the S3 adapter, so user metadata, presigned `url()` / `uploadUrl()`, multipart uploads, and server-side copy all work. `storage.raw` is the `S3Client`. Needs the same `@aws-sdk/*` peer dependencies as the S3 adapter.
 - The zone name is the S3 bucket and access key id; `accessKey` (the storage-zone password) is the secret access key.
 - Same zone layout as `bunny`: each `bucket` is a key prefix, with snapshots at `<bucket>-snapshot-<id>/` and forks at `<forkName>/`. A zone's credentials can't create another zone, so the S3 adapter's sibling-bucket layout doesn't apply. Snapshot and fork seeding uses server-side `CopyObject`.
+- On both adapters `forks.create` throws `Conflict` when the fork's prefix already holds objects, and `forks.delete` / `snapshots.delete` only remove prefixes the bucket created.
 - Both adapters are in the runtime registry as `bunny` (`BUNNY_STORAGE_*`, `BUNNY_PULL_ZONE`) and `bunny-s3` (`BUNNY_S3_*`).

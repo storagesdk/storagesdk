@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
-import { afterAll, beforeAll, vi } from 'vitest';
+import { StorageError } from '@storagesdk/core';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { bunny } from '../../src/bunny/bunny.js';
 import { storageAdapterTestSuite } from '../../src/test-suite.js';
 
@@ -17,6 +26,8 @@ interface Entry {
 }
 
 const files = new Map<string, Entry>();
+/** Every request the mock served, as `METHOD zone-relative-key`. */
+const requests: string[] = [];
 
 const describeEntry = (name: string, entry: Entry) => ({
   ObjectName: name,
@@ -69,6 +80,7 @@ async function handle(url: URL, init: RequestInit): Promise<Response> {
   const key = decodeURIComponent(url.pathname.slice(zonePrefix.length));
   const isDirectory = key === '' || key.endsWith('/');
   const entry = files.get(key);
+  requests.push(`${init.method} ${key}`);
 
   switch (init.method) {
     case 'PUT': {
@@ -143,4 +155,143 @@ storageAdapterTestSuite({
     presignedUploads: false,
     fetchableSignedUrls: false,
   },
+});
+
+describe('bunny adapter (implementation)', () => {
+  const build = (bucket: string, extra: { pullZone?: string } = {}) =>
+    bunny({
+      zone: ZONE,
+      bucket,
+      accessKey: ACCESS_KEY,
+      endpoint: ENDPOINT,
+      ...extra,
+    });
+
+  beforeEach(() => {
+    files.clear();
+    requests.length = 0;
+  });
+
+  it('stores each bucket under its own key prefix', async () => {
+    await build('one').upload('a/b.txt', 'hello', {
+      contentType: 'text/plain',
+    });
+    expect([...files.keys()]).toEqual(['one/a/b.txt']);
+    expect(files.get('one/a/b.txt')?.contentType).toBe('text/plain');
+    expect((await build('two').list()).items).toEqual([]);
+  });
+
+  it('keeps snapshots and forks in sibling prefixes and hides the manifest', async () => {
+    const adapter = build('one');
+    await adapter.upload('a.txt', 'a');
+    const snap = await adapter.snapshots.create();
+    await adapter.forks.create({ name: 'one-fork', fromSnapshot: snap.id });
+
+    expect(snap.id).toMatch(/^one-snapshot-\d{25}$/);
+    expect([...files.keys()].sort()).toEqual(
+      [
+        'one/.storagesdk.metadata.json',
+        'one/a.txt',
+        `${snap.id}/.storagesdk.metadata.json`,
+        `${snap.id}/a.txt`,
+        'one-fork/.storagesdk.metadata.json',
+        'one-fork/a.txt',
+      ].sort()
+    );
+    expect((await adapter.list()).items.map((i) => i.path)).toEqual(['a.txt']);
+  });
+
+  it('list only walks the folder the prefix names', async () => {
+    const adapter = build('one');
+    await adapter.upload('logs/2026/a.txt', 'a');
+    await adapter.upload('logs/2026/b.txt', 'b');
+    await adapter.upload('images/deep/c.png', 'c');
+    requests.length = 0;
+
+    const page = await adapter.list({ prefix: 'logs/2026/' });
+    expect(page.items.map((i) => i.path)).toEqual([
+      'logs/2026/a.txt',
+      'logs/2026/b.txt',
+    ]);
+    expect(requests).toEqual(['GET one/logs/2026/']);
+  });
+
+  it('list matches a prefix that ends mid-name', async () => {
+    const adapter = build('one');
+    await adapter.upload('logs/app-1.txt', '1');
+    await adapter.upload('logs/app-2/x.txt', '2');
+    await adapter.upload('logs/other.txt', '3');
+
+    const page = await adapter.list({ prefix: 'logs/app-' });
+    expect(page.items.map((i) => i.path)).toEqual([
+      'logs/app-1.txt',
+      'logs/app-2/x.txt',
+    ]);
+  });
+
+  it('url() uses the pull zone when set, the storage endpoint otherwise', async () => {
+    expect(await build('one').url('a b.txt')).toBe(
+      `${ENDPOINT}/${ZONE}/one/a%20b.txt`
+    );
+    expect(
+      await build('one', { pullZone: 'cdn.example.com' }).url('a b.txt')
+    ).toBe('https://cdn.example.com/one/a%20b.txt');
+  });
+
+  it('uploadUrl throws NotSupported', async () => {
+    await expect(build('one').uploadUrl('a.txt')).rejects.toMatchObject({
+      code: 'NotSupported',
+    });
+  });
+
+  it('maps a rejected access key to Unauthorized', async () => {
+    const adapter = bunny({
+      zone: ZONE,
+      bucket: 'one',
+      accessKey: 'wrong',
+      endpoint: ENDPOINT,
+    });
+    await expect(adapter.upload('a.txt', 'a')).rejects.toMatchObject({
+      code: 'Unauthorized',
+    });
+  });
+
+  it('rejects an unknown region', () => {
+    expect(() =>
+      bunny({
+        zone: ZONE,
+        bucket: 'one',
+        accessKey: ACCESS_KEY,
+        region: 'mars' as never,
+      })
+    ).toThrow(StorageError);
+  });
+
+  it('forks.create refuses a prefix that is already in use', async () => {
+    const one = build('one');
+    await one.upload('a.txt', 'a');
+    await build('two').upload('keep.txt', 'keep');
+
+    await expect(one.forks.create({ name: 'two' })).rejects.toMatchObject({
+      code: 'Conflict',
+    });
+    await expect(one.forks.create({ name: 'one' })).rejects.toMatchObject({
+      code: 'Conflict',
+    });
+    expect([...files.keys()].filter((k) => k.startsWith('two/'))).toEqual([
+      'two/keep.txt',
+    ]);
+    // The auto-created base snapshot is rolled back too.
+    expect(await one.snapshots.list()).toEqual([]);
+  });
+
+  it('forks.delete and snapshots.delete leave unknown prefixes alone', async () => {
+    const one = build('one');
+    await one.upload('a.txt', 'a');
+    await build('two').upload('keep.txt', 'keep');
+
+    await one.forks.delete('two');
+    await one.snapshots.delete('two');
+    expect(files.has('two/keep.txt')).toBe(true);
+  });
 });

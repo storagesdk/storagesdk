@@ -9,21 +9,6 @@ import { siblings } from '../bunny/siblings.js';
 import { asStorageError } from '../s3/errors.js';
 import { s3 } from '../s3/s3.js';
 
-/**
- * Storage regions that serve the S3-compatible API. Each one has its own
- * endpoint, `https://<region>-s3.storage.bunnycdn.com`, and the region
- * code doubles as the SigV4 signing region.
- */
-export type BunnyS3Region =
-  | 'de'
-  | 'uk'
-  | 'ny'
-  | 'la'
-  | 'sg'
-  | 'se'
-  | 'jh'
-  | 'syd';
-
 export interface BunnyS3Config {
   /**
    * Storage zone name. The zone must have been created with S3
@@ -45,8 +30,13 @@ export interface BunnyS3Config {
    * read-only password also works for read-only use.
    */
   accessKey: string;
-  /** Storage region of the zone. Defaults to `de` (Frankfurt). */
-  region?: BunnyS3Region;
+  /**
+   * Storage region of the zone. It picks the endpoint and is the SigV4
+   * signing region. Defaults to `de` (Frankfurt).
+   *
+   * @example `'de'`, `'uk'`, `'ny'`, `'la'`, `'sg'`, `'se'`, `'jh'`, `'syd'`
+   */
+  region?: string;
   /**
    * Override the endpoint URL. When unset, defaults to
    * `https://<region>-s3.storage.bunnycdn.com`.

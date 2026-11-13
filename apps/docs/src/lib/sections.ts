@@ -139,6 +139,12 @@ export const SECTIONS: Record<SectionId, Section> = {
               label: 'Mosaic Object Storage',
               href: '/adapters/mosaic',
             },
+            { id: 'bunny', label: 'Bunny Storage', href: '/adapters/bunny' },
+            {
+              id: 'bunny-s3',
+              label: 'Bunny Storage (S3)',
+              href: '/adapters/bunny-s3',
+            },
             {
               id: 'supabase',
               label: 'Supabase Storage',

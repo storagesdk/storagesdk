@@ -97,6 +97,10 @@ export function siblings<Raw>(
         checkSignal(opts?.signal);
         const self = at(bucket);
         const meta = await readManifest(self);
+        // Only remove prefixes this bucket's manifest knows about. Every
+        // logical bucket in the zone is a sibling prefix, so deleting an
+        // unknown id blindly could wipe unrelated data.
+        if (!meta.snapshots.some((s) => s.id === id)) return;
         meta.snapshots = meta.snapshots.filter((s) => s.id !== id);
         await destroy(id, opts?.signal);
         await writeManifest(self, meta);
@@ -133,6 +137,24 @@ export function siblings<Raw>(
           throw new StorageError({
             code: 'NotFound',
             message: `snapshot ${opts.fromSnapshot} not found`,
+          });
+        }
+        // The fork's prefix must be free. It could be this bucket, or
+        // another logical bucket in the zone that this manifest doesn't
+        // know about — seeding into it would mix the two, and the
+        // rollback below would then delete it.
+        const taken =
+          opts.name === bucket ||
+          (
+            await at(opts.name).list({
+              limit: 1,
+              ...(opts.signal ? { signal: opts.signal } : {}),
+            })
+          ).items.length > 0;
+        if (taken) {
+          throw new StorageError({
+            code: 'Conflict',
+            message: `fork ${opts.name} already exists`,
           });
         }
         const source = opts.fromSnapshot ?? bucket;
@@ -185,6 +207,8 @@ export function siblings<Raw>(
         checkSignal(opts?.signal);
         const self = at(bucket);
         const meta = await readManifest(self);
+        // Same guard as `snapshots.delete`: unknown names are a no-op.
+        if (!meta.forks.some((f) => f.name === name)) return;
         meta.forks = meta.forks.filter((f) => f.name !== name);
         await destroy(name, opts?.signal);
         await writeManifest(self, meta);
