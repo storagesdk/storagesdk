@@ -2,6 +2,8 @@ import type { Adapter } from '@storagesdk/core/adapter';
 import { ARCHIL_ENV_VARS, archilConfigFromEnv } from './archil/env.js';
 import { AZURE_ENV_VARS, azureConfigFromEnv } from './azure/env.js';
 import { BACKBLAZE_ENV_VARS, backblazeConfigFromEnv } from './backblaze/env.js';
+import { BUNNY_ENV_VARS, bunnyConfigFromEnv } from './bunny/env.js';
+import { BUNNY_S3_ENV_VARS, bunnyS3ConfigFromEnv } from './bunny-s3/env.js';
 import {
   CODE_STORAGE_ENV_VARS,
   codeStorageConfigFromEnv,
@@ -57,6 +59,8 @@ export const ADAPTERS = [
   'railway',
   'neon',
   'mosaic',
+  'bunny',
+  'bunny-s3',
 ] as const;
 
 export type AdapterName = (typeof ADAPTERS)[number];
@@ -97,6 +101,8 @@ const ENV_VARS: Record<AdapterName, readonly AdapterEnvVar[]> = {
   fly: FLY_ENV_VARS,
   railway: RAILWAY_ENV_VARS,
   mosaic: MOSAIC_ENV_VARS,
+  bunny: BUNNY_ENV_VARS,
+  'bunny-s3': BUNNY_S3_ENV_VARS,
 };
 
 const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
@@ -123,6 +129,8 @@ const CONFIG_BUILDERS: Record<AdapterName, () => unknown> = {
   fly: flyConfigFromEnv,
   railway: railwayConfigFromEnv,
   mosaic: mosaicConfigFromEnv,
+  bunny: bunnyConfigFromEnv,
+  'bunny-s3': bunnyS3ConfigFromEnv,
 };
 
 /**
@@ -204,5 +212,9 @@ async function loadAdapterFactory(
       return (await import('./railway/index.js')).railway as never;
     case 'mosaic':
       return (await import('./mosaic/index.js')).mosaic as never;
+    case 'bunny':
+      return (await import('./bunny/index.js')).bunny as never;
+    case 'bunny-s3':
+      return (await import('./bunny-s3/index.js')).bunnyS3 as never;
   }
 }

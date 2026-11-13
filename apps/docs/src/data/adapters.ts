@@ -106,6 +106,18 @@ export const ADAPTERS: AdapterEntry[] = [
     sub: '@storagesdk/adapters/mosaic',
   },
   {
+    name: 'Bunny Storage',
+    short: 'Bunny',
+    key: 'bunny',
+    sub: '@storagesdk/adapters/bunny',
+  },
+  {
+    name: 'Bunny Storage (S3)',
+    short: 'Bunny S3',
+    key: 'bunny-s3',
+    sub: '@storagesdk/adapters/bunny-s3',
+  },
+  {
     name: 'Supabase Storage',
     short: 'Supabase',
     key: 'supabase',

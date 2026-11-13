@@ -1,0 +1,60 @@
+---
+title: Bunny Storage (S3)
+eyebrow: Adapters
+description: Bunny Storage adapter for storagesdk, built on Bunny's S3-compatible API.
+section: adapters
+---
+
+## Overview
+
+[Bunny Storage](https://docs.bunny.net/storage/s3) has an S3-compatible API for storage zones created with S3 compatibility turned on. This adapter uses `@storagesdk/adapters/s3` for object operations, with Bunny's endpoint and credentials filled in.
+
+On the S3 API the storage zone is the bucket, and its credentials can't create another zone. So the adapter maps each storagesdk `bucket` to a key prefix (`<bucket>/<key>`), and snapshots and forks land at sibling prefixes — the same layout as the [Bunny Storage](/adapters/bunny) adapter, which works on zones without S3 compatibility.
+
+## Configuration
+
+```ts
+import { Storage } from '@storagesdk/core';
+import { bunnyS3 } from '@storagesdk/adapters/bunny-s3';
+
+const storage = new Storage({
+  adapter: bunnyS3({
+    zone: 'my-storage-zone',
+    bucket: 'agent-runs',
+    accessKey: process.env.BUNNY_S3_ACCESS_KEY!,
+    region: 'de',
+  }),
+});
+```
+
+```ts
+bunnyS3({
+  zone: string;        // storage zone name; also the S3 bucket and access key id
+  bucket: string;      // logical bucket, becomes a key prefix inside the zone
+  accessKey: string;   // storage-zone password, used as the S3 secret access key
+  region?: string;     // defaults to 'de'; picks the endpoint and signing region
+  endpoint?: string;   // override; defaults to https://<region>-s3.storage.bunnycdn.com
+});
+```
+
+## Notes
+
+- Peer dependencies: the same `@aws-sdk/*` packages as the S3 adapter.
+- S3 compatibility is chosen when a zone is created and can't be turned on later.
+- Regions with an S3 endpoint: `de`, `uk`, `ny`, `la`, `sg`, `se`, `jh`, `syd`.
+- Snapshots and forks are seeded with server-side `CopyObject`.
+- `forks.create` throws `Conflict` when the fork's prefix already holds objects.
+- Bunny's S3 API is in public preview.
+- `storage.raw` is the underlying `@aws-sdk/client-s3` `S3Client`, pointed at the zone.
+
+## Compatibility
+
+| Capability | Support |
+| --- | --- |
+| Snapshots | Sibling prefixes inside one storage zone |
+| Forks | Sibling prefixes inside one storage zone |
+| Byte-range reads | ✓ |
+| Multipart upload | ✓ |
+| Enforced upload limits | ✓ |
+| User metadata | ✓ |
+| Signed URLs | ✓ |
